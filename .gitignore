@@ -1,0 +1,13 @@
+# Dependências / saída de build
+node_modules/
+dist/
+
+# Ferramentas e artefatos internos (não fazem parte do produto publicado)
+.claude/
+_bmad/
+_bmad-output/
+
+# Sistema / logs
+.DS_Store
+Thumbs.db
+*.log
