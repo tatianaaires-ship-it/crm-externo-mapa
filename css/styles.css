@@ -216,7 +216,8 @@ button { font-family: inherit; cursor: pointer; }
 .pin--temp .pin__body { animation: pulse 1.3s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,58,237,.5); } 50% { box-shadow: 0 0 0 10px rgba(124,58,237,0); } }
 body.is-placing #map { cursor: crosshair; }
-body.is-dragging-pin .fab, body.is-placing .fab, body.is-moving .fab { opacity: .3; pointer-events: none; }
+body.is-dragging-pin .fab, body.is-placing .fab, body.is-moving .fab,
+body.is-dragging-pin .fab-locate, body.is-placing .fab-locate, body.is-moving .fab-locate { opacity: .3; pointer-events: none; }
 
 /* ---- Legend ---- */
 .legend {
@@ -257,6 +258,30 @@ body.is-dragging-pin .fab, body.is-placing .fab, body.is-moving .fab { opacity: 
 }
 .fab:active { transform: scale(.9); }
 body.install-open .fab { bottom: calc(84px + var(--sab)); }
+
+/* ---- FAB de localização (acima do FAB de criar) ---- */
+.fab-locate {
+  position: absolute; right: 22px; z-index: 30;
+  bottom: calc(88px + var(--sab));
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line);
+  background: #fff; color: var(--brand); font-size: 22px; line-height: 1;
+  box-shadow: var(--shadow-md);
+  display: grid; place-items: center; transition: transform .12s, opacity .2s, bottom .2s;
+}
+.fab-locate:active { transform: scale(.9); }
+.fab-locate.is-locating { opacity: .55; pointer-events: none; }
+body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
+
+/* ---- Toast transitório ---- */
+.toast {
+  position: absolute; left: 50%; bottom: calc(24px + var(--sab)); z-index: 60;
+  transform: translateX(-50%) translateY(16px);
+  max-width: 86%; text-align: center;
+  background: rgba(15,23,42,.92); color: #fff; font-size: 13px; font-weight: 600;
+  padding: 10px 16px; border-radius: 999px; box-shadow: var(--shadow-md);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ---- Placing banner ---- */
 .placing-banner {

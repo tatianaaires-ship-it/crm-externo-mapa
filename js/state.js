@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v1';
+  const KEY = 'crm-externo-map:v2'; // v2: dataset com Recife + Fortaleza + João Pessoa
   const D = window.CRM_DATA;
 
   let pins = [];
@@ -109,6 +109,7 @@
   // Lead achado na rua pelo vendedor => origem "validado em campo".
   function createPin(data) {
     if (!data || !data.name || !data.name.trim()) return null;
+    const meta = (D.ZONE_META && D.ZONE_META[data.zone]) || { city: 'Recife', uf: 'PE' };
     const p = {
       id: nextId(),
       name: data.name.trim(),
@@ -122,7 +123,7 @@
       lng: +(+data.lng).toFixed(6),
       cnpj: null,
       phone: null,
-      address: (data.zone ? data.zone + ', ' : '') + 'Recife/PE (criado em campo)',
+      address: (data.zone ? data.zone + ', ' : '') + meta.city + '/' + meta.uf + ' (criado em campo)',
       notes: [],
       checkins: [],
       createdByUser: true

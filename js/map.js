@@ -16,6 +16,8 @@
   let selectedId = null;
   let moveId = null;
   let onSelectCb = null;
+  let youMarker = null, youAccuracy = null;
+  let onLocateFoundCb = null, onLocateErrorCb = null;
 
   // Marker em formato padrão (sem emoji): diferenciação só pela ORIGEM
   // (cor + estilo de borda + selo ✓), reforçada de forma não-cromática.
@@ -47,12 +49,13 @@
       center: D.MAP_CENTER,
       zoom: D.MAP_ZOOM,
       zoomControl: false,
-      maxBounds: D.MAP_BOUNDS,
-      maxBoundsViscosity: 0.7,
-      minZoom: 11,
+      minZoom: 4,   // permite ver o Brasil inteiro
       maxZoom: 18,
       attributionControl: true
     });
+
+    map.on('locationfound', onLocationFound);
+    map.on('locationerror', onLocationError);
 
     tileLayer = L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -195,6 +198,30 @@
     map.panTo(map.unproject(pt, map.getZoom()), { animate: true });
   }
 
+  // ---- Minha localização (geolocalização do dispositivo) ----
+  function locateMe() {
+    if (!map) return;
+    map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true, timeout: 12000 });
+  }
+  function onLocationFound(e) {
+    if (!youMarker) {
+      youAccuracy = L.circle(e.latlng, {
+        radius: e.accuracy, interactive: false,
+        color: '#2E7DF6', weight: 1, fillColor: '#2E7DF6', fillOpacity: 0.12
+      }).addTo(map);
+      youMarker = L.circleMarker(e.latlng, {
+        radius: 8, color: '#fff', weight: 3, fillColor: '#2E7DF6', fillOpacity: 1
+      }).addTo(map);
+    } else {
+      youAccuracy.setLatLng(e.latlng).setRadius(e.accuracy);
+      youMarker.setLatLng(e.latlng);
+    }
+    if (onLocateFoundCb) onLocateFoundCb(e.latlng);
+  }
+  function onLocationError(e) {
+    if (onLocateErrorCb) onLocateErrorCb((e && e.message) || 'Localização indisponível.');
+  }
+
   window.CRM_MAP = {
     init: init,
     render: render,
@@ -205,6 +232,9 @@
     startMove: startMove,
     endMove: endMove,
     isMoving: function () { return !!moveId; },
-    getMap: function () { return map; }
+    getMap: function () { return map; },
+    locateMe: locateMe,
+    onLocateFound: function (fn) { onLocateFoundCb = fn; },
+    onLocateError: function (fn) { onLocateErrorCb = fn; }
   };
 })();

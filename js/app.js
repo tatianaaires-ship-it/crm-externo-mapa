@@ -6,6 +6,14 @@
 
   function $(id) { return document.getElementById(id); }
 
+  let toastTimer = null;
+  function showToast(msg) {
+    const t = $('toast'); if (!t) return;
+    t.textContent = msg; t.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('is-visible'); }, 3200);
+  }
+
   function openFilters() {
     $('filter-panel').classList.add('is-open');
     $('filter-backdrop').classList.add('is-open');
@@ -27,6 +35,24 @@
     $('btn-move-done').addEventListener('click', function () {
       window.CRM_MAP.endMove();
     });
+
+    // Minha localização (geolocalização do dispositivo)
+    const locBtn = $('fab-locate');
+    if (locBtn) {
+      locBtn.addEventListener('click', function () {
+        if (!('geolocation' in navigator)) {
+          showToast('Este dispositivo não expõe geolocalização.');
+          return;
+        }
+        locBtn.classList.add('is-locating');
+        window.CRM_MAP.locateMe();
+      });
+      window.CRM_MAP.onLocateFound(function () { locBtn.classList.remove('is-locating'); });
+      window.CRM_MAP.onLocateError(function () {
+        locBtn.classList.remove('is-locating');
+        showToast('Não consegui pegar sua localização. Verifique a permissão de GPS.');
+      });
+    }
 
     $('btn-reset').addEventListener('click', function () {
       if (window.confirm('Resetar o demo? Isso volta ao conjunto original de locais (perde pins criados, notas e check-ins desta sessão).')) {

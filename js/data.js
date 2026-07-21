@@ -61,7 +61,7 @@
     cliente:       { key: 'cliente',       label: 'Cliente',       color: '#10b981' }
   };
 
-  /* ---- Centros aproximados de bairros de Recife/PE + região metropolitana ---- */
+  /* ---- Centros aproximados de bairros: Recife/PE (+ RMR), Fortaleza/CE e João Pessoa/PB ---- */
   const ZONE_CENTERS = {
     'Recife Antigo': [-8.0630, -34.8712],
     'Boa Vista':     [-8.0575, -34.8880],
@@ -79,14 +79,50 @@
     'Boa Viagem':    [-8.1235, -34.9010],
     'Imbiribeira':   [-8.1105, -34.9200],
     'Olinda':        [-7.9990, -34.8425],
-    'Jaboatão':      [-8.1655, -34.9155]
+    'Jaboatão':      [-8.1655, -34.9155],
+
+    /* Fortaleza/CE */
+    'Meireles':           [-3.7300, -38.4950],
+    'Aldeota':            [-3.7420, -38.4980],
+    'Praia de Iracema':   [-3.7205, -38.5120],
+    'Cocó':               [-3.7480, -38.4840],
+    'Centro (Fortaleza)': [-3.7270, -38.5270],
+    'Varjota':            [-3.7360, -38.4890],
+
+    /* João Pessoa/PB */
+    'Tambaú':             [-7.1155, -34.8285],
+    'Manaíra':            [-7.0980, -34.8360],
+    'Cabo Branco':        [-7.1440, -34.7990],
+    'Bessa':              [-7.0810, -34.8380],
+    'Bancários':          [-7.1400, -34.8420]
   };
   const ZONES = Object.keys(ZONE_CENTERS);
 
-  /* Recife como centro do mapa */
-  const MAP_CENTER = [-8.0680, -34.8930];
-  const MAP_ZOOM = 13;
-  const MAP_BOUNDS = [[-8.22, -35.02], [-7.94, -34.80]]; // aprox. RMR p/ conter o drag
+  /* ---- Cidade/UF/DDD por zona (deriva endereço e DDD do telefone fictícios) ---- */
+  const REC = { city: 'Recife', uf: 'PE', ddd: '81' };
+  const ZONE_META = {
+    'Recife Antigo': REC, 'Boa Vista': REC, 'Santo Amaro': REC, 'Derby': REC,
+    'Ilha do Leite': REC, 'Espinheiro': REC, 'Aflitos': REC, 'Graças': REC,
+    'Casa Forte': REC, 'Casa Amarela': REC, 'Madalena': REC, 'Torre': REC,
+    'Pina': REC, 'Boa Viagem': REC, 'Imbiribeira': REC,
+    'Olinda':   { city: 'Olinda',   uf: 'PE', ddd: '81' },
+    'Jaboatão': { city: 'Jaboatão', uf: 'PE', ddd: '81' },
+    'Meireles':           { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Aldeota':            { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Praia de Iracema':   { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Cocó':               { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Centro (Fortaleza)': { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Varjota':            { city: 'Fortaleza', uf: 'CE', ddd: '85' },
+    'Tambaú':             { city: 'João Pessoa', uf: 'PB', ddd: '83' },
+    'Manaíra':            { city: 'João Pessoa', uf: 'PB', ddd: '83' },
+    'Cabo Branco':        { city: 'João Pessoa', uf: 'PB', ddd: '83' },
+    'Bessa':              { city: 'João Pessoa', uf: 'PB', ddd: '83' },
+    'Bancários':          { city: 'João Pessoa', uf: 'PB', ddd: '83' }
+  };
+
+  /* Abre no Brasil inteiro; pins nas 3 cidades do NE (Recife, Fortaleza, João Pessoa) */
+  const MAP_CENTER = [-13.5, -48.0];
+  const MAP_ZOOM = 4;
 
   /* ---- Sementes compactas: {n:nome, t:tipologia, z:zona, p:potencial,
           o:origem, s:status, lv:últVisita(ISO|null), note?:nota} ---- */
@@ -154,7 +190,27 @@
     // Jaboatão (metropolitana)
     { n: 'Mercadinho Piedade',       t: 'mercadinho',  z: 'Jaboatão',      p: 'medio', o: 'cnpja_puro',     s: 'nao_visitado',  lv: null },
     { n: 'Restaurante Praia de Piedade', t: 'restaurante', z: 'Jaboatão',  p: 'alto',  o: 'google_puro',    s: 'nao_visitado',  lv: null },
-    { n: 'Hotel Piedade Praia',      t: 'hotel',       z: 'Jaboatão',      p: 'alto',  o: 'validado_campo', s: 'cliente',       lv: '2026-07-07', note: 'Rede pequena, avaliar as outras 2 unidades.' }
+    { n: 'Hotel Piedade Praia',      t: 'hotel',       z: 'Jaboatão',      p: 'alto',  o: 'validado_campo', s: 'cliente',       lv: '2026-07-07', note: 'Rede pequena, avaliar as outras 2 unidades.' },
+
+    // ===== Fortaleza / CE =====
+    { n: 'Padaria Meireles',          t: 'padaria',     z: 'Meireles',           p: 'alto',  o: 'cnpja_google',   s: 'em_negociacao', lv: '2026-07-10', note: 'Quer testar linha de frios. Voltar quinta de manhã.' },
+    { n: 'Restaurante Beira Mar',     t: 'restaurante', z: 'Meireles',           p: 'alto',  o: 'validado_campo', s: 'cliente',       lv: '2026-07-13', note: 'Alto volume no fim de semana.' },
+    { n: 'Bar Praia de Iracema',      t: 'bar',         z: 'Praia de Iracema',   p: 'alto',  o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-22' },
+    { n: 'Cafeteria Aldeota',         t: 'cafeteria',   z: 'Aldeota',            p: 'medio', o: 'google_puro',    s: 'nao_visitado',  lv: null },
+    { n: 'Mercadinho Cocó',           t: 'mercadinho',  z: 'Cocó',               p: 'medio', o: 'cnpja_puro',     s: 'nao_visitado',  lv: null,         note: 'Endereço do CNPJ parece antigo — confirmar fachada.' },
+    { n: 'Pizzaria Varjota',          t: 'pizzaria',    z: 'Varjota',            p: 'alto',  o: 'google_puro',    s: 'nao_visitado',  lv: null },
+    { n: 'Hortifruti do Centro',      t: 'hortifruti',  z: 'Centro (Fortaleza)', p: 'baixo', o: 'cnpja_puro',     s: 'nao_visitado',  lv: null },
+    { n: 'Sorveteria Aldeota',        t: 'sorveteria',  z: 'Aldeota',            p: 'baixo', o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-18' },
+
+    // ===== João Pessoa / PB =====
+    { n: 'Restaurante Tambaú Mar',    t: 'restaurante', z: 'Tambaú',             p: 'alto',  o: 'validado_campo', s: 'cliente',       lv: '2026-07-11', note: 'Fechou hortifruti semanal.' },
+    { n: 'Padaria Manaíra',           t: 'padaria',     z: 'Manaíra',            p: 'alto',  o: 'cnpja_google',   s: 'em_negociacao', lv: '2026-07-03' },
+    { n: 'Bar do Cabo Branco',        t: 'bar',         z: 'Cabo Branco',        p: 'medio', o: 'google_puro',    s: 'nao_visitado',  lv: null },
+    { n: 'Cafeteria Bessa',           t: 'cafeteria',   z: 'Bessa',              p: 'medio', o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-14' },
+    { n: 'Marmitaria Bancários',      t: 'marmitaria',  z: 'Bancários',          p: 'baixo', o: 'cnpja_puro',     s: 'nao_visitado',  lv: null },
+    { n: 'Mercadinho Manaíra',        t: 'mercadinho',  z: 'Manaíra',            p: 'medio', o: 'cnpja_puro',     s: 'nao_visitado',  lv: null,         note: 'CNPJ sem número — geolocalizar na visita.' },
+    { n: 'Hotel Tambaú',              t: 'hotel',       z: 'Tambaú',             p: 'alto',  o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-25', note: 'Café da manhã — potencial de padaria + frios.' },
+    { n: 'Sorveteria Cabo Branco',    t: 'sorveteria',  z: 'Cabo Branco',        p: 'baixo', o: 'google_puro',    s: 'nao_visitado',  lv: null }
   ];
 
   /* ---- Expansão determinística: coords jitteradas + campos derivados ---- */
@@ -169,15 +225,16 @@
     const s = String(base).padStart(8, '0');
     return `${s.slice(0, 2)}.${s.slice(2, 5)}.${s.slice(5, 8)}/0001-${String((i * 7 + 11) % 90 + 10)}`;
   }
-  function fakePhone(i) {
+  function fakePhone(i, ddd) {
     const n = 90000000 + (i * 12347) % 9999999;
     const s = String(n);
-    return `(81) 9${s.slice(0, 4)}-${s.slice(4, 8)}`;
+    return `(${ddd || '81'}) 9${s.slice(0, 4)}-${s.slice(4, 8)}`;
   }
 
   function buildSeed() {
     return SEED.map(function (r, i) {
       const c = ZONE_CENTERS[r.z] || MAP_CENTER;
+      const meta = ZONE_META[r.z] || REC;
       const lat = +(c[0] + jitter(i * 3 + 1, 0.014)).toFixed(6);
       const lng = +(c[1] + jitter(i * 5 + 2, 0.014)).toFixed(6);
       const hasCnpj = r.o !== 'google_puro';
@@ -192,8 +249,8 @@
         lastVisit: r.lv || null,
         lat: lat, lng: lng,
         cnpj: hasCnpj ? fakeCnpj(i + 1) : null,
-        phone: fakePhone(i + 1),
-        address: `${r.z}, Recife/PE (fictício)`,
+        phone: fakePhone(i + 1, meta.ddd),
+        address: `${r.z}, ${meta.city}/${meta.uf} (fictício)`,
         notes: [],
         checkins: [],
         createdByUser: false
@@ -217,7 +274,7 @@
     ZONE_CENTERS: ZONE_CENTERS,
     MAP_CENTER: MAP_CENTER,
     MAP_ZOOM: MAP_ZOOM,
-    MAP_BOUNDS: MAP_BOUNDS,
+    ZONE_META: ZONE_META,
     buildSeed: buildSeed
   };
 })();
