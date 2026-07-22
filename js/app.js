@@ -23,10 +23,28 @@
     $('filter-backdrop').classList.remove('is-open');
   }
 
+  /* ---- Abas Mapa / Inteligência (filtros compartilhados) ---- */
+  function showTab(which) {
+    const isIntel = which === 'intel';
+    document.body.classList.toggle('view-intel', isIntel);
+    const tMap = $('tab-map'), tIntel = $('tab-intel');
+    tMap.classList.toggle('is-active', !isIntel);
+    tMap.setAttribute('aria-selected', String(!isIntel));
+    tIntel.classList.toggle('is-active', isIntel);
+    tIntel.setAttribute('aria-selected', String(isIntel));
+    if (!isIntel) {
+      // Volta pro mapa: Leaflet precisa recalcular o tamanho do container.
+      setTimeout(function () { window.CRM_MAP.getMap().invalidateSize(); }, 50);
+    }
+  }
+
   function wireUI() {
     $('btn-filters').addEventListener('click', openFilters);
     $('btn-close-filters').addEventListener('click', closeFilters);
     $('filter-backdrop').addEventListener('click', closeFilters);
+
+    $('tab-map').addEventListener('click', function () { showTab('map'); });
+    $('tab-intel').addEventListener('click', function () { showTab('intel'); });
 
     $('btn-empty-clear').addEventListener('click', function () {
       window.CRM_FILTERS.clearAll();
@@ -158,6 +176,8 @@
     window.CRM_MAP.init();
     window.CRM_PIN.init();
     window.CRM_CREATE.init();
+    // Inteligência antes do primeiro reapply (reapply → CRM_INTEL.refresh).
+    window.CRM_INTEL.init({ showMap: function () { showTab('map'); } });
 
     window.CRM_MAP.onSelect(function (id) {
       if (window.CRM_CREATE && window.CRM_CREATE.isPlacing()) window.CRM_CREATE.cancel();

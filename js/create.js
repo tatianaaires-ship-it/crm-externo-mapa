@@ -1,7 +1,8 @@
 /* =====================================================================
    create.js — Criar pin manual em campo (CAP-4).
-   Mínimo: nome + local (toque no mapa). Pin aparece na hora.
-   Lead achado na rua => origem "validado em campo".
+   Básico: nome + local (toque no mapa). Expandir: cnpj, tipologia, telefone.
+   Lead achado na rua => origem "validado em campo"; nasce "não visitado".
+   (status NÃO entra no form — só anda por fluxo/check-in.)
    ===================================================================== */
 (function () {
   'use strict';
@@ -11,7 +12,8 @@
 
   let placing = false;
   let tempMarker = null;
-  let banner, modal, form, nameInput, typSel, potSel;
+  let banner, modal, form, nameInput, typSel, cnpjInput, phoneInput;
+  let expandBtn, expandBox, qualHint;
 
   function nearestZone(lat, lng) {
     let best = 'Recife', bestD = Infinity;
@@ -53,10 +55,33 @@
     openForm();
   }
 
+  function collapseExpand() {
+    if (!expandBox) return;
+    expandBox.classList.remove('is-open');
+    if (expandBtn) expandBtn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleExpand() {
+    if (!expandBox) return;
+    const open = expandBox.classList.toggle('is-open');
+    if (expandBtn) expandBtn.setAttribute('aria-expanded', String(open));
+  }
+
+  // "Qualidade estimada" — read-only, derivada da tipologia (via CNAE default).
+  function updateQualHint() {
+    if (!qualHint) return;
+    const cnae = D.TYPOLOGY_CNAE[typSel.value];
+    const q = D.QUALIDADE[D.deriveQualidade(cnae)];
+    qualHint.innerHTML = 'Qualidade estimada: <b>' + q.emoji + ' ' + q.label +
+      '</b> <small>(derivada da tipologia)</small>';
+  }
+
   function openForm() {
     nameInput.value = '';
     typSel.value = 'restaurante';
-    potSel.value = 'medio';
+    cnpjInput.value = '';
+    phoneInput.value = '';
+    collapseExpand();
+    updateQualHint();
     modal.classList.add('is-open');
     setTimeout(function () { nameInput.focus(); }, 60);
     validate();
@@ -90,7 +115,8 @@
       name: nameInput.value,
       lat: ll.lat, lng: ll.lng,
       typology: typSel.value,
-      potential: potSel.value,
+      cnpj: cnpjInput.value,
+      phone: phoneInput.value,
       zone: nearestZone(ll.lat, ll.lng)
     });
     cleanup();
@@ -108,9 +134,6 @@
       const t = D.TYPOLOGIES[k];
       return '<option value="' + k + '">' + t.emoji + ' ' + t.label + '</option>';
     }).join('');
-    potSel.innerHTML = Object.keys(D.POTENTIALS).map(function (k) {
-      return '<option value="' + k + '">' + D.POTENTIALS[k].chip + '</option>';
-    }).join('');
   }
 
   function init() {
@@ -119,7 +142,11 @@
     form = document.getElementById('create-form');
     nameInput = document.getElementById('create-name');
     typSel = document.getElementById('create-typology');
-    potSel = document.getElementById('create-potential');
+    cnpjInput = document.getElementById('create-cnpj');
+    phoneInput = document.getElementById('create-phone');
+    expandBtn = document.getElementById('btn-create-expand');
+    expandBox = document.getElementById('create-expand');
+    qualHint = document.getElementById('create-qual-hint');
     buildSelects();
 
     const fab = document.getElementById('fab-create');
@@ -130,6 +157,8 @@
     if (ccancel) ccancel.addEventListener('click', cancel);
     if (form) form.addEventListener('submit', save);
     if (nameInput) nameInput.addEventListener('input', validate);
+    if (expandBtn) expandBtn.addEventListener('click', toggleExpand);
+    if (typSel) typSel.addEventListener('change', updateQualHint);
   }
 
   window.CRM_CREATE = {

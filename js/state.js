@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v2'; // v2: dataset com Recife + Fortaleza + João Pessoa
+  const KEY = 'crm-externo-map:v3'; // v3: objeto Lead estruturado (20 campos + derivados)
   const D = window.CRM_DATA;
 
   let pins = [];
@@ -20,7 +20,7 @@
 
   function persist() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 1, pins: pins }));
+      localStorage.setItem(KEY, JSON.stringify({ v: 3, pins: pins }));
     } catch (e) { console.warn('Persistência indisponível:', e); }
   }
 
@@ -59,11 +59,21 @@
     return p;
   }
 
+  // Promove a origem para "validado em campo" (monotônico — nunca regride).
+  // Corrigir/confirmar em campo é o sinal mais alto da escada de confiança.
+  function promoteToFieldValidated(p) {
+    p.origin = D.deriveOrigemConfianca({ fieldValidated: true });
+  }
+
   function movePin(id, lat, lng) {
     const p = getById(id);
     if (!p) return null;
     p.lat = +(+lat).toFixed(6);
     p.lng = +(+lng).toFixed(6);
+    // Corrigir localização = coordenada verificada em campo (grava geo_verificado)
+    // e sobe o pin na escada de confiança.
+    p.geoVerificado = { lat: p.lat, lng: p.lng };
+    promoteToFieldValidated(p);
     emit();
     return p;
   }
@@ -81,7 +91,9 @@
     p.checkins.unshift({ in: nowISO(), out: null });
     // Um check-in é uma visita: registra e marca como visitado.
     p.lastVisit = todayISO();
-    if (p.visitStatus === 'nao_visitado') p.visitStatus = 'visitado';
+    if (p.status === 'nao_visitado') p.status = 'visitado';
+    // Presença confirmada => sobe na escada de confiança (monotônico).
+    promoteToFieldValidated(p);
     emit();
     return p;
   }
@@ -105,25 +117,41 @@
     return 'p' + String(max + 1).padStart(3, '0');
   }
 
-  // Criar pin manual (CAP-4): mínimo = nome + local.
-  // Lead achado na rua pelo vendedor => origem "validado em campo".
+  // Criar pin manual (CAP-4): básico = nome + local; expandir = cnpj, tipologia, telefone.
+  // Lead achado na rua pelo vendedor => origem "validado em campo" (derivada).
+  // Nasce SEMPRE "nao_visitado" — status só anda por fluxo/check-in (não no form).
   function createPin(data) {
     if (!data || !data.name || !data.name.trim()) return null;
     const meta = (D.ZONE_META && D.ZONE_META[data.zone]) || { city: 'Recife', uf: 'PE' };
+    const typology = data.typology || 'restaurante';
+    const cnae = D.TYPOLOGY_CNAE[typology] || null;
+    const cnpj = (data.cnpj && data.cnpj.trim()) ? data.cnpj.trim() : null;
+    const phone = (data.phone && data.phone.trim()) ? data.phone.trim() : null;
+    const lat = +(+data.lat).toFixed(6);
+    const lng = +(+data.lng).toFixed(6);
     const p = {
       id: nextId(),
-      name: data.name.trim(),
-      typology: data.typology || 'restaurante',
-      zone: data.zone || 'Recife',
-      potential: data.potential || 'medio',
-      origin: 'validado_campo',
-      visitStatus: 'nao_visitado',
-      lastVisit: null,
-      lat: +(+data.lat).toFixed(6),
-      lng: +(+data.lng).toFixed(6),
-      cnpj: null,
-      phone: null,
+      name: data.name.trim(),                       // nome_fantasia
+      razaoSocial: null,                            // chega via CNPJá (Fase 3)
+      cnpj: cnpj,
+      cnaeCodigo: cnae,
+      cnaeDescricao: cnae ? (D.CNAE_DESC[cnae] || '—') : null,
+      typology: typology,
       address: (data.zone ? data.zone + ', ' : '') + meta.city + '/' + meta.uf + ' (criado em campo)',
+      lat: lat, lng: lng,                           // geo_original
+      geoVerificado: { lat: lat, lng: lng },        // marcado em campo = já verificado
+      zone: data.zone || 'Recife',
+      origin: D.deriveOrigemConfianca({ fieldValidated: true }), // validado_campo
+      status: 'nao_visitado',
+      motivoStatus: null,
+      qualidade: D.deriveQualidade(cnae),           // DERIVADA da tipologia (via CNAE default)
+      porte: null,                                  // chega via CNPJá (Fase 3)
+      vendedor: 'Pedro Rocha',
+      lastVisit: null,
+      convertedAt: null,
+      contaId: null,
+      phone: phone,
+      isConverted: false,
       notes: [],
       checkins: [],
       createdByUser: true

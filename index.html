@@ -72,7 +72,38 @@
         <span>✥ Arraste o pin para a posição correta</span>
         <button id="btn-move-done" class="placing-banner__cancel">Concluir</button>
       </div>
+
+      <!-- Aba Inteligência (lista de leads) — cobre o mapa quando ativa -->
+      <section id="intel-view" class="intel-view" aria-label="Inteligência de leads">
+        <div class="intel-search">
+          <span class="intel-search__ico" aria-hidden="true">🔎</span>
+          <input id="intel-search" type="search" enterkeyhint="search"
+                 placeholder="Buscar por nome, razão social ou CNPJ…" autocomplete="off" />
+        </div>
+        <div class="intel-head">
+          <span id="intel-count" class="intel-count">—</span>
+          <span class="intel-head__hint">mesmos filtros do mapa</span>
+        </div>
+        <div id="intel-list" class="intel-list"></div>
+        <div id="intel-empty" class="intel-empty">
+          <div class="intel-empty__emoji" aria-hidden="true">🔍</div>
+          <p class="intel-empty__msg">Nenhum lead com esses filtros.</p>
+          <button id="btn-intel-clear" class="btn btn--ghost btn--sm">Limpar filtros</button>
+        </div>
+      </section>
     </main>
+
+    <!-- Bottom nav: alterna Mapa / Inteligência (filtros são compartilhados) -->
+    <nav class="bottomnav" role="tablist" aria-label="Seções">
+      <button id="tab-map" class="bottomnav__tab is-active" role="tab" aria-selected="true">
+        <span class="bottomnav__ico" aria-hidden="true">🗺️</span>
+        <span class="bottomnav__lbl">Mapa</span>
+      </button>
+      <button id="tab-intel" class="bottomnav__tab" role="tab" aria-selected="false">
+        <span class="bottomnav__ico" aria-hidden="true">📋</span>
+        <span class="bottomnav__lbl">Inteligência</span>
+      </button>
+    </nav>
 
     <!-- Filter panel -->
     <div id="filter-backdrop" class="backdrop"></div>
@@ -104,10 +135,22 @@
             <input id="create-name" type="text" placeholder="Ex.: Padaria do Zé" maxlength="80" autocomplete="off" />
           </label>
           <div id="create-error" class="field-error">Informe um nome para salvar.</div>
-          <div class="field-row">
+          <p id="create-qual-hint" class="create-qual-hint"></p>
+
+          <button type="button" id="btn-create-expand" class="expand-toggle" aria-expanded="false" aria-controls="create-expand">
+            <span>Mais detalhes <small>(opcional)</small></span>
+            <span class="expand-toggle__chev" aria-hidden="true">▾</span>
+          </button>
+          <div id="create-expand" class="create-expand">
             <label class="field"><span>Tipologia</span><select id="create-typology"></select></label>
-            <label class="field"><span>Potencial</span><select id="create-potential"></select></label>
+            <label class="field"><span>CNPJ</span>
+              <input id="create-cnpj" type="text" inputmode="numeric" placeholder="00.000.000/0001-00" maxlength="18" autocomplete="off" />
+            </label>
+            <label class="field"><span>Telefone</span>
+              <input id="create-phone" type="tel" placeholder="(81) 90000-0000" maxlength="16" autocomplete="off" />
+            </label>
           </div>
+
           <p class="create-hint">📍 Arraste o marcador roxo no mapa para ajustar o ponto exato.</p>
           <div class="modal__actions">
             <button type="button" id="btn-create-cancel" class="btn btn--ghost">Cancelar</button>
@@ -136,6 +179,7 @@
   <script src="js/filters.js"></script>
   <script src="js/pin.js"></script>
   <script src="js/create.js"></script>
+  <script src="js/intel.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

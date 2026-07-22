@@ -55,8 +55,9 @@
     if (!p) { close(); return; }
     const origin = D.ORIGINS[p.origin];
     const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍', label: p.typology };
-    const pot = D.POTENTIALS[p.potential] || { label: p.potential, color: '#64748b' };
-    const stat = D.VISIT_STATUS[p.visitStatus] || { label: p.visitStatus, color: '#64748b' };
+    const qual = D.QUALIDADE[p.qualidade] || { label: p.qualidade, emoji: '', color: '#64748b', ink: '#334155' };
+    const stat = D.STATUS[p.status] || { label: p.status, color: '#64748b' };
+    const porte = p.porte ? (D.PORTE[p.porte] || { label: p.porte }) : null;
 
     // Escala de confiança (dots)
     let dots = '';
@@ -114,13 +115,20 @@
       '</div>' +
 
       '<section class="info">' +
-        infoRow('Potencial', '<span class="pill" style="--c:' + pot.color + '">' + esc(pot.label) + '</span>') +
-        infoRow('Status de visita', '<span class="pill" style="--c:' + stat.color + '">' + esc(stat.label) + '</span>') +
+        infoRow('Qualidade', '<span class="pill pill--qual" style="--c:' + qual.color + ';--ci:' + qual.ink + '">' + qual.emoji + ' ' + esc(qual.label) + '</span>') +
+        infoRow('Porte', porte ? esc(porte.label) : '<em class="muted">—</em>') +
+        infoRow('Status', '<span class="pill" style="--c:' + stat.color + '">' + esc(stat.label) + '</span>') +
         infoRow('Última visita', fmtDate(p.lastVisit)) +
+        (p.isConverted ? infoRow('Convertido em', fmtDate(p.convertedAt) + (p.contaId ? ' · <span class="mono">' + esc(p.contaId) + '</span>' : '')) : '') +
+        infoRow('Razão social', p.razaoSocial ? esc(p.razaoSocial) : '<em class="muted">—</em>') +
         infoRow('CNPJ', p.cnpj ? esc(p.cnpj) : '<em class="muted">sem CNPJ associado</em>') +
+        infoRow('CNAE', p.cnaeCodigo
+          ? '<span>' + esc(p.cnaeCodigo) + '</span><small class="info__desc">' + esc(p.cnaeDescricao) + '</small>'
+          : '<em class="muted">—</em>') +
         infoRow('Telefone', p.phone ? esc(p.phone) : '<em class="muted">—</em>') +
         infoRow('Endereço', esc(p.address)) +
-        infoRow('Coordenada', p.lat.toFixed(5) + ', ' + p.lng.toFixed(5), 'mono') +
+        infoRow('Coordenada', p.lat.toFixed(5) + ', ' + p.lng.toFixed(5) +
+          (p.geoVerificado ? ' <span class="geo-ok" title="Coordenada verificada em campo">✓</span>' : ''), 'mono') +
       '</section>' +
 
       '<button type="button" id="btn-move-pin" class="btn btn--ghost btn--block">✥ Corrigir localização</button>' +

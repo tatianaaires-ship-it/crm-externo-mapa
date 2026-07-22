@@ -13,10 +13,11 @@
   const filters = {
     typology: new Set(),
     zone: new Set(),
-    potential: new Set(),
+    qualidade: new Set(),   // Ouro/Prata/Bronze (derivada do CNAE)
+    porte: new Set(),       // MEI/ME/EPP/LTDA
     origin: new Set(),
-    visitStatus: new Set(),
-    lastVisit: 'todos' // todos | nao_30 | recente
+    status: new Set(),      // funil (antes visitStatus)
+    lastVisit: 'todos'      // todos | nao_30 | recente
   };
 
   let getSelectedId = function () { return null; };
@@ -33,26 +34,32 @@
   function matches(p) {
     if (!setMatch(filters.typology, p.typology)) return false;
     if (!setMatch(filters.zone, p.zone)) return false;
-    if (!setMatch(filters.potential, p.potential)) return false;
+    if (!setMatch(filters.qualidade, p.qualidade)) return false;
+    if (!setMatch(filters.porte, p.porte)) return false;
     if (!setMatch(filters.origin, p.origin)) return false;
-    if (!setMatch(filters.visitStatus, p.visitStatus)) return false;
+    if (!setMatch(filters.status, p.status)) return false;
     if (filters.lastVisit === 'nao_30' && daysSince(p.lastVisit) < 30) return false;
     if (filters.lastVisit === 'recente' && daysSince(p.lastVisit) >= 30) return false;
     return true;
   }
 
   function activeCount() {
-    let n = filters.typology.size + filters.zone.size + filters.potential.size +
-            filters.origin.size + filters.visitStatus.size;
+    let n = filters.typology.size + filters.zone.size + filters.qualidade.size +
+            filters.porte.size + filters.origin.size + filters.status.size;
     if (filters.lastVisit !== 'todos') n += 1;
     return n;
   }
+
+  // Conjunto filtrado, compartilhado com a aba Inteligência (mesmos dados + filtros).
+  function getFiltered() { return S.getAll().filter(matches); }
 
   /* ---- Aplicar + renderizar ---- */
   function reapply() {
     const all = S.getAll();
     const list = all.filter(matches);
     window.CRM_MAP.render(list, getSelectedId());
+    // Aba Inteligência compartilha o MESMO conjunto filtrado.
+    if (window.CRM_INTEL) window.CRM_INTEL.refresh(list);
 
     const total = all.length;
     const count = list.length;
@@ -144,14 +151,18 @@
       return { key: k, label: t.emoji + ' ' + t.label };
     });
     const zoneEntries = D.ZONES.map(function (z) { return { key: z, label: z }; });
-    const potEntries = Object.keys(D.POTENTIALS).map(function (k) {
-      return { key: k, label: D.POTENTIALS[k].chip };
+    const qualEntries = D.QUALIDADE_ORDER.map(function (k) {
+      const q = D.QUALIDADE[k];
+      return { key: k, label: q.emoji + ' ' + q.label, cls: 'chip--qual chip--q-' + k };
+    });
+    const porteEntries = D.PORTE_ORDER.map(function (k) {
+      return { key: k, label: D.PORTE[k].label };
     });
     const origEntries = D.ORIGIN_ORDER.map(function (k) {
       return { key: k, label: D.ORIGINS[k].label, cls: 'chip--origin chip--o-' + k };
     });
-    const statEntries = Object.keys(D.VISIT_STATUS).map(function (k) {
-      return { key: k, label: D.VISIT_STATUS[k].label };
+    const statEntries = Object.keys(D.STATUS).map(function (k) {
+      return { key: k, label: D.STATUS[k].label };
     });
     const lvEntries = [
       { key: 'nao_30', label: 'Não visitado 30+ dias' },
@@ -161,9 +172,10 @@
     host.innerHTML =
       group('Tipologia', 'typology', typEntries) +
       group('Última visita', 'lastVisit', lvEntries) +
-      group('Potencial', 'potential', potEntries) +
+      group('Qualidade', 'qualidade', qualEntries) +
+      group('Porte', 'porte', porteEntries) +
       group('Origem / confiança', 'origin', origEntries) +
-      group('Status de visita', 'visitStatus', statEntries) +
+      group('Status', 'status', statEntries) +
       group('Zona', 'zone', zoneEntries);
 
     host.addEventListener('click', function (ev) {
@@ -184,8 +196,8 @@
         '<span class="quick__chev" aria-hidden="true">▾</span>' +
       '</button>';
     const quicks = [
+      { dim: 'qualidade', val: 'Ouro', label: '🥇 Ouro' },
       { dim: 'lastVisit', val: 'nao_30', label: '📌 Não visitados 30+' },
-      { dim: 'potential', val: 'alto', label: '🔥 Alto potencial' },
       { dim: 'origin', val: 'validado_campo', label: '✓ Validado em campo' }
     ];
     quicks.forEach(function (q) {
@@ -264,6 +276,8 @@
     reapply: reapply,
     clearAll: clearAll,
     activeCount: activeCount,
+    getFiltered: getFiltered,
+    matches: matches,
     closeClass: closeClass
   };
 })();
