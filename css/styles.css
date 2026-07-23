@@ -39,6 +39,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;              /* trava o scroll do documento (app fixo, nav sempre visível) */
   overscroll-behavior: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -48,8 +49,8 @@ button { font-family: inherit; cursor: pointer; }
 #app {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  min-height: 100vh;
+  height: 100vh;      /* fallback p/ navegadores sem dvh */
+  height: 100dvh;     /* altura visível real: fecha exatamente na tela (barra do navegador some/aparece) */
   overflow: hidden;
   position: relative;
 }
@@ -345,13 +346,13 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
   background: var(--surface);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
-  box-shadow: var(--shadow-lg);
   transform: translateY(101%);
   transition: transform .3s cubic-bezier(.22,.61,.36,1);
   max-height: 86dvh; display: flex; flex-direction: column;
   padding-bottom: var(--sab);
 }
-.sheet.is-open, .panel.is-open { transform: translateY(0); }
+/* Sombra (que projeta pra cima) só quando aberto — senão vaza pela borda inferior estando oculto. */
+.sheet.is-open, .panel.is-open { transform: translateY(0); box-shadow: var(--shadow-lg); }
 .sheet__handle {
   width: 40px; height: 4px; border-radius: 2px; background: var(--line-2);
   margin: 9px auto 4px; flex: 0 0 auto;
@@ -632,7 +633,7 @@ body.view-intel .placing-banner { display: none !important; }
 
 /* ---- Larger screens (protótipo aberto no desktop) ---- */
 @media (min-width: 620px) {
-  .sheet, .panel { left: 50%; right: auto; width: 440px; transform: translate(-50%, 101%); border-radius: var(--r-lg); bottom: 16px; max-height: 82dvh; }
+  .sheet, .panel { left: 50%; right: auto; width: 440px; transform: translate(-50%, calc(100% + 24px)); border-radius: var(--r-lg); bottom: 16px; max-height: 82dvh; }
   .sheet.is-open, .panel.is-open { transform: translate(-50%, 0); }
   .modal { align-items: center; }
   .modal__card { border-radius: var(--r-lg); }

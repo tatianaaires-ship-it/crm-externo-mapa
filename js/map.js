@@ -66,7 +66,8 @@
       }
     ).addTo(map);
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // Zoom no topo-direito: o canto inferior-direito é dos FABs (criar / localizar).
+    L.control.zoom({ position: 'topright' }).addTo(map);
     addLegend();
     return map;
   }
