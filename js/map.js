@@ -23,7 +23,9 @@
   // Marker em formato padrão (sem emoji): diferenciação só pela ORIGEM
   // (cor + estilo de borda + selo ✓), reforçada de forma não-cromática.
   function iconHtml(pin) {
-    const origin = D.ORIGINS[pin.origin];
+    // Fallback defensivo: origem inesperada (dado real fora do enum) não pode
+    // estourar o render — paridade com intel.js/funil.js.
+    const origin = D.ORIGINS[pin.origin] || { color: '#94a3b8', ink: '#334155' };
     const badge = pin.origin === 'validado_campo'
       ? '<span class="pin__badge" aria-hidden="true">✓</span>' : '';
     const created = pin.createdByUser ? ' pin--new' : '';

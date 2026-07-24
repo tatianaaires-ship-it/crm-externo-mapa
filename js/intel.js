@@ -47,7 +47,10 @@
     return list.slice().sort(function (a, b) {
       const dq = qualRank(a.qualidade) - qualRank(b.qualidade);
       if (dq !== 0) return dq;
-      return a.name.localeCompare(b.name, 'pt-BR');
+      // nome_fantasia pode chegar null no dado real (higienizado/vazio no snapshot) —
+      // localeCompare estoura em null, então normaliza antes de comparar.
+      return String(a.name == null ? '' : a.name)
+        .localeCompare(String(b.name == null ? '' : b.name), 'pt-BR');
     });
   }
 

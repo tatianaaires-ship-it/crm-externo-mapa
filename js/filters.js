@@ -53,14 +53,34 @@
   // Conjunto filtrado, compartilhado com a aba Inteligência (mesmos dados + filtros).
   function getFiltered() { return S.getAll().filter(matches); }
 
+  /* ---- Chips data-driven: reconstroem quando a taxonomia do dataset muda ---- */
+  let lastTaxoSig = null;
+  function taxoSignature() {
+    return typologyEntries().map(function (e) { return e.key; }).join(',') +
+      '||' + zoneEntries().map(function (e) { return e.key; }).join(',');
+  }
+  // Zona/Tipologia saem dos valores PRESENTES no dataset (o fictício e o real têm
+  // taxonomias diferentes: real traz zona="REC Zona Oeste" e tipologia "outro").
+  // Reconstrói só quando o conjunto de valores muda (fictício→real, criar pin…).
+  function ensureTaxonomyChips() {
+    const sig = taxoSignature();
+    if (sig === lastTaxoSig) return;
+    lastTaxoSig = sig;
+    buildPanel();
+    buildClassPopover();
+  }
+
   /* ---- Aplicar + renderizar ---- */
   function reapply() {
     const all = S.getAll();
     const list = all.filter(matches);
-    window.CRM_MAP.render(list, getSelectedId());
-    // Abas Inteligência e Funil compartilham o MESMO conjunto filtrado.
-    if (window.CRM_INTEL) window.CRM_INTEL.refresh(list);
-    if (window.CRM_FUNIL) window.CRM_FUNIL.refresh(list);
+
+    ensureTaxonomyChips();
+
+    // UI derivada do MODELO de filtros (barata) vem ANTES dos renders pesados:
+    // assim uma exceção de render nunca deixa os chips/contadores dessincronizados
+    // — era a causa de "chip não marca/desmarca" e "não fecha o aviso de filtros".
+    syncControls();
 
     const total = all.length;
     const count = list.length;
@@ -79,7 +99,15 @@
     const resCount = document.getElementById('filter-result-count');
     if (resCount) resCount.textContent = count + ' de ' + total + ' locais';
 
-    syncControls();
+    // Renders pesados por último e ISOLADOS: um que falhe (dado real inesperado)
+    // não derruba os outros nem a sincronização de controles acima.
+    // Abas Inteligência e Funil compartilham o MESMO conjunto filtrado.
+    try { window.CRM_MAP.render(list, getSelectedId()); }
+    catch (e) { console.error('[filtros] falha ao renderizar o mapa:', e); }
+    try { if (window.CRM_INTEL) window.CRM_INTEL.refresh(list); }
+    catch (e) { console.error('[filtros] falha ao atualizar Inteligência:', e); }
+    try { if (window.CRM_FUNIL) window.CRM_FUNIL.refresh(list); }
+    catch (e) { console.error('[filtros] falha ao atualizar Funil:', e); }
   }
 
   /* ---- Sincroniza estado visual dos chips (painel + atalhos) ---- */
@@ -131,9 +159,52 @@
   }
 
   /* ---- Construção da UI ---- */
+  // Escapa valores que vão pra atributo/HTML (zona do dado real pode ter & < > ").
+  function escAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function humanize(k) {
+    const s = String(k == null ? '' : k);
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+  // Valores DISTINTOS de um campo presentes no dataset atual (base dos chips).
+  function distinctValues(field) {
+    const seen = Object.create(null);
+    const out = [];
+    S.getAll().forEach(function (p) {
+      const v = p[field];
+      if (v == null || v === '' || seen[v]) return;
+      seen[v] = true; out.push(v);
+    });
+    return out;
+  }
+  // Tipologia: conhecidas (na ordem de D.TYPOLOGIES) que ESTÃO no dataset +
+  // presentes desconhecidas (ex.: "outro" do dado real). Só chips que casam com algo.
+  function typologyEntries() {
+    const present = distinctValues('typology');
+    const inSet = {};
+    present.forEach(function (k) { inSet[k] = true; });
+    const known = Object.keys(D.TYPOLOGIES).filter(function (k) { return inSet[k]; });
+    const extra = present.filter(function (k) { return !D.TYPOLOGIES[k]; })
+      .sort(function (a, b) { return String(a).localeCompare(String(b), 'pt-BR'); });
+    return known.concat(extra).map(function (k) {
+      const t = D.TYPOLOGIES[k];
+      return t ? { key: k, label: t.emoji + ' ' + t.label } : { key: k, label: '📍 ' + humanize(k) };
+    });
+  }
+  // Zona: valores reais presentes ("REC Zona Oeste"…), ordenados. Nulos não viram
+  // chip (o pin segue no mapa; zona é filtro parcial — snapshot-dado-real.md §6).
+  function zoneEntries() {
+    return distinctValues('zone')
+      .sort(function (a, b) { return String(a).localeCompare(String(b), 'pt-BR'); })
+      .map(function (z) { return { key: z, label: z }; });
+  }
+
   function chip(dim, val, label, extraClass) {
-    return '<button type="button" class="chip ' + (extraClass || '') + '" data-fdim="' + dim +
-      '" data-fval="' + val + '" aria-pressed="false">' + label + '</button>';
+    return '<button type="button" class="chip ' + (extraClass || '') + '" data-fdim="' + escAttr(dim) +
+      '" data-fval="' + escAttr(val) + '" aria-pressed="false">' + escAttr(label) + '</button>';
   }
 
   function group(title, dim, entries) {
@@ -147,11 +218,8 @@
     const host = document.getElementById('filter-groups');
     if (!host) return;
 
-    const typEntries = Object.keys(D.TYPOLOGIES).map(function (k) {
-      const t = D.TYPOLOGIES[k];
-      return { key: k, label: t.emoji + ' ' + t.label };
-    });
-    const zoneEntries = D.ZONES.map(function (z) { return { key: z, label: z }; });
+    const typEntries = typologyEntries();
+    const zoneEnts = zoneEntries();
     const qualEntries = D.QUALIDADE_ORDER.map(function (k) {
       const q = D.QUALIDADE[k];
       return { key: k, label: q.emoji + ' ' + q.label, cls: 'chip--qual chip--q-' + k };
@@ -177,13 +245,8 @@
       group('Porte', 'porte', porteEntries) +
       group('Origem / confiança', 'origin', origEntries) +
       group('Status', 'status', statEntries) +
-      group('Zona', 'zone', zoneEntries);
-
-    host.addEventListener('click', function (ev) {
-      const btn = ev.target.closest('[data-fdim]');
-      if (!btn) return;
-      toggle(btn.getAttribute('data-fdim'), btn.getAttribute('data-fval'));
-    });
+      group('Zona', 'zone', zoneEnts);
+    // Listener delegado fica em init() (persiste entre re-renders do innerHTML).
   }
 
   function buildQuick() {
@@ -220,9 +283,8 @@
     const pop = document.getElementById('class-popover');
     if (!pop) return;
     let chips = '';
-    Object.keys(D.TYPOLOGIES).forEach(function (k) {
-      const t = D.TYPOLOGIES[k];
-      chips += chip('typology', k, t.emoji + ' ' + t.label);
+    typologyEntries().forEach(function (e) {
+      chips += chip('typology', e.key, e.label);
     });
     pop.innerHTML =
       '<div class="class-popover__head">' +
@@ -230,12 +292,7 @@
         '<button type="button" class="btn btn--ghost btn--sm" id="btn-class-clear">Limpar</button>' +
       '</div>' +
       '<div class="class-popover__chips">' + chips + '</div>';
-    pop.addEventListener('click', function (ev) {
-      if (ev.target.closest('#btn-class-clear')) { filters.typology.clear(); reapply(); return; }
-      const btn = ev.target.closest('[data-fdim]');
-      if (!btn) return;
-      toggle(btn.getAttribute('data-fdim'), btn.getAttribute('data-fval'));
-    });
+    // Listener delegado fica em init() (persiste entre re-renders do innerHTML).
   }
 
   function openClass() {
@@ -259,10 +316,29 @@
     if (pop && pop.classList.contains('is-open')) closeClass(); else openClass();
   }
 
+  /* ---- Handlers delegados (anexados 1x; sobrevivem ao re-render dos chips) ---- */
+  function onPanelClick(ev) {
+    const btn = ev.target.closest('[data-fdim]');
+    if (!btn) return;
+    toggle(btn.getAttribute('data-fdim'), btn.getAttribute('data-fval'));
+  }
+  function onPopoverClick(ev) {
+    if (ev.target.closest('#btn-class-clear')) { filters.typology.clear(); reapply(); return; }
+    const btn = ev.target.closest('[data-fdim]');
+    if (!btn) return;
+    toggle(btn.getAttribute('data-fdim'), btn.getAttribute('data-fval'));
+  }
+
   function init(opts) {
     getSelectedId = (opts && opts.getSelectedId) || getSelectedId;
     buildPanel();
     buildQuick();
+    // Delegação anexada UMA vez ao host — ensureTaxonomyChips() troca o innerHTML
+    // dos chips (fictício→real) sem re-anexar (evita toggle duplicado).
+    const groupsHost = document.getElementById('filter-groups');
+    if (groupsHost) groupsHost.addEventListener('click', onPanelClick);
+    const pop = document.getElementById('class-popover');
+    if (pop) pop.addEventListener('click', onPopoverClick);
     const clearBtn = document.getElementById('btn-clear-filters');
     if (clearBtn) clearBtn.addEventListener('click', clearAll);
     const classBd = document.getElementById('class-backdrop');
