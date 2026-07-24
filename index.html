@@ -189,6 +189,19 @@
       <button id="btn-install" class="btn btn--primary btn--sm">Instalar</button>
       <button id="btn-install-dismiss" class="install-toast__x" aria-label="Dispensar">✕</button>
     </div>
+
+    <!-- Login gate (porteiro) — tela de entrada; auth.js controla a visibilidade -->
+    <div id="login-gate" class="login-gate" role="dialog" aria-modal="true" aria-label="Entrar no Praso Maps">
+      <div class="login-gate__card">
+        <div class="login-gate__brand">
+          <span class="login-gate__mark" aria-hidden="true">◈</span>
+          <span class="login-gate__titles"><strong>Praso Maps</strong><small>CRM Externo · mapa comercial de campo</small></span>
+        </div>
+        <p class="login-gate__msg">Entre com a conta <b>@praso.com.br</b> para ver os dados reais.</p>
+        <div id="login-gate-btn" class="login-gate__btn"></div>
+        <button type="button" id="btn-skip-login" class="login-gate__skip">Seguir sem login (dados de demonstração)</button>
+      </div>
+    </div>
   </div>
 
   <!-- Scripts (ordem importa; sem build) -->

@@ -4,7 +4,7 @@
      reflete mudanças). Cai no cache só offline. Bom p/ protótipo em iteração.
    - Tiles do mapa: stale-while-revalidate (área revisitada abre offline).
    ===================================================================== */
-const VERSION = 'crm-map-v5';
+const VERSION = 'crm-map-v6';
 const SHELL_CACHE = 'shell-' + VERSION;
 const TILE_CACHE = 'tiles-' + VERSION;
 

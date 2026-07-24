@@ -70,10 +70,16 @@
     // Cluster: agrupa pins próximos — essencial p/ milhares de leads sem travar.
     // Só mantém no DOM os clusters/markers dentro da viewport (removeOutsideVisibleBounds).
     clusterGroup = L.markerClusterGroup({
-      chunkedLoading: true,       // adiciona milhares de markers sem bloquear a UI
+      chunkedLoading: true,        // adiciona milhares de markers sem bloquear a UI
       showCoverageOnHover: false,
-      maxClusterRadius: 55,
-      spiderfyOnMaxZoom: true
+      spiderfyOnMaxZoom: true,
+      disableClusteringAtZoom: 16, // zoom alto → pins sempre individuais
+      // Raio (px) menor conforme aproxima → bolhas quebram em pins com MENOS zoom.
+      // Obs.: markercluster agrupa por PROXIMIDADE (não por contagem), então "≤10 por
+      // bolha" não é garantido; raio menor deixa as bolhas bem menores na prática.
+      maxClusterRadius: function (zoom) {
+        return zoom <= 7 ? 55 : zoom <= 11 ? 34 : 22;
+      }
     });
     map.addLayer(clusterGroup);
 

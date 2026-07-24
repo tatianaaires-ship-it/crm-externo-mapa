@@ -148,6 +148,8 @@ Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conte
 
 Bottom nav de **3 abas** — Mapa, **Funil** (Kanban por status) e Inteligência — que **compartilham os mesmos filtros** (mudar filtro atualiza as três). Não há sidebar (contraste deliberado com o CRM-KA). Aba ativa: cor `--brand` + barrinha de 3px no topo do tab. Nas abas Funil e Inteligência, os controles do mapa (FAB, banners) somem.
 
+**Tela de entrada (porteiro).** Em build com porteiro configurado (`js/config.js`), o app abre numa **tela de login** sobre o shell (`#login-gate`, z 100): login `@praso.com.br` carrega o dado real; **"Seguir sem login"** segue no fictício, com um "Entrar" no topo para logar depois. Sem porteiro, vai direto ao mapa. (Detalhe do fluxo em `porteiro/README.md`.)
+
 ## 6. Componentes
 
 ### 6.1 Pin (componente-assinatura)

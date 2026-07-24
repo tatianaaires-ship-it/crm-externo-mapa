@@ -5,7 +5,8 @@ Público (GitHub Pages) continua fictício; o dado real transita só por aqui �
 
 ```
 Cliente (GitHub Pages, fictício)
-  └─ botão "Entrar" (js/auth.js, Google Identity Services)
+  └─ tela de entrada / login gate (js/auth.js, Google Identity Services)
+       ↳ "Seguir sem login" → segue no fictício (+ botão "Entrar" no topo)
        └─ ID token ──► Worker (verifica assinatura + domínio @praso.com.br)
                           └─ 200 + JSON (do KV)  ──► app troca p/ dado real (em memória)
 ```
@@ -61,8 +62,9 @@ window.CRM_CONFIG = {
 };
 ```
 
-Faça commit/deploy do Pages. O botão **Entrar** aparece no topo; login `@praso.com.br` troca o mapa
-para os 6.914 pins reais. Conta de fora do domínio recebe **401**.
+Faça commit/deploy do Pages. O app **abre na tela de entrada**: login `@praso.com.br` troca o mapa
+para os 6.914 pins reais, ou **"Seguir sem login"** segue no fictício (com um "Entrar" no topo para
+logar depois). Conta de fora do domínio recebe **401**.
 
 ## 4. Atualizar o dado depois
 
