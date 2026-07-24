@@ -4,7 +4,7 @@
      reflete mudanças). Cai no cache só offline. Bom p/ protótipo em iteração.
    - Tiles do mapa: stale-while-revalidate (área revisitada abre offline).
    ===================================================================== */
-const VERSION = 'crm-map-v6';
+const VERSION = 'crm-map-v7';
 const SHELL_CACHE = 'shell-' + VERSION;
 const TILE_CACHE = 'tiles-' + VERSION;
 
@@ -85,10 +85,11 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Navegação → network-first (online = sempre atual; offline = index em cache).
+  // Navegação → network-first COM revalidação (`cache: 'no-cache'`) p/ nunca servir
+  // HTML velho do cache HTTP (GitHub Pages usa max-age=600). Offline → index em cache.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).then(function (res) {
+      fetch(req.url, { cache: 'no-cache' }).then(function (res) {
         const copy = res.clone();
         caches.open(SHELL_CACHE).then(function (cache) { cache.put('./index.html', copy); });
         return res;
@@ -99,10 +100,11 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Mesma origem → network-first (atualiza o cache), cai no cache só offline.
+  // Mesma origem → network-first COM revalidação (evita JS/CSS velho pós-deploy).
+  // Só cai no cache offline.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req).then(function (res) {
+      fetch(req, { cache: 'no-cache' }).then(function (res) {
         if (res && res.ok) {
           const copy = res.clone();
           caches.open(SHELL_CACHE).then(function (cache) { cache.put(req, copy); });
