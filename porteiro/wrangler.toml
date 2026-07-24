@@ -1,0 +1,17 @@
+# wrangler.toml — Porteiro do Praso Maps (Cloudflare Worker)
+# Deploy: ver porteiro/README.md
+name = "praso-maps-porteiro"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# KV: guarda o snapshot de dado real (chave "data-real").
+# Rode `wrangler kv namespace create SNAPSHOT` e cole o id retornado aqui.
+kv_namespaces = [
+  { binding = "SNAPSHOT", id = "cfc8076459574d00b003b16228cf207d" }
+]
+
+# Vars públicas (NÃO são segredo — client_id e origem são visíveis no cliente):
+[vars]
+GOOGLE_CLIENT_ID = "573033190265-oufbqucoka6tll2retu98a3hqq4rh9mk.apps.googleusercontent.com"
+ALLOWED_ORIGIN   = "https://tatianaaires-ship-it.github.io"   # origem exata do GitHub Pages (sem barra final)
+ALLOWED_HD       = "praso.com.br"

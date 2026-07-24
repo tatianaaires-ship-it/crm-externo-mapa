@@ -58,8 +58,9 @@
     const all = S.getAll();
     const list = all.filter(matches);
     window.CRM_MAP.render(list, getSelectedId());
-    // Aba Inteligência compartilha o MESMO conjunto filtrado.
+    // Abas Inteligência e Funil compartilham o MESMO conjunto filtrado.
     if (window.CRM_INTEL) window.CRM_INTEL.refresh(list);
+    if (window.CRM_FUNIL) window.CRM_FUNIL.refresh(list);
 
     const total = all.length;
     const count = list.length;
@@ -123,8 +124,8 @@
   }
 
   function clearAll() {
-    filters.typology.clear(); filters.zone.clear(); filters.potential.clear();
-    filters.origin.clear(); filters.visitStatus.clear();
+    filters.typology.clear(); filters.zone.clear(); filters.qualidade.clear();
+    filters.porte.clear(); filters.origin.clear(); filters.status.clear();
     filters.lastVisit = 'todos';
     reapply();
   }

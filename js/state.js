@@ -10,6 +10,7 @@
   const D = window.CRM_DATA;
 
   let pins = [];
+  let realMode = false;   // dado real (porteiro) — NUNCA persiste no localStorage
   const listeners = [];
 
   function emit() {
@@ -19,6 +20,7 @@
   function onChange(fn) { listeners.push(fn); }
 
   function persist() {
+    if (realMode) return;   // dado real fica só em memória (privacidade)
     try {
       localStorage.setItem(KEY, JSON.stringify({ v: 3, pins: pins }));
     } catch (e) { console.warn('Persistência indisponível:', e); }
@@ -38,9 +40,21 @@
   }
 
   function resetDemo() {
+    realMode = false;       // volta ao fictício (e volta a persistir)
     pins = D.buildSeed();
     emit();
   }
+
+  // Troca o dataset para o snapshot real vindo do porteiro (auth.js).
+  // Não persiste (privacidade) e não deriva nada — os pins já chegam prontos.
+  function useRealData(realPins) {
+    if (!Array.isArray(realPins) || !realPins.length) return false;
+    realMode = true;
+    pins = realPins;
+    emit();
+    return true;
+  }
+  function isRealMode() { return realMode; }
 
   /* ---- Leitura ---- */
   function getAll() { return pins.slice(); }
@@ -104,6 +118,19 @@
     const open = openCheckin(id);
     if (!open) return p;
     open.out = nowISO();
+    emit();
+    return p;
+  }
+
+  // Move o lead entre colunas do funil (casca do Kanban — arrastar em memória).
+  // NOTA de domínio: no produto real o status avança por FLUXO/check-in, não por
+  // toque solto. Aqui é afordância de protótipo (demonstra a visão de funil).
+  function setStatus(id, status) {
+    const p = getById(id);
+    if (!p || !D.STATUS[status] || p.status === status) return null;
+    p.status = status;
+    p.isConverted = (status === 'convertido');
+    if (status === 'convertido' && !p.convertedAt) p.convertedAt = todayISO();
     emit();
     return p;
   }
@@ -172,6 +199,9 @@
     checkOut: checkOut,
     openCheckin: openCheckin,
     createPin: createPin,
-    resetDemo: resetDemo
+    setStatus: setStatus,
+    resetDemo: resetDemo,
+    useRealData: useRealData,
+    isRealMode: isRealMode
   };
 })();

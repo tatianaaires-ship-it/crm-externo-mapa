@@ -7,6 +7,14 @@ dist/
 _bmad/
 _bmad-output/
 
+# Dado REAL do Salesforce — NUNCA versionar (só fictício é público). Fase 3 / porteiro.
+/private/
+*-real.json
+snapshot_leads_*.json
+
+# Wrangler — cache/estado local da conta Cloudflare (não versionar)
+.wrangler/
+
 # Sistema / logs
 .DS_Store
 Thumbs.db

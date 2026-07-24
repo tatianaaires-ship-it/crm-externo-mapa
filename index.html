@@ -73,6 +73,20 @@
         <button id="btn-move-done" class="placing-banner__cancel">Concluir</button>
       </div>
 
+      <!-- Aba Funil (Kanban por status) — cobre o mapa quando ativa -->
+      <section id="funil-view" class="funil-view" aria-label="Funil de leads">
+        <div class="intel-head">
+          <span id="funil-count" class="intel-count">—</span>
+          <span class="intel-head__hint">arraste entre colunas · mesmos filtros</span>
+        </div>
+        <div id="funil-board" class="funil-board"></div>
+        <div id="funil-empty" class="intel-empty">
+          <div class="intel-empty__emoji" aria-hidden="true">🗂️</div>
+          <p class="intel-empty__msg">Nenhum lead com esses filtros.</p>
+          <button id="btn-funil-clear" class="btn btn--ghost btn--sm">Limpar filtros</button>
+        </div>
+      </section>
+
       <!-- Aba Inteligência (lista de leads) — cobre o mapa quando ativa -->
       <section id="intel-view" class="intel-view" aria-label="Inteligência de leads">
         <div class="intel-search">
@@ -98,6 +112,10 @@
       <button id="tab-map" class="bottomnav__tab is-active" role="tab" aria-selected="true">
         <span class="bottomnav__ico" aria-hidden="true">🗺️</span>
         <span class="bottomnav__lbl">Mapa</span>
+      </button>
+      <button id="tab-funil" class="bottomnav__tab" role="tab" aria-selected="false">
+        <span class="bottomnav__ico" aria-hidden="true">📊</span>
+        <span class="bottomnav__lbl">Funil</span>
       </button>
       <button id="tab-intel" class="bottomnav__tab" role="tab" aria-selected="false">
         <span class="bottomnav__ico" aria-hidden="true">📋</span>
@@ -173,6 +191,7 @@
 
   <!-- Scripts (ordem importa; sem build) -->
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/state.js"></script>
   <script src="js/map.js"></script>
@@ -180,6 +199,9 @@
   <script src="js/pin.js"></script>
   <script src="js/create.js"></script>
   <script src="js/intel.js"></script>
+  <script src="js/funil.js"></script>
   <script src="js/app.js"></script>
+  <!-- Porteiro (login Google → dado real). Inerte sem config. -->
+  <script src="js/auth.js"></script>
 </body>
 </html>

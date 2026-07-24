@@ -23,16 +23,17 @@
     $('filter-backdrop').classList.remove('is-open');
   }
 
-  /* ---- Abas Mapa / Inteligência (filtros compartilhados) ---- */
+  /* ---- Abas Mapa / Funil / Inteligência (filtros compartilhados) ---- */
   function showTab(which) {
-    const isIntel = which === 'intel';
-    document.body.classList.toggle('view-intel', isIntel);
-    const tMap = $('tab-map'), tIntel = $('tab-intel');
-    tMap.classList.toggle('is-active', !isIntel);
-    tMap.setAttribute('aria-selected', String(!isIntel));
-    tIntel.classList.toggle('is-active', isIntel);
-    tIntel.setAttribute('aria-selected', String(isIntel));
-    if (!isIntel) {
+    document.body.classList.toggle('view-funil', which === 'funil');
+    document.body.classList.toggle('view-intel', which === 'intel');
+    [['tab-map', 'map'], ['tab-funil', 'funil'], ['tab-intel', 'intel']].forEach(function (pair) {
+      const el = $(pair[0]); if (!el) return;
+      const on = which === pair[1];
+      el.classList.toggle('is-active', on);
+      el.setAttribute('aria-selected', String(on));
+    });
+    if (which === 'map') {
       // Volta pro mapa: Leaflet precisa recalcular o tamanho do container.
       setTimeout(function () { window.CRM_MAP.getMap().invalidateSize(); }, 50);
     }
@@ -44,6 +45,7 @@
     $('filter-backdrop').addEventListener('click', closeFilters);
 
     $('tab-map').addEventListener('click', function () { showTab('map'); });
+    $('tab-funil').addEventListener('click', function () { showTab('funil'); });
     $('tab-intel').addEventListener('click', function () { showTab('intel'); });
 
     $('btn-empty-clear').addEventListener('click', function () {
@@ -176,8 +178,9 @@
     window.CRM_MAP.init();
     window.CRM_PIN.init();
     window.CRM_CREATE.init();
-    // Inteligência antes do primeiro reapply (reapply → CRM_INTEL.refresh).
+    // Inteligência e Funil antes do primeiro reapply (reapply → refresh das abas).
     window.CRM_INTEL.init({ showMap: function () { showTab('map'); } });
+    window.CRM_FUNIL.init({ showMap: function () { showTab('map'); } });
 
     window.CRM_MAP.onSelect(function (id) {
       if (window.CRM_CREATE && window.CRM_CREATE.isPlacing()) window.CRM_CREATE.cancel();
