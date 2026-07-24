@@ -693,6 +693,18 @@ body.view-funil .placing-banner { display: none !important; }
 @media (min-width: 620px) {
   .funil-col { width: 260px; }
 }
+
+/* ---- Cluster de pins (Leaflet.markercluster) — tons de azul da marca ---- */
+/* Bolha maior = azul mais saturado. Sobrepõe o verde/amarelo padrão do plugin. */
+.marker-cluster { background: rgba(32, 83, 206, .22); }
+.marker-cluster div { background: rgba(32, 83, 206, .85); color: #fff; font-weight: 800; }
+.marker-cluster span { line-height: 30px; }
+.marker-cluster-small      { background: rgba(32, 83, 206, .18); }
+.marker-cluster-small div  { background: rgba(32, 83, 206, .72); }
+.marker-cluster-medium     { background: rgba(32, 83, 206, .26); }
+.marker-cluster-medium div { background: rgba(32, 83, 206, .85); }
+.marker-cluster-large      { background: rgba(32, 83, 206, .34); }
+.marker-cluster-large div  { background: var(--brand); }
 .intel-empty .btn { pointer-events: auto; }
 
 /* ---- Larger screens (protótipo aberto no desktop) ---- */

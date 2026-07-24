@@ -13,6 +13,7 @@
   let map = null;
   let tileLayer = null;
   const markersById = {};
+  let clusterGroup = null;
   let selectedId = null;
   let moveId = null;
   let onSelectCb = null;
@@ -66,6 +67,16 @@
       }
     ).addTo(map);
 
+    // Cluster: agrupa pins próximos — essencial p/ milhares de leads sem travar.
+    // Só mantém no DOM os clusters/markers dentro da viewport (removeOutsideVisibleBounds).
+    clusterGroup = L.markerClusterGroup({
+      chunkedLoading: true,       // adiciona milhares de markers sem bloquear a UI
+      showCoverageOnHover: false,
+      maxClusterRadius: 55,
+      spiderfyOnMaxZoom: true
+    });
+    map.addLayer(clusterGroup);
+
     // Zoom no topo-direito: o canto inferior-direito é dos FABs (criar / localizar).
     L.control.zoom({ position: 'topright' }).addTo(map);
     addLegend();
@@ -105,60 +116,62 @@
 
   function attachMarkerEvents(marker, pin) {
     marker.on('click', function () { if (onSelectCb) onSelectCb(pin.id); });
-    marker.on('dragstart', function () {
-      document.body.classList.add('is-dragging-pin');
-    });
-    marker.on('dragend', function (e) {
-      document.body.classList.remove('is-dragging-pin');
-      const ll = e.target.getLatLng();
-      window.CRM_STATE.movePin(pin.id, ll.lat, ll.lng); // persiste (CAP-5)
-    });
+    // Arraste NÃO fica ligado nos markers do cluster (só no pin em modo mover — startMove).
   }
 
-  // Garante que o modo de arraste do marker reflita o estado (só o pin em edição).
-  function applyDrag(marker, pin) {
-    if (!marker.dragging) return;
-    if (pin.id === moveId) marker.dragging.enable();
-    else marker.dragging.disable();
-  }
-
-  // Render completo do conjunto filtrado.
+  // Render completo do conjunto filtrado (via cluster group).
   function render(pins, selId) {
     if (selId !== undefined) selectedId = selId;
     const keep = {};
+    const toAdd = [];
     pins.forEach(function (pin) {
       keep[pin.id] = true;
+      if (pin.id === moveId) return; // o pin em movimento tem marker próprio no mapa (startMove)
       let marker = markersById[pin.id];
       if (!marker) {
-        // draggable só liga no modo mover (CAP-5 é acionada por botão no pin).
-        marker = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: true, autoPan: true, keyboard: false });
-        marker.addTo(map);
+        // draggable:false por padrão — só o pin em modo mover vira arrastável (startMove).
+        marker = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: false, keyboard: false });
         attachMarkerEvents(marker, pin);
         markersById[pin.id] = marker;
+        toAdd.push(marker);
       } else {
         marker.setLatLng([pin.lat, pin.lng]);
         marker.setIcon(makeIcon(pin));
       }
-      applyDrag(markersById[pin.id], pin);
     });
     // Remove markers que saíram do filtro (NÃO é exclusão de pin — só ocultação visual).
+    const toRemove = [];
     Object.keys(markersById).forEach(function (id) {
-      if (!keep[id]) { map.removeLayer(markersById[id]); delete markersById[id]; }
+      if (!keep[id] && id !== moveId) { toRemove.push(markersById[id]); delete markersById[id]; }
     });
+    if (toRemove.length) clusterGroup.removeLayers(toRemove);
+    if (toAdd.length) clusterGroup.addLayers(toAdd);   // lote + chunkedLoading = rápido p/ milhares
   }
 
   // ---- Modo mover (CAP-5, acionado por botão dentro do pin) ----
   function startMove(id) {
-    const marker = markersById[id];
-    if (!marker) return;
+    const pin = window.CRM_STATE.getById(id);
+    if (!pin) return;
     moveId = id;
     document.body.classList.add('is-moving');
     if (window.CRM_PIN) window.CRM_PIN.close();
-    marker.setIcon(makeIcon(window.CRM_STATE.getById(id)));
-    applyDrag(marker, { id: id });
+    // Tira o pin do cluster e cria um marker próprio, arrastável, direto no mapa
+    // (fora do cluster p/ não ser reagrupado; o drag só existe neste marker).
+    const existing = markersById[id];
+    if (existing) clusterGroup.removeLayer(existing);
+    const mv = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: true, autoPan: true, keyboard: false });
+    mv.on('click', function () { if (onSelectCb) onSelectCb(id); });
+    mv.on('dragstart', function () { document.body.classList.add('is-dragging-pin'); });
+    mv.on('dragend', function (e) {
+      document.body.classList.remove('is-dragging-pin');
+      const ll = e.target.getLatLng();
+      window.CRM_STATE.movePin(id, ll.lat, ll.lng); // persiste (CAP-5)
+    });
+    mv.addTo(map);
+    markersById[id] = mv;
+    selectedId = id;
     const banner = document.getElementById('move-banner');
     if (banner) banner.classList.add('is-visible');
-    setSelected(id);
     focus(id, Math.max(map.getZoom(), 16));
   }
 
@@ -168,19 +181,30 @@
     document.body.classList.remove('is-moving');
     const banner = document.getElementById('move-banner');
     if (banner) banner.classList.remove('is-visible');
+    // Remove o marker de arraste e recria o marker normal (não-arrastável) no cluster.
     if (id && markersById[id]) {
-      markersById[id].setIcon(makeIcon(window.CRM_STATE.getById(id)));
-      applyDrag(markersById[id], { id: null });
+      map.removeLayer(markersById[id]);
+      delete markersById[id];
+    }
+    const pin = id && window.CRM_STATE.getById(id);
+    if (pin) {
+      const m = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: false, keyboard: false });
+      attachMarkerEvents(m, pin);
+      markersById[id] = m;
+      clusterGroup.addLayer(m);
       if (window.CRM_PIN) window.CRM_PIN.open(id); // reabre o pin com a nova posição
     }
   }
 
   function setSelected(id) {
+    const prev = selectedId;
     selectedId = id;
-    Object.keys(markersById).forEach(function (mid) {
-      const el = markersById[mid].getElement();
-      if (!el) return;
-      el.classList.toggle('is-selected', mid === id);
+    // Atualiza só os dois markers afetados (cluster-safe: a maioria nem está no DOM).
+    [prev, id].forEach(function (mid) {
+      if (!mid || mid === moveId) return;
+      const m = markersById[mid];
+      const p = window.CRM_STATE.getById(mid);
+      if (m && p) m.setIcon(makeIcon(p));
     });
   }
 
