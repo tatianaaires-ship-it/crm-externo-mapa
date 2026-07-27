@@ -21,7 +21,7 @@ related:
 > 🎯 **Objetivo.** Definir os padrões visuais, tokens, componentes e a estrutura de navegação que **toda tela do Praso Maps herda**. É o alicerce: cada spec de tela (`spec-01`, `spec-02`…) refere a este documento em vez de repetir tokens.
 > ⚠️ **Fonte de verdade = `css/styles.css`.** Este doc **transcreve** o que já está implementado no protótipo. Mudou o CSS, atualize aqui (e vice-versa). Não é design aspiracional.
 
-> 🚧 **Duas partes deste doc estão temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[spec-07-atividades]]): a **§2.6** (paleta de status do funil, com 3 cores a definir) e a **nota de 4 abas** em §5.2. O `STATUS` em `js/data.js` ainda tem 4 valores e a nav ainda tem 3 abas. Ao implementar, o doc volta a ser espelho e este aviso sai.
+> 🚧 **Duas partes deste doc estão temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[spec-07-atividades]]): a **§2.6** (paleta de status do funil — 8 valores, cores já aprovadas) e a **nota de 4 abas** em §5.2. O `STATUS` em `js/data.js` ainda tem 4 valores e a nav ainda tem 3 abas. Ao implementar, o doc volta a ser espelho e este aviso sai.
 
 ## 1. Princípios de design
 
@@ -90,23 +90,29 @@ Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco
 
 **Status do funil** (`STATUS` em `js/data.js`; colunas e dots vêm daqui — [[spec-06-funil]] §2):
 
+**8 valores, 7 colunas** — `sem_plano` é o default e **não tem coluna** no Kanban (o funil é o pipeline, não a base — [[estabelecimento]] §5), logo **não precisa de cor**.
+
 | Status | Família | Hex |
 |---|---|---|
-| Não visitado | escada (campo) | `#94a3b8` |
+| *(Sem plano)* | fora do board | — |
+| **Visita planejada** | entrada | `#94a3b8` |
 | Visitado | escada (campo) | `#0ea5e9` |
 | **TD encontrado** | escada (campo) | `#f59e0b` |
-| **CSC** (cadastrado sem compra) | escada (**ERP**) | ⚠️ **a definir** |
+| **CSC** (cadastrado sem compra) | escada (**ERP**) | `#14b8a6` |
 | **Aquisição** | escada (**ERP**) | `#10b981` |
-| **Perdido** | saída lateral | ⚠️ **a definir** |
-| **Desqualificado** | saída lateral | ⚠️ **a definir** |
+| **Perdido** | saída lateral | `#9f1239` |
+| **Desqualificado** | saída lateral | `#475569` |
 
-> ⚠️ **Três cores a definir, com regra:**
-> - **CSC** — é meio caminho: cadastrado, mas sem compra. **Não usar o verde cheio** de Aquisição (senão lê como ganho fechado); algo que sinalize "quase lá".
-> - **Perdido** e **Desqualificado** — são **saídas laterais**, não degraus ([[tarefa]] §5). Devem ler como "fora do jogo", **sem** usar o `#dc2626` de Danger (nenhum dos dois é erro ou ação destrutiva — o pin nunca some), **distinguíveis entre si**, e sem colidir com o `#94a3b8` de Não visitado.
+> **Por que essas três** (aprovadas 27/07):
+> - **CSC `#14b8a6`** — teal é o degrau *antes* do verde: cadastrado é conquista, mas não é receita, então não pode usar o verde cheio da Aquisição. Fica na rampa entre o âmbar do TD e o esmeralda.
+> - **Perdido `#9f1239`** — vinho. Comunica "morreu" **sem** usar o `#dc2626` de Danger: mais escuro e menos saturado, não dispara leitura de erro do app. Mantém o calor do âmbar de onde a negociação veio — esfriou, não quebrou.
+> - **Desqualificado `#475569`** — mesma família do cinza de `Visita planejada`, muito mais escuro. Distingue por **luminosidade**, não matiz, então sobrevive em escala de cinza e para daltônicos.
 >
-> A **ordem** importa na leitura: as duas laterais vêm depois da escada e devem parecer um bloco à parte (ver [[spec-06-funil]] §2).
+> Nenhuma das três usa o `#dc2626` de Danger — desqualificar e perder não são erro nem ação destrutiva (o pin nunca some). A **ordem** importa: as duas laterais vêm depois da escada e devem parecer um bloco à parte (ver [[spec-06-funil]] §2).
+>
+> **Dot sempre cheio** nas sete colunas. Cogitou-se anel no CSC (para separá-lo do verde da Aquisição sem depender de cor), mas foi **descartado**: o rótulo está sempre ao lado do dot, e contorno já é a linguagem de `origem_confianca` (§2.3) — dois significados para a mesma pista confundiriam mais do que resolvem.
 
-**Resultado da tarefa** (badge de 4 valores no card de atividade e no histórico do pin — [[spec-07-atividades]] §7): `sem_avanco` · `td_encontrado` · `perdido` · `desqualificado`. ⚠️ **A definir** — reaproveitar a cor do status correspondente (`td_encontrado`, `perdido`, `desqualificado` têm status homônimo) em vez de criar uma escala nova. **Não há `resultado = convertido`:** conversão vem do ERP, não de tarefa.
+**Resultado da tarefa** (badge de 4 valores no card de atividade e no histórico do pin — [[spec-07-atividades]] §7): `sem_avanco` · `td_encontrado` · `perdido` · `desqualificado`. **Reaproveita a cor do status homônimo** (`td_encontrado` `#f59e0b`, `perdido` `#9f1239`, `desqualificado` `#475569`); `sem_avanco` usa o `#0ea5e9` de Visitado, que é o seu efeito. Sem escala nova. **Não há `resultado = convertido`:** conversão vem do ERP, não de tarefa.
 
 ## 3. Tipografia
 

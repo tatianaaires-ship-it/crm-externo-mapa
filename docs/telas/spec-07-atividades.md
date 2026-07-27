@@ -53,6 +53,8 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 Enxuto, no molde do modal de criação (SPEC 00 §6.8). Pede **só o que é digitado**: `tipo` (3 chips: 1ª visita · Follow-up · Recorrência) + `data` (default hoje) + `notas` opcional. `responsavel_id` **não aparece** — é derivado ([[tarefa]] §5). `estabelecimento_id` vem do pin.
 
+> ⚖️ **Agendar já move o funil.** Criar a atividade promove o pin de `sem_plano` para **Visita planejada** — é assim que ele **entra no board** do Funil ([[estabelecimento]] §5). **Cancelar** a última atividade planejada devolve o pin a `sem_plano` e ele sai do board. É a única transição reversível do funil, e vale confirmar no cancelamento por isso.
+
 ## 3. Check-out: o fluxo-assinatura (CAP-11 · CAP-14)
 
 O momento em que a atividade **vira dado** e o funil se move. Sheet de conclusão, em até dois passos:
@@ -61,7 +63,7 @@ O momento em que a atividade **vira dado** e o funil se move. Sheet de conclusã
 
 | Opção | Efeito no pin |
 |---|---|
-| **Sem avanço** | marca visitado |
+| **Sem avanço** | → Visitado |
 | **TD (tomador de decisão) encontrado** | → TD encontrado |
 | **Perdido** | → Perdido (guarda a etapa de origem) |
 | **Desqualificar** | → Desqualificado (guarda a etapa de origem) |
@@ -133,6 +135,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Visão gerencial é sub-visão**, não aba (§5).
 - **Perdido e Desqualificado só pelo check-out** (§3.1) — nunca botão solto, nunca arraste. A [[spec-06-funil]] recusa o drop nessas duas colunas (exigem motivo) e também em CSC/Aquisição (vêm do ERP).
 - **Conversão não passa pelo check-out** (§3): `csc`/`aquisicao` vêm do ERP e prevalecem. Um card pode aparecer em Aquisição sem nenhuma atividade concluída.
+- **Agendar é o que põe o pin no funil** (§2.1). Consequência de produto: o Funil deixa de mostrar a base inteira e passa a mostrar só o pipeline — a contagem dele divergir da do mapa é o comportamento correto ([[spec-06-funil]] §5).
 - **Concluir sem check-in é válido** (atividade remota) — o check-in prova presença, não cria o registro.
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.
 - **`proxima_acao_data` aparece na agenda mas não é tarefa** — é sugestão. Vira tarefa só quando o vendedor agenda de fato.

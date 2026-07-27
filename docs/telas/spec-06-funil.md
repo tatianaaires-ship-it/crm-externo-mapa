@@ -22,7 +22,7 @@ related:
 
 > 🎯 **Objetivo.** A **visão de funil** — dor-manchete da KR ("falta visão de funil"): um **Kanban** que agrupa os leads pelo campo `status`, para o vendedor planejar e a liderança enxergar o pipeline. **Herda o [[spec-00-design-system]]** — tokens, shell e componentes não se repetem aqui.
 
-> 🚧 **Este doc está temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[tarefa]] · [[spec-07-atividades]]). O contrato agora pede **7 colunas** (`não visitado → visitado → td_encontrado → csc → aquisicao` + as laterais `perdido` · `desqualificado`), mas o `STATUS` em `js/data.js` ainda tem **4** (`em_negociacao` e `convertido` seguem lá, e o seed usa esses valores). O `isConverted` derivado do arraste em `js/state.js` também já não vale — passa a vir do ERP. Ao implementar, o doc volta a ser espelho e este aviso sai.
+> 🚧 **Este doc está temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[tarefa]] · [[spec-07-atividades]]). O contrato pede um enum de **8 valores / 7 colunas** (`sem_plano` fora do board, `visita_planejada → visitado → td_encontrado → csc → aquisicao`, + as laterais `perdido` · `desqualificado`), mas o `STATUS` em `js/data.js` ainda tem **4** (`nao_visitado`, `em_negociacao` e `convertido` seguem lá, e o seed usa esses valores). O `isConverted` derivado do arraste em `js/state.js` também já não vale — passa a vir do ERP. Ao implementar, o doc volta a ser espelho e este aviso sai.
 
 > 🧩 **Casca × motor.** Esta é a **casca** (Fase 2): colunas + card + **arrastar em memória**, sobre o `status` que o lead já tem — **sem objeto novo, sem banco**. O **motor** restante (persistência real, SLA/tempo-em-etapa) é **Fase 4**. ℹ️ O **sync check-in→funil** e a **visão gerencial** saíram deste bloco: viraram a fatia de Tarefa ([[spec-07-atividades]], CAP-11 a CAP-14).
 
@@ -32,11 +32,12 @@ Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25
 
 ## 2. Colunas (o funil)
 
-- **Uma coluna por status**, na ordem de `CRM_DATA.STATUS` (= ordem do funil). **7 colunas**, em dois blocos: a **escada** — **Não visitado → Visitado → TD encontrado → CSC → Aquisição** — e, ao final, as duas **saídas laterais**: **Perdido** · **Desqualificado**. As colunas **saem da fonte** (`STATUS`), não são hard-coded — mudou o enum, mudou o board.
+- **Uma coluna por status**, na ordem de `CRM_DATA.STATUS` (= ordem do funil). **7 colunas**, em dois blocos: a **escada** — **Visita planejada → Visitado → TD encontrado → CSC → Aquisição** — e, ao final, as duas **saídas laterais**: **Perdido** · **Desqualificado**. As colunas **saem da fonte** (`STATUS`), não são hard-coded — mudou o enum, mudou o board.
+- ⚠️ **`sem_plano` é o 8º valor do enum e NÃO tem coluna.** O funil é o **pipeline de trabalho, não a base** ([[estabelecimento]] §5): o pin entra no board quando ganha uma **visita planejada** (tarefa agendada) e sai dele se o plano for cancelado. Pin sem plano continua no **mapa** e na **Inteligência**.
 - **CSC e Aquisição não são movidas por tarefa** ([[estabelecimento]] §5): vêm do **ERP** (cadastro e pedido) e **prevalecem**. No board isso significa que um card pode aparecer em Aquisição sem nenhuma atividade ter sido concluída.
 - **Perdido e Desqualificado são saídas laterais, não degraus** ([[tarefa]] §5): o pin só entra nelas por `resultado` de uma tarefa, e guarda `status_anterior`. Visualmente devem ler como um bloco **separado da escada** (ex.: divisor antes delas), senão o board sugere que Desqualificado vem depois de Aquisição.
 - **Cabeçalho da coluna:** dot na **cor do status** + rótulo + **contador**; borda superior de 3px na cor do status.
-- **Cores** (do SPEC 00 §2.6 / `STATUS`): Não visitado `#94a3b8` · Visitado `#0ea5e9` · TD encontrado `#f59e0b` · Aquisição `#10b981` · **CSC, Perdido e Desqualificado a definir**.
+- **Cores** (do SPEC 00 §2.6 / `STATUS`): Visita planejada `#94a3b8` · Visitado `#0ea5e9` · TD encontrado `#f59e0b` · CSC `#14b8a6` · Aquisição `#10b981` · Perdido `#9f1239` · Desqualificado `#475569`. **Dot sempre cheio** — contorno é a linguagem de `origem_confianca`, não de status.
 - **Board rola na horizontal** (colunas mais largas que a tela no mobile: `min(78vw, 270px)`); o corpo de cada coluna rola na vertical.
 
 ## 3. Card
@@ -60,7 +61,9 @@ Compacto, no molde do card de lead ([[spec-05-intel]] §6.9 / SPEC 00 §6.9), ma
 
 ## 5. Filtros compartilhados
 
-O Funil consome o **mesmo conjunto filtrado** do mapa e da Inteligência (`filters.reapply` → `CRM_FUNIL.refresh(list)`). Mudar qualquer filtro atualiza as três superfícies. O filtro **oculta** cards — **nunca deleta** (o pin nunca some). Filtrar por `status` restringe **quais colunas têm cards** (não esconde a coluna).
+O Funil consome o mesmo conjunto filtrado do mapa e da Inteligência (`filters.reapply` → `CRM_FUNIL.refresh(list)`), **menos os pins `sem_plano`** — esses não estão no pipeline. Mudar qualquer filtro atualiza as três superfícies. O filtro **oculta** cards — **nunca deleta** (o pin nunca some). Filtrar por `status` restringe **quais colunas têm cards** (não esconde a coluna).
+
+> ⚠️ **Este é o ponto em que o Funil deixa de espelhar o mapa.** Antes o board mostrava todo pin visível; agora mostra só quem entrou no pipeline. A contagem do cabeçalho do Funil vai divergir da do mapa — e isso é o comportamento correto, não bug.
 
 ## 6. Dados exibidos (do Estabelecimento)
 
@@ -76,7 +79,7 @@ No card: `status` (a coluna), `nome_fantasia`, `tipologia` (emoji), `origem_conf
 
 - **Colunas derivadas do enum `STATUS`** — não hard-coded.
 - **Arraste = casca** (§4): substituível por só-leitura; o motor de status é Fase 4/5.
-- ⚠️ **Sobre dado real — a régua do snapshot precisa ser refeita.** [[snapshot-dado-real|snapshot-dado-real.md]] colapsa o funil em **Não visitado / Visitado / Convertido**, e "Convertido" agora **se divide em CSC × Aquisição** — o que exige saber se houve **pedido**, dado que o snapshot do `salesforce.lead` não traz. Até resolver: todo convertido do snapshot cai em **CSC** (o mais conservador — cadastrado, compra não comprovada). `TD encontrado`, `Perdido` e `Desqualificado` ficam vazias com dado real. Com dado fictício, as 7 colunas têm cards.
+- ⚠️ **Sobre dado real — a régua do snapshot precisa ser refeita.** [[snapshot-dado-real|snapshot-dado-real.md]] colapsa o funil em **Não visitado / Visitado / Convertido**, e "Convertido" agora **se divide em CSC × Aquisição** — o que exige saber se houve **pedido**, dado que o snapshot do `salesforce.lead` não traz. Até resolver: todo convertido do snapshot cai em **CSC** (o mais conservador — cadastrado, compra não comprovada). E o "Não visitado" do snapshot agora vira `sem_plano`, que **fica fora do board** — então com dado real o Kanban mostra praticamente **só Visitado e CSC**; `Visita planejada`, `TD encontrado`, `Perdido` e `Desqualificado` ficam vazias, porque o snapshot não traz tarefa nenhuma. Com dado fictício (com tarefas semeadas), as 7 colunas têm cards.
 - **Card filtrado some do board** se um filtro de `status` o excluir — comportamento esperado (consistente com o mapa).
 - **Motor pendente (Fase 4):** persistência real do movimento e **SLA/tempo em etapa**. O **sync check-in→funil** e a **visão gerencial de tarefas** já não são pendência daqui — são a fatia de Tarefa ([[spec-07-atividades]]): concluir uma tarefa move o funil pelo `resultado`, e a gerencial é sub-visão da aba Atividades.
 

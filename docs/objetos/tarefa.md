@@ -29,7 +29,7 @@ Uma **tarefa** é uma atividade **com data e dono** ligada a **um** estabelecime
 ## 2. Decisões-chave
 
 1. **Planejada e realizada são o MESMO objeto.** Uma coleção só; `status` distingue. A **agenda** lê `status = planejada`; a **visão gerencial** lê `status = realizada` com `data` no período. Dois recortes, uma lista — é isso que faz a visão gerencial sair de graça sobre a casca.
-2. **O `resultado` move o funil — não o `tipo`, e só até onde o campo alcança.** O tipo diz o *propósito* da atividade; o resultado diz o *efeito* no `status` do [[estabelecimento]] (§5). A tarefa move as etapas **de campo**; **`csc` e `aquisicao` vêm do ERP** (cadastro/pedido) e **prevalecem**. O `status` passa a ter duas fontes — e nenhuma delas é digitação.
+2. **A Tarefa dirige o funil de ponta a ponta — até onde o campo alcança.** **Agendar** faz o pin entrar (`visita_planejada`); o **`resultado`** ao concluir move as etapas de campo e as saídas laterais; **`csc` e `aquisicao` vêm do ERP** (cadastro/pedido) e **prevalecem**. O `tipo` diz o *propósito*, o `resultado` diz o *efeito* (§5). O `status` tem três fontes — e nenhuma é digitação.
 3. **Recorrência é rótulo, não motor.** Na Fase 2, `tipo = recorrencia` só classifica. **Nada é gerado automaticamente** — nem N ocorrências futuras, nem "concluir cria a próxima" (parking §9).
 
 ## 3. Schema-alvo (DDL)
@@ -113,16 +113,21 @@ CREATE TABLE tarefa (
 - **`duracao_min`** — `checkout_em − checkin_em`. Insumo da visão gerencial; nulo se a tarefa não teve check-in/out.
 - **`resultado` → `status` do [[estabelecimento]]** — a tarefa move **só as etapas de campo**:
 
-| `resultado` | efeito no `status` do estabelecimento |
+| Evento | efeito no `status` do estabelecimento |
 |---|---|
-| `sem_avanco` | `não visitado → visitado` e para aí |
+| **agendar** (nasce `planejada`) | `sem_plano → visita_planejada` — **entra no funil** |
+| **cancelar** a última planejada | `visita_planejada → sem_plano` — sai do board (única reversão) |
+
+| `resultado` (ao concluir) | efeito no `status` do estabelecimento |
+|---|---|
+| `sem_avanco` | → `visitado` e para aí |
 | `td_encontrado` | → `td_encontrado` (achou o tomador de decisão) |
 | `perdido` | → `perdido`, **guardando a etapa de origem** em `status_anterior` |
 | `desqualificado` | → `desqualificado`, **guardando a etapa de origem** em `status_anterior` |
 
   **Não existe `resultado = convertido`.** Conversão não é fato de campo: `csc` e `aquisicao` são **derivados do ERP** (cadastro e pedido) e **prevalecem** sobre o que a tarefa disser — quem tem pedido está em Aquisição, mesmo que a última tarefa tenha dado `perdido`. Regra completa em [[estabelecimento]] §5.
 
-  **Avanço monotônico dentro da escada** (`não visitado → visitado → td_encontrado → csc → aquisicao`): nunca regride. **`perdido` e `desqualificado` não são regressão — são saídas laterais**: estados terminais-mas-revisáveis *fora* da escada. É por isso que ambos guardam a etapa de origem.
+  **A Tarefa é o que faz o pin entrar no funil.** `sem_plano` é o default e **não tem coluna** no Kanban ([[estabelecimento]] §5) — o ponto só aparece no board quando ganha uma visita planejada. **Avanço monotônico de `visita_planejada` em diante** (`→ visitado → td_encontrado → csc → aquisicao`): nunca regride. **`perdido` e `desqualificado` não são regressão — são saídas laterais**: estados terminais-mas-revisáveis *fora* da escada. É por isso que ambos guardam a etapa de origem.
   Em todos os casos, concluir a tarefa atualiza `ultima_visita` do pin e — pela regra de check-in já travada — promove `origem_confianca` a `validado_campo` gravando `geo_verificado`.
 
 - **Reabrir uma saída lateral** (voltar de `perdido` ou `desqualificado`) — **exige nova tarefa concluída**, não há toggle. Concluir qualquer tarefa num pin nesses estados **restaura `status_anterior`** e só então aplica o `resultado` novo pela tabela acima. Sair e voltar são simétricos: ambos são constatação de campo, ambos têm autor e data. *(Um pedido chegando pelo ERP também tira o pin da lateral — ERP prevalece.)*
@@ -175,6 +180,6 @@ CREATE TABLE tarefa (
 
 - **Parkings (motor):** `recorrencia_dias` + geração automática da próxima ocorrência · SLA/tempo em etapa · fotos e check-in por proximidade (PostGIS) · agenda semanal / Google Agenda · persistência + auth/RLS · alerta "cliente sem visita há N dias" · sync completo tarefa→funil.
 - **Resolve um parking do [[estabelecimento]]:** `proximo_contato_agendado` (§9 de estabelecimento.md) passa a ser `proxima_acao` + `proxima_acao_data` **aqui** — não é campo do pin.
-- **Implementação do enum de 7 estados:** `STATUS` em `js/data.js` precisa ganhar `td_encontrado` (renomeia `em_negociacao`), `csc` + `aquisicao` (substituem `convertido`), `perdido` e `desqualificado` — as colunas do Kanban saem daí, então o board se ajusta sozinho ([[spec-06-funil]] §2). **Três cores novas** (`csc`, `perdido`, `desqualificado`): decisão de design, `css/styles.css` é a fonte de verdade (regras em [[spec-00-design-system]] §2.6). O seed fictício precisa popular `data_cadastro`/`data_primeira_compra` para que CSC e Aquisição tenham cards.
-- **Divergência de enum com o Notion: RESOLVIDA.** O plano (Fase 4) falava `Novo → Em progresso → CSC → Convertido`; a escada agora é `não visitado → visitado → td_encontrado → csc → aquisicao` — o `CSC` do plano entrou e "Convertido" virou `aquisicao`. Sobra só diferença de rótulo nas duas primeiras etapas.
+- **Implementação do enum de 8 valores / 7 colunas:** `STATUS` em `js/data.js` precisa ganhar `sem_plano` (novo default, **sem coluna**), `visita_planejada` (renomeia `nao_visitado`), `td_encontrado` (renomeia `em_negociacao`), `csc` + `aquisicao` (substituem `convertido`), `perdido` e `desqualificado` — as colunas do Kanban saem daí, então o board se ajusta sozinho ([[spec-06-funil]] §2). **Três cores novas** (`csc`, `perdido`, `desqualificado`): decisão de design, `css/styles.css` é a fonte de verdade (regras em [[spec-00-design-system]] §2.6). O seed fictício precisa popular `data_cadastro`/`data_primeira_compra` para que CSC e Aquisição tenham cards.
+- **Divergência de enum com o Notion: RESOLVIDA.** O plano (Fase 4) falava `Novo → Em progresso → CSC → Convertido`; a escada agora é `visita_planejada → visitado → td_encontrado → csc → aquisicao` (com `sem_plano` fora do board) — o `CSC` do plano entrou e "Convertido" virou `aquisicao`. Sobra só diferença de rótulo nas duas primeiras etapas.
 - **A resolver:** semear `vendedor_responsavel_id` nos estabelecimentos fictícios (sem isso o recorte "por vendedor" da CAP-13 colapsa num bucket único) · **a régua do snapshot de dado real** precisa distinguir CSC × Aquisição, o que exige uma fonte de *pedido* que o `salesforce.lead` não tem ([[spec-06-funil]] §8).

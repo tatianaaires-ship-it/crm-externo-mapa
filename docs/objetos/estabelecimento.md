@@ -58,10 +58,11 @@ CREATE TABLE estabelecimento (
   qualidade                text,                           -- de cnae_tier
   porte                    text,                           -- chega via CNPJá
   -- funil de campo
-  -- escada: nao_visitado | visitado | td_encontrado | csc | aquisicao
-  -- saídas laterais:      perdido | desqualificado
-  -- fontes: tarefa (campo) para a escada até td_encontrado + laterais; ERP para csc/aquisicao (prevalece)
-  status                   text NOT NULL DEFAULT 'nao_visitado',
+  -- entrada:          sem_plano (default, FORA do board) <-> visita_planejada
+  -- escada de campo:  visitado | td_encontrado
+  -- escada comercial: csc | aquisicao        (do ERP, prevalece)
+  -- saídas laterais:  perdido | desqualificado
+  status                   text NOT NULL DEFAULT 'sem_plano',
   status_anterior          text,                           -- etapa de origem, para voltar de uma lateral (§5)
   motivo_status            text,                           -- DERIVADO: motivo da última tarefa concluída
   ultima_visita            date,
@@ -116,7 +117,7 @@ CREATE TABLE nota_estabelecimento (
 | 10 | `origem_confianca` | enum (4) | Não | **derivado** | **cor do pin** · sheet | §5 |
 | 11 | `qualidade` | enum Ouro/Prata/Bronze | Não | **derivado** | filtro · sheet | de [[cnae_tier]] |
 | 12 | `porte` | enum | Não | `fonte:cnpja` | filtro · sheet | dimensão de filtro |
-| 13 | `status` | enum (7, funil) | Sim | fluxo (tarefa) + **derivado** (ERP) | filtro · sheet | **nunca digitado**; duas fontes, ERP prevalece — §5 |
+| 13 | `status` | enum (8; **7 colunas**) | Sim | **derivado** (tarefa + ERP) | filtro · sheet | **nunca digitado**; três fontes, ERP prevalece; `sem_plano` fica fora do board — §5 |
 | 13b | `status_anterior` | enum | Não | `auto` | — | etapa de origem antes de `perdido`/`desqualificado`; usada para **voltar** |
 | 14 | `motivo_status` | text | Não | **derivado** | sheet | cache do `motivo_perda`/`motivo_desqualificacao` da última [[tarefa]] concluída |
 | 15 | `ultima_visita` | date | Não | check-in | filtro · sheet | — |
@@ -143,13 +144,16 @@ CREATE TABLE nota_estabelecimento (
 
 ## 5. Campos derivados / calculados
 
-- **`status` (o funil)** — **duas fontes, nenhuma digitada.** Sete valores em duas famílias:
+- **`status` (o funil)** — **três fontes, nenhuma digitada.** Oito valores, sendo **7 colunas** no Kanban (`sem_plano` fica fora do board):
 
-  | Família | Valores | Fonte |
-  |---|---|---|
-  | **Escada de campo** | `nao_visitado` → `visitado` → `td_encontrado` | `resultado` de uma [[tarefa]] concluída |
-  | **Escada comercial** | `csc` → `aquisicao` | **derivado do ERP** — *prevalece* |
-  | **Saídas laterais** | `perdido` · `desqualificado` | `resultado` de uma [[tarefa]] concluída |
+  | Família | Valores | Fonte | Reversível? |
+  |---|---|---|---|
+  | **Entrada no funil** | `sem_plano` ⇄ `visita_planejada` | existe [[tarefa]] com `status = planejada`? | **sim** |
+  | **Escada de campo** | `visitado` → `td_encontrado` | `resultado` de uma [[tarefa]] concluída | não |
+  | **Escada comercial** | `csc` → `aquisicao` | **derivado do ERP** — *prevalece* | não |
+  | **Saídas laterais** | `perdido` · `desqualificado` | `resultado` de uma [[tarefa]] concluída | via nova tarefa |
+
+  **O funil é o pipeline de trabalho, não a base.** `sem_plano` é o default de todo pin e **não tem coluna** no Kanban: o ponto segue visível no **mapa** e na **Inteligência**, que é onde a base vive. Agendar uma tarefa promove a `visita_planejada` (entra no board); **cancelar a última tarefa planejada devolve a `sem_plano`** — é a única transição reversível, porque só reflete se existe plano. Depois que o ponto é visitado de fato, nunca volta.
 
   **Derivação comercial:** `cadastrado = true` **e** `data_primeira_compra IS NULL` → **`csc`** (cadastrado sem compra); `data_primeira_compra IS NOT NULL` → **`aquisicao`**. **O ERP prevalece sobre o campo:** quem tem pedido está em `aquisicao` mesmo que a última tarefa tenha dado `perdido` — e um pedido chegando **tira o pin da saída lateral** sozinho. `aquisicao` é **sticky** (é um marco, não uma saúde): cliente que para de comprar continua em `aquisicao`, e a deterioração aparece em `status_cliente`, não aqui.
 
@@ -197,7 +201,8 @@ CREATE TABLE nota_estabelecimento (
 ## 8. Regras de domínio / da fatia
 
 - **O pin nunca some, e nunca se divide** — não há deletar; converter não cria registro novo, só acumula campos. **Desqualificação é estado revisável**: o pin segue visível, o filtro apenas oculta.
-- **`status` nunca é digitado** — nasce `não visitado` e muda por **duas fontes** (§5): a **conclusão de uma [[tarefa]]** move as etapas de campo e as saídas laterais, e o **ERP** deriva `csc`/`aquisicao` e **prevalece**. Nunca por toque solto. Avanço **monotônico** na escada `não visitado → visitado → td_encontrado → csc → aquisicao`; `perdido` e `desqualificado` são **saídas laterais** que guardam `status_anterior`.
+- **`status` nunca é digitado** — nasce `sem plano` e muda por **três fontes** (§5): **agendar** uma [[tarefa]] promove a `visita planejada` (e cancelar devolve), **concluir** uma tarefa move as etapas de campo e as saídas laterais, e o **ERP** deriva `csc`/`aquisicao` e **prevalece**. Nunca por toque solto. Avanço **monotônico** de `visita planejada` em diante; `perdido` e `desqualificado` são **saídas laterais** que guardam `status_anterior`.
+- **O funil é o pipeline, não a base.** `sem plano` não tem coluna no Kanban — o ponto existe no mapa e na Inteligência, e entra no funil quando ganha uma visita planejada.
 - **Conversão não é fato de campo.** Não existe `resultado = convertido` na [[tarefa]]: o vendedor não decide que alguém virou cliente — cadastro e pedido decidem. É o que separa esforço de campo de resultado comercial no funil.
 - **Classificação é derivada ou chega pronta — nunca digitada** (`qualidade`, `origem_confianca`, `porte`, `cadastrado`, `status_cliente`). Form pede só o **básico** (nome + local) + **"expandir"** opcional.
 - **Check-in e correção de pin promovem a "validado em campo"** (monotônico); gravam `geo_verificado`.
