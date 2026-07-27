@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 4/5"
 status: em-revisao
-fonte_de_verdade: "index.html + js/funil.js + js/state.js + js/filters.js (o doc espelha o código)"
+fonte_de_verdade: "index.html + js/funil.js + js/state.js + js/filters.js (o doc espelha o código) — ⚠️ EXCEÇÃO TEMPORÁRIA: o enum de 7 colunas está À FRENTE do código (fatia Tarefa, 27/07); ver aviso abaixo"
 sources:
   - "js/funil.js — Kanban por status, arraste (Pointer Events), toque→pin"
   - "js/state.js — setStatus (move em memória); STATUS (funil)"
@@ -22,17 +22,21 @@ related:
 
 > 🎯 **Objetivo.** A **visão de funil** — dor-manchete da KR ("falta visão de funil"): um **Kanban** que agrupa os leads pelo campo `status`, para o vendedor planejar e a liderança enxergar o pipeline. **Herda o [[spec-00-design-system]]** — tokens, shell e componentes não se repetem aqui.
 
-> 🧩 **Casca × motor.** Esta é a **casca** (Fase 2): colunas + card + **arrastar em memória**, sobre o `status` que o lead já tem — **sem objeto novo, sem banco**. O **motor** (persistência real, SLA/tempo-em-etapa, sync check-in→funil, visão gerencial) é **Fase 4/5** — ver plano revisado.
+> 🚧 **Este doc está temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[tarefa]] · [[spec-07-atividades]]). O contrato agora pede **7 colunas** (`não visitado → visitado → td_encontrado → csc → aquisicao` + as laterais `perdido` · `desqualificado`), mas o `STATUS` em `js/data.js` ainda tem **4** (`em_negociacao` e `convertido` seguem lá, e o seed usa esses valores). O `isConverted` derivado do arraste em `js/state.js` também já não vale — passa a vir do ERP. Ao implementar, o doc volta a ser espelho e este aviso sai.
+
+> 🧩 **Casca × motor.** Esta é a **casca** (Fase 2): colunas + card + **arrastar em memória**, sobre o `status` que o lead já tem — **sem objeto novo, sem banco**. O **motor** restante (persistência real, SLA/tempo-em-etapa) é **Fase 4**. ℹ️ O **sync check-in→funil** e a **visão gerencial** saíram deste bloco: viraram a fatia de Tarefa ([[spec-07-atividades]], CAP-11 a CAP-14).
 
 ## 1. Layout
 
-Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25 — mesma camada da Inteligência no SPEC 00 §5.1). Estrutura: **cabeçalho** (contagem + dica) → **board horizontal** de colunas → **empty state**. Terceira aba da bottom nav (🗺️ Mapa · **📊 Funil** · 📋 Inteligência); nas abas Funil/Inteligência os controles do mapa (FAB, banners) somem.
+Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25 — mesma camada da Inteligência no SPEC 00 §5.1). Estrutura: **cabeçalho** (contagem + dica) → **board horizontal** de colunas → **empty state**. Segunda aba da bottom nav (🗺️ Mapa · **📊 Funil** · 🗓️ Atividades · 📋 Intel. — 4 abas desde a [[spec-07-atividades]]); nessas abas os controles do mapa (FAB, banners) somem.
 
 ## 2. Colunas (o funil)
 
-- **Uma coluna por status**, na ordem de `CRM_DATA.STATUS` (= ordem do funil): **Não visitado → Visitado → Em negociação → Convertido**. As colunas **saem da fonte** (`STATUS`), não são hard-coded — mudou o enum, mudou o board.
+- **Uma coluna por status**, na ordem de `CRM_DATA.STATUS` (= ordem do funil). **7 colunas**, em dois blocos: a **escada** — **Não visitado → Visitado → TD encontrado → CSC → Aquisição** — e, ao final, as duas **saídas laterais**: **Perdido** · **Desqualificado**. As colunas **saem da fonte** (`STATUS`), não são hard-coded — mudou o enum, mudou o board.
+- **CSC e Aquisição não são movidas por tarefa** ([[estabelecimento]] §5): vêm do **ERP** (cadastro e pedido) e **prevalecem**. No board isso significa que um card pode aparecer em Aquisição sem nenhuma atividade ter sido concluída.
+- **Perdido e Desqualificado são saídas laterais, não degraus** ([[tarefa]] §5): o pin só entra nelas por `resultado` de uma tarefa, e guarda `status_anterior`. Visualmente devem ler como um bloco **separado da escada** (ex.: divisor antes delas), senão o board sugere que Desqualificado vem depois de Aquisição.
 - **Cabeçalho da coluna:** dot na **cor do status** + rótulo + **contador**; borda superior de 3px na cor do status.
-- **Cores** (do SPEC 00 / `STATUS`): Não visitado `#94a3b8` · Visitado `#0ea5e9` · Em negociação `#f59e0b` · Convertido `#10b981`.
+- **Cores** (do SPEC 00 §2.6 / `STATUS`): Não visitado `#94a3b8` · Visitado `#0ea5e9` · TD encontrado `#f59e0b` · Aquisição `#10b981` · **CSC, Perdido e Desqualificado a definir**.
 - **Board rola na horizontal** (colunas mais largas que a tela no mobile: `min(78vw, 270px)`); o corpo de cada coluna rola na vertical.
 
 ## 3. Card
@@ -49,10 +53,10 @@ Compacto, no molde do card de lead ([[spec-05-intel]] §6.9 / SPEC 00 §6.9), ma
 - **Pointer Events** → funciona em **touch (Android)** e **mouse**. Sem lib.
 - **Disambiguação de gesto** via `touch-action`: board `pan-x` (rola horizontal), corpo da coluna e card `pan-y` (rola vertical). Assim: **swipe vertical rola a coluna**; **arrasto horizontal move o card**.
 - **Limiar de 8px** antes de iniciar o arraste (abaixo disso é toque → abre o pin). Ao iniciar: **clone flutuante** (`.funil-ghost`) segue o dedo, o card original esmaece (`is-dragging`), a **coluna sob o ponteiro destaca** (`is-drop`).
-- **Drop em coluna diferente → `CRM_STATE.setStatus(id, novoStatus)`**. `pointercancel` (ex.: o navegador assumiu o scroll) **aborta** o arraste sem efeito.
-- `setStatus` re-renderiza tudo pelo pipeline real (`emit → reapply → refresh`): o card reaparece na coluna nova, contadores atualizam, **mapa e Inteligência ficam em sincronia**. Converter para **Convertido** também marca `isConverted` e grava `convertedAt` (se ainda não houver).
+- **Drop em coluna diferente → `CRM_STATE.setStatus(id, novoStatus)`**, com **três exceções**: **Perdido** e **Desqualificado** exigem motivo (o drop abre o fluxo de tarefa ou é recusado), e **CSC/Aquisição** não são do campo (vêm do ERP — arrastar para lá é recusado). `pointercancel` (ex.: o navegador assumiu o scroll) **aborta** o arraste sem efeito.
+- `setStatus` re-renderiza tudo pelo pipeline real (`emit → reapply → refresh`): o card reaparece na coluna nova, contadores atualizam, **mapa e Inteligência ficam em sincronia**. ⚠️ O antigo atalho "arrastar para Convertido marca `isConverted`/`convertedAt`" **deixa de existir**: `csc`/`aquisicao` vêm do ERP (`data_cadastro`/`data_primeira_compra`), não do arraste.
 
-> ⚠️ **Tensão de domínio (decidida como casca).** [[estabelecimento]] §8 diz *"status muda só por fluxo/check-in, nunca por toque solto"*. Aqui o arraste é **afordância de protótipo** (demonstrar a visão de funil, o que a tarefa da Fase 2 pede). No **produto real**, o status avança por **check-in/fluxo** — o `setStatus` do drag é substituível por Kanban só-leitura sem quebrar nada.
+> ⚠️ **Tensão de domínio (decidida como casca).** [[estabelecimento]] §8 diz *"o `status` nunca é digitado"* — ou vem de tarefa concluída, ou vem do ERP. Aqui o arraste é **afordância de protótipo** (demonstrar a visão de funil, o que a tarefa da Fase 2 pede). No **produto real**, o status avança por **check-in/fluxo** — o `setStatus` do drag é substituível por Kanban só-leitura sem quebrar nada.
 
 ## 5. Filtros compartilhados
 
@@ -72,9 +76,9 @@ No card: `status` (a coluna), `nome_fantasia`, `tipologia` (emoji), `origem_conf
 
 - **Colunas derivadas do enum `STATUS`** — não hard-coded.
 - **Arraste = casca** (§4): substituível por só-leitura; o motor de status é Fase 4/5.
-- **Sobre dado real** (ver [[snapshot-dado-real|snapshot-dado-real.md]]): a régua do snapshot colapsa o funil em **Não visitado / Visitado / Convertido** — logo a coluna **"Em negociação" fica vazia** com dado real (1º/2º/3º contato são do time *inside*, não do campo). Com dado fictício, as 4 colunas têm cards.
+- ⚠️ **Sobre dado real — a régua do snapshot precisa ser refeita.** [[snapshot-dado-real|snapshot-dado-real.md]] colapsa o funil em **Não visitado / Visitado / Convertido**, e "Convertido" agora **se divide em CSC × Aquisição** — o que exige saber se houve **pedido**, dado que o snapshot do `salesforce.lead` não traz. Até resolver: todo convertido do snapshot cai em **CSC** (o mais conservador — cadastrado, compra não comprovada). `TD encontrado`, `Perdido` e `Desqualificado` ficam vazias com dado real. Com dado fictício, as 7 colunas têm cards.
 - **Card filtrado some do board** se um filtro de `status` o excluir — comportamento esperado (consistente com o mapa).
-- **Motor pendente (Fase 4/5):** persistência real do movimento, **SLA/tempo em etapa**, **sync check-in→funil**, **visão gerencial de tarefas** (por período/tipo/vendedor). A casca não os cobre.
+- **Motor pendente (Fase 4):** persistência real do movimento e **SLA/tempo em etapa**. O **sync check-in→funil** e a **visão gerencial de tarefas** já não são pendência daqui — são a fatia de Tarefa ([[spec-07-atividades]]): concluir uma tarefa move o funil pelo `resultado`, e a gerencial é sub-visão da aba Atividades.
 
 ## 9. Como o SPEC 06 usa o SPEC 00
 

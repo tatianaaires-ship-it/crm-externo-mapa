@@ -10,7 +10,7 @@ sources:
   - "Decisão Tatiana + líder (2026-07-23): fundir Lead + Conta num objeto 'Estabelecimento'"
 related:
   - "[[vendedor]]"
-  - "[[visita]]"
+  - "[[tarefa]]"
   - "[[cnae_tier]]"
   - "[[zona]]"
 ---
@@ -18,7 +18,7 @@ related:
 # Objeto Estabelecimento
 
 > **Uma linha:** **um único objeto** para o ponto no mapa — cliente cadastrado **ou** não —, distinguido pelo campo derivado `cadastrado`. O pin nunca se divide ao converter; ele **acumula**.
-> **Vizinhos:** [[vendedor]] · [[visita]] · [[cnae_tier]] · [[zona]]
+> **Vizinhos:** [[vendedor]] · [[tarefa]] · [[cnae_tier]] · [[zona]]
 
 > ℹ️ O código do protótipo (`js/`) ainda usa o termo **"lead"**. Alinhar o naming com "Estabelecimento" é uma tarefa de refactor **parkada** — não bloqueia a modelagem.
 
@@ -58,8 +58,12 @@ CREATE TABLE estabelecimento (
   qualidade                text,                           -- de cnae_tier
   porte                    text,                           -- chega via CNPJá
   -- funil de campo
+  -- escada: nao_visitado | visitado | td_encontrado | csc | aquisicao
+  -- saídas laterais:      perdido | desqualificado
+  -- fontes: tarefa (campo) para a escada até td_encontrado + laterais; ERP para csc/aquisicao (prevalece)
   status                   text NOT NULL DEFAULT 'nao_visitado',
-  motivo_status            text,
+  status_anterior          text,                           -- etapa de origem, para voltar de uma lateral (§5)
+  motivo_status            text,                           -- DERIVADO: motivo da última tarefa concluída
   ultima_visita            date,
   vendedor_responsavel_id  uuid REFERENCES usuario(id),    -- alvo de RLS
   telefone                 text,                           -- FICTÍCIO no protótipo (§8)
@@ -112,8 +116,9 @@ CREATE TABLE nota_estabelecimento (
 | 10 | `origem_confianca` | enum (4) | Não | **derivado** | **cor do pin** · sheet | §5 |
 | 11 | `qualidade` | enum Ouro/Prata/Bronze | Não | **derivado** | filtro · sheet | de [[cnae_tier]] |
 | 12 | `porte` | enum | Não | `fonte:cnpja` | filtro · sheet | dimensão de filtro |
-| 13 | `status` | enum (funil campo) | Sim | fluxo | filtro · sheet | muda **só por fluxo** |
-| 14 | `motivo_status` | text | Não | `fonte:sf` | sheet | — |
+| 13 | `status` | enum (7, funil) | Sim | fluxo (tarefa) + **derivado** (ERP) | filtro · sheet | **nunca digitado**; duas fontes, ERP prevalece — §5 |
+| 13b | `status_anterior` | enum | Não | `auto` | — | etapa de origem antes de `perdido`/`desqualificado`; usada para **voltar** |
+| 14 | `motivo_status` | text | Não | **derivado** | sheet | cache do `motivo_perda`/`motivo_desqualificacao` da última [[tarefa]] concluída |
 | 15 | `ultima_visita` | date | Não | check-in | filtro · sheet | — |
 | 16 | `vendedor_responsavel_id` | fk → [[vendedor]] | Não | `fonte:sf` | (RLS) · sheet | alvo de RLS |
 | 17 | `telefone` | text | Não | `fonte:sf`/`google` | sheet (ligar/WhatsApp) · form:expandir | **fictício** |
@@ -138,6 +143,20 @@ CREATE TABLE nota_estabelecimento (
 
 ## 5. Campos derivados / calculados
 
+- **`status` (o funil)** — **duas fontes, nenhuma digitada.** Sete valores em duas famílias:
+
+  | Família | Valores | Fonte |
+  |---|---|---|
+  | **Escada de campo** | `nao_visitado` → `visitado` → `td_encontrado` | `resultado` de uma [[tarefa]] concluída |
+  | **Escada comercial** | `csc` → `aquisicao` | **derivado do ERP** — *prevalece* |
+  | **Saídas laterais** | `perdido` · `desqualificado` | `resultado` de uma [[tarefa]] concluída |
+
+  **Derivação comercial:** `cadastrado = true` **e** `data_primeira_compra IS NULL` → **`csc`** (cadastrado sem compra); `data_primeira_compra IS NOT NULL` → **`aquisicao`**. **O ERP prevalece sobre o campo:** quem tem pedido está em `aquisicao` mesmo que a última tarefa tenha dado `perdido` — e um pedido chegando **tira o pin da saída lateral** sozinho. `aquisicao` é **sticky** (é um marco, não uma saúde): cliente que para de comprar continua em `aquisicao`, e a deterioração aparece em `status_cliente`, não aqui.
+
+  **Invariante:** `status ∈ {csc, aquisicao}` ⟺ `cadastrado = true`. Os dois campos dizem a mesma verdade em granularidades diferentes — `cadastrado` é o booleano de filtro, `status` é a posição no funil.
+
+  **Avanço monotônico na escada**; `perdido`/`desqualificado` são **saídas laterais** (não regressão) e guardam `status_anterior`, restaurado quando uma nova tarefa — ou um pedido — traz o ponto de volta.
+
 - **`cadastrado`** *(derivado)* — a verdade virá da **integração com o ERP/financeiro** (existe registro comercial?). Enquanto não há integração, no protótipo deriva de `data_cadastro IS NOT NULL`. **Sticky** por natureza: o registro comercial não desaparece se o cliente churnar.
 - **`qualidade`** — de `cnae_codigo` via [[cnae_tier]] (editável no Admin sem código). Recalculada quando o CNAE muda.
 - **`origem_confianca`** — eixo = **a localização do pin**. Escada (nível mais alto que alcançar): (1) **validado em campo (Máxima)** — monotônico; (2) **CNPJá+Google com match confirmado (Alta)**; (3) **Google puro (Média)**; (4) **CNPJá puro (Menor)**. Princípio: *na dúvida, arredonda pra BAIXO*. **Inversão-tese:** Google puro > CNPJá puro (fachada vista > cartório). Exceções: validação de campo sobe/grava; reclassificação manual permitida.
@@ -159,15 +178,16 @@ CREATE TABLE nota_estabelecimento (
    1:N │       1:N │       N:1 │        zona_id ─► [[zona]]
        ▼           ▼           ▼        cnae_codigo ─► [[cnae_tier]]
  ┌──────────────┐ ┌────────┐ ┌────────┐ vendedor_responsavel_id ─► [[vendedor]]
- │NOTA_ESTABEL. │ │ VISITA │ │VENDEDOR│
- │  (net-new)   │ │check-in│ │        │
+ │NOTA_ESTABEL. │ │ TAREFA │ │VENDEDOR│
+ │  (net-new)   │ │=check- │ │        │
+ │              │ │  in/out│ │        │
  └──────────────┘ └────────┘ └────────┘
 ```
 
 | Relação | Tipo | Nota |
 |---|---|---|
 | Estab. → Nota_estabelecimento | 1:N | net-new; sempre visível no pin |
-| Estab. → Visita | 1:N | check-in; promove a "validado em campo" |
+| Estab. → [[tarefa]] | 1:N | atividade datada **= check-in/out**; promove a "validado em campo"; o `resultado` move o `status` |
 | Estab. → Vendedor | N:1 | `vendedor_responsavel_id`; alvo de RLS |
 | Estab. → Zona | N:1 | `zona_id` = `zona_2_c` |
 | Estab. → cnae_tier | N:1 (lookup) | deriva `qualidade` |
@@ -176,8 +196,9 @@ CREATE TABLE nota_estabelecimento (
 
 ## 8. Regras de domínio / da fatia
 
-- **O pin nunca some, e nunca se divide** — não há deletar; converter não cria registro novo, só acumula campos. Desqualificação é estado revisável.
-- **`status` (funil de campo) muda só por fluxo/check-in**, nunca por toque solto. Nasce `não visitado`; `não visitado → visitado` no check-in.
+- **O pin nunca some, e nunca se divide** — não há deletar; converter não cria registro novo, só acumula campos. **Desqualificação é estado revisável**: o pin segue visível, o filtro apenas oculta.
+- **`status` nunca é digitado** — nasce `não visitado` e muda por **duas fontes** (§5): a **conclusão de uma [[tarefa]]** move as etapas de campo e as saídas laterais, e o **ERP** deriva `csc`/`aquisicao` e **prevalece**. Nunca por toque solto. Avanço **monotônico** na escada `não visitado → visitado → td_encontrado → csc → aquisicao`; `perdido` e `desqualificado` são **saídas laterais** que guardam `status_anterior`.
+- **Conversão não é fato de campo.** Não existe `resultado = convertido` na [[tarefa]]: o vendedor não decide que alguém virou cliente — cadastro e pedido decidem. É o que separa esforço de campo de resultado comercial no funil.
 - **Classificação é derivada ou chega pronta — nunca digitada** (`qualidade`, `origem_confianca`, `porte`, `cadastrado`, `status_cliente`). Form pede só o **básico** (nome + local) + **"expandir"** opcional.
 - **Check-in e correção de pin promovem a "validado em campo"** (monotônico); gravam `geo_verificado`.
 - **LGPD × dado comercial (distinguir):** `limite_credito`, `saldo_devedor`, `inadimplente`, datas de compra são **dado comercial da PJ** (confidencial), *não* dado pessoal de pessoa física — regime é sigilo comercial, não LGPD. Já `telefone`/`decisor_nome` tocam pessoa física. Em qualquer caso: no protótipo público, **valores fictícios**; reais só em ambiente privado (Fase 3), com valor obviamente falso enquanto público.

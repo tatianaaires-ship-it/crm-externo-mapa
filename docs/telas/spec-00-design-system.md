@@ -3,7 +3,7 @@ title: "SPEC 00 — Design System & App Shell (CRM Externo / Praso Maps)"
 tipo: design-spec
 fase: "Protótipo do Mapa (Fase 1–2)"
 status: ratificado
-fonte_de_verdade: "css/styles.css (o doc espelha o CSS, não o inverso)"
+fonte_de_verdade: "css/styles.css (o doc espelha o CSS, não o inverso) — ⚠️ EXCEÇÃO TEMPORÁRIA: §2.6 e a nota de 4 abas em §5.2 estão À FRENTE do código (fatia Tarefa, 27/07); ver aviso abaixo"
 sources:
   - "css/styles.css — tokens e componentes implementados"
   - "index.html — estrutura do shell"
@@ -20,6 +20,8 @@ related:
 
 > 🎯 **Objetivo.** Definir os padrões visuais, tokens, componentes e a estrutura de navegação que **toda tela do Praso Maps herda**. É o alicerce: cada spec de tela (`spec-01`, `spec-02`…) refere a este documento em vez de repetir tokens.
 > ⚠️ **Fonte de verdade = `css/styles.css`.** Este doc **transcreve** o que já está implementado no protótipo. Mudou o CSS, atualize aqui (e vice-versa). Não é design aspiracional.
+
+> 🚧 **Duas partes deste doc estão temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[spec-07-atividades]]): a **§2.6** (paleta de status do funil, com 3 cores a definir) e a **nota de 4 abas** em §5.2. O `STATUS` em `js/data.js` ainda tem 4 valores e a nav ainda tem 3 abas. Ao implementar, o doc volta a ser espelho e este aviso sai.
 
 ## 1. Princípios de design
 
@@ -84,6 +86,28 @@ Derivada do CNAE (ver [[cnae_tier]]). Aparece como pill no sheet, badge na lista
 
 Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco/inativo/reconquistado) chegarem à tela, precisarão de cores próprias (o CSS ainda não as tem). **Buraco marcado**, não preenchido — evitar colidir com o semáforo de origem/qualidade.
 
+### 2.6 Status do funil e resultado da tarefa
+
+**Status do funil** (`STATUS` em `js/data.js`; colunas e dots vêm daqui — [[spec-06-funil]] §2):
+
+| Status | Família | Hex |
+|---|---|---|
+| Não visitado | escada (campo) | `#94a3b8` |
+| Visitado | escada (campo) | `#0ea5e9` |
+| **TD encontrado** | escada (campo) | `#f59e0b` |
+| **CSC** (cadastrado sem compra) | escada (**ERP**) | ⚠️ **a definir** |
+| **Aquisição** | escada (**ERP**) | `#10b981` |
+| **Perdido** | saída lateral | ⚠️ **a definir** |
+| **Desqualificado** | saída lateral | ⚠️ **a definir** |
+
+> ⚠️ **Três cores a definir, com regra:**
+> - **CSC** — é meio caminho: cadastrado, mas sem compra. **Não usar o verde cheio** de Aquisição (senão lê como ganho fechado); algo que sinalize "quase lá".
+> - **Perdido** e **Desqualificado** — são **saídas laterais**, não degraus ([[tarefa]] §5). Devem ler como "fora do jogo", **sem** usar o `#dc2626` de Danger (nenhum dos dois é erro ou ação destrutiva — o pin nunca some), **distinguíveis entre si**, e sem colidir com o `#94a3b8` de Não visitado.
+>
+> A **ordem** importa na leitura: as duas laterais vêm depois da escada e devem parecer um bloco à parte (ver [[spec-06-funil]] §2).
+
+**Resultado da tarefa** (badge de 4 valores no card de atividade e no histórico do pin — [[spec-07-atividades]] §7): `sem_avanco` · `td_encontrado` · `perdido` · `desqualificado`. ⚠️ **A definir** — reaproveitar a cor do status correspondente (`td_encontrado`, `perdido`, `desqualificado` têm status homônimo) em vez de criar uma escala nova. **Não há `resultado = convertido`:** conversão vem do ERP, não de tarefa.
+
 ## 3. Tipografia
 
 **Família:** stack nativa — `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`. Sem webfont (decisão: app de campo/offline). *(O SPEC 00 do CRM-KA usa Inter; aqui é deliberadamente nativo.)*
@@ -123,7 +147,7 @@ Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conte
 │    [legenda]        [banners de modo]     │
 │                                           │
 ├───────────────────────────────────────────┤
-│ BOTTOM NAV (56)  🗺️ Mapa | 📊 Funil | 📋 Intel. │  z 41
+│ BOTTOM NAV (56) 🗺️ Mapa|📊 Funil|🗓️ Ativ.|📋 Intel.│  z 41
 └───────────────────────────────────────────┘
 ```
 
@@ -132,7 +156,7 @@ Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conte
 | Camada | z-index |
 |---|---|
 | Mapa | 1 |
-| Aba Inteligência (cobre o mapa) | 25 |
+| Abas Funil / Atividades / Inteligência (cobrem o mapa) | 25 |
 | FAB criar / FAB localizar | 30 |
 | Banners de modo (placing/moving) | 35 |
 | Popover de classificação (+backdrop 37) | 38 |
@@ -147,6 +171,8 @@ Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conte
 ### 5.2 Navegação
 
 Bottom nav de **3 abas** — Mapa, **Funil** (Kanban por status) e Inteligência — que **compartilham os mesmos filtros** (mudar filtro atualiza as três). Não há sidebar (contraste deliberado com o CRM-KA). Aba ativa: cor `--brand` + barrinha de 3px no topo do tab. Nas abas Funil e Inteligência, os controles do mapa (FAB, banners) somem.
+
+> ⚠️ **A implementar (SPEC 07):** a nav passa a **4 abas** — 🗺️ Mapa · 📊 Funil · 🗓️ **Atividades** · 📋 Intel. Com 4 abas o rótulo de Inteligência encurta para `Intel.`; abaixo de 360px o rótulo pode ceder ao ícone. A aba Atividades entra na **mesma camada** de Funil/Inteligência (z 25) e também esconde os controles do mapa. Ver [[spec-07-atividades]] §4.
 
 **Tela de entrada (porteiro).** Em build com porteiro configurado (`js/config.js`), o app abre numa **tela de login** sobre o shell (`#login-gate`, z 100): login `@praso.com.br` carrega o dado real; **"Seguir sem login"** segue no fictício, com um "Entrar" no topo para logar depois. Sem porteiro, vai direto ao mapa. (Detalhe do fluxo em `porteiro/README.md`.)
 
