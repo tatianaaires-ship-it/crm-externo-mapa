@@ -12,9 +12,12 @@
   let currentId = null;
   let view = 'pin';          // pin | lista | detalhe — sub-telas do mesmo sheet
   let tarefaAberta = null;
-  // Tipo escolhido nos chips ANTES de existir tarefa (pin sem plano). Morre ao
-  // trocar de pin: é escolha daquela visita, não preferência do vendedor.
-  let tipoEscolhido = null;
+  /* Rascunho do sheet de conclusão (§3). Vive fora do render porque o form tem
+     campo condicional (o motivo só aparece depois do resultado) e cada toque
+     re-renderiza a tela. `tarefaId` amarra o rascunho à tarefa: trocar de
+     atividade zera o formulário em vez de herdar escolha da anterior. */
+  let form = { tarefaId: null, tipo: null, resultado: null, motivo: null,
+               motivoTexto: '', prox: '', proxData: '' };
   let sheetEl, backdropEl;
 
   // Ícone de pin padrão (sem emoji de tipologia) para o avatar do sheet.
@@ -55,13 +58,15 @@
       '<span class="info__v ' + (cls || '') + '">' + value + '</span></div>';
   }
 
-  /* O sheet tem TRÊS telas, e não três lugares: pin → lista de atividades →
-     detalhe de uma atividade. Tudo dentro do mesmo bottom sheet, com voltar —
-     abrir uma tela nova por atividade tiraria o vendedor do contexto do ponto. */
+  /* O sheet tem QUATRO telas, e não quatro lugares: pin → lista de atividades
+     → detalhe de uma atividade → conclusão (check-out). Tudo dentro do mesmo
+     bottom sheet, com voltar — abrir uma tela nova por atividade tiraria o
+     vendedor do contexto do ponto. */
   function render() {
     if (!currentId) return;
-    if (view === 'lista')   return renderLista();
-    if (view === 'detalhe') return renderDetalhe();
+    if (view === 'lista')     return renderLista();
+    if (view === 'detalhe')   return renderDetalhe();
+    if (view === 'conclusao') return renderConclusao();
     renderPin();
   }
 
@@ -190,6 +195,110 @@
     wireSheet();
   }
 
+  /* ---- Tela 4: CONCLUSÃO (check-out) — SPEC 07 §3 -----------------------
+     O momento em que a atividade vira dado e o funil se move. Era três
+     `window.prompt` em sequência (a parte mais feia do protótipo); virou sheet
+     em 28/07. Quatro campos, nesta ordem:
+       1. TIPO da visita — pré-marcado; é aqui que o vendedor confirma o que a
+          visita foi, porque agora ele sabe. No check-in ele não sabia (e nem
+          devia parar para classificar na porta do cliente).
+       2. RESULTADO — obrigatório, 4 chips na ordem fixa do enum.
+       3. MOTIVO — aparece só em Perdido/Desqualificar, vocabulário fechado;
+          `outro` revela o campo de texto. Não dá pra concluir sem ele.
+       4. PRÓXIMA AÇÃO — opcional, texto + data. Não cria tarefa.
+     O botão fica desabilitado enquanto falta algo, e diz o que falta: botão
+     que recusa em silêncio faz o usuário achar que a tela travou. ---- */
+  function renderConclusao() {
+    const p = S.getById(currentId);
+    const t = S.getTarefa(tarefaAberta);
+    if (!p) return closeSheet();
+    if (!t || t.status !== 'planejada') return irPara('pin');
+
+    // O rascunho começa no tipo que a tarefa já tem (do plano ou da sugestão).
+    if (form.tarefaId !== t.id) form = { tarefaId: t.id, tipo: t.tipo, resultado: null,
+                                         motivo: null, motivoTexto: '', prox: '', proxData: '' };
+
+    const r = form.resultado ? D.RESULTADO[form.resultado] : null;
+    const tabelaMotivo = r && r.motivo
+      ? (r.motivo === 'perda' ? D.MOTIVO_PERDA : D.MOTIVO_DESQUALIFICACAO) : null;
+
+    // O que ainda falta — vira o rótulo do botão, não um erro depois do toque.
+    let falta = null;
+    if (!form.resultado) falta = 'Escolha o resultado';
+    else if (tabelaMotivo && !form.motivo) falta = 'Escolha o motivo';
+    else if (form.motivo === 'outro' && !form.motivoTexto.trim()) falta = 'Descreva o motivo';
+
+    const chip = function (attr, val, sel, label, cor) {
+      return '<button type="button" class="chip' + (cor ? ' chip--res' : '') +
+        (sel ? ' is-on' : '') + '" ' + attr + '="' + val + '"' +
+        (cor ? ' style="--c:' + cor + '"' : '') +
+        ' aria-pressed="' + (sel ? 'true' : 'false') + '">' + label + '</button>';
+    };
+
+    // Aviso da saída lateral: é AQUI que ele decide, então é aqui que precisa
+    // saber para onde o pin volta (§3.1).
+    const volta = (D.STATUS[p.statusAnterior] || {}).label || 'Sem plano';
+    const lateral = (p.status === 'perdido' || p.status === 'desqualificado')
+      ? '<p class="ativ-lateral">Este ponto está <strong>' +
+        esc((D.STATUS[p.status] || {}).label) + '</strong>' +
+        (p.motivoStatus ? ' (' + esc(p.motivoStatus) + ')' : '') +
+        '. Concluir devolve o pin a <strong>' + esc(volta) + '</strong>, e só então o novo resultado se aplica.</p>'
+      : '';
+
+    sheetEl.querySelector('.sheet__scroll').innerHTML =
+      subHead('Concluir atividade', p.name, 'pin') +
+      lateral +
+      (t.checkinEm
+        ? '<p class="ativ-tipo-atual">📍 Check-in às ' + fmtTime(t.checkinEm) +
+          ' · ' + durationMin(t.checkinEm, new Date().toISOString()) + ' min em campo</p>'
+        : '<p class="conc-remota">Sem check-in — esta atividade será registrada como <strong>remota</strong>.</p>') +
+
+      '<div class="conc-campo">' +
+        '<span class="conc-lbl">Tipo da visita</span>' +
+        '<div class="conc-chips">' + D.TAREFA_TIPO_ORDER.map(function (k) {
+          const tp = D.TAREFA_TIPO[k];
+          return chip('data-ctipo', k, k === form.tipo, tp.emoji + ' ' + esc(tp.label));
+        }).join('') + '</div>' +
+      '</div>' +
+
+      '<div class="conc-campo">' +
+        '<span class="conc-lbl">Resultado <em>obrigatório</em></span>' +
+        '<div class="conc-chips">' + D.RESULTADO_ORDER.map(function (k) {
+          const res = D.RESULTADO[k];
+          return chip('data-cres', k, k === form.resultado, esc(res.acao || res.label), res.color);
+        }).join('') + '</div>' +
+        '<span class="conc-hint">CSC e Aquisição não entram aqui — conversão vem do cadastro/pedido, não do campo.</span>' +
+      '</div>' +
+
+      (tabelaMotivo
+        ? '<div class="conc-campo">' +
+            '<span class="conc-lbl">' + (r.motivo === 'perda' ? 'Motivo da perda' : 'Motivo da desqualificação') +
+              ' <em>obrigatório</em></span>' +
+            '<div class="conc-chips">' + Object.keys(tabelaMotivo).map(function (k) {
+              return chip('data-cmot', k, k === form.motivo, esc(tabelaMotivo[k]));
+            }).join('') + '</div>' +
+            (form.motivo === 'outro'
+              ? '<input type="text" id="conc-mot-txt" class="conc-inp" maxlength="120" ' +
+                'placeholder="Qual motivo?" value="' + esc(form.motivoTexto) + '" />'
+              : '') +
+          '</div>'
+        : '') +
+
+      '<div class="conc-campo">' +
+        '<span class="conc-lbl">Próxima ação <em>opcional</em></span>' +
+        '<input type="text" id="conc-prox" class="conc-inp" maxlength="120" ' +
+          'placeholder="Ex.: voltar com a tabela nova" value="' + esc(form.prox) + '" />' +
+        '<input type="date" id="conc-prox-data" class="conc-inp conc-inp--data" value="' + esc(form.proxData) + '" />' +
+        '<span class="conc-hint">Aparece na gerencial como sugestão — <strong>não cria tarefa</strong>.</span>' +
+      '</div>' +
+
+      '<button type="button" id="btn-conc-ok" class="btn btn--checkin btn--block"' +
+        (falta ? ' disabled' : '') + '>' +
+        (falta ? esc(falta) : '✓ Concluir atividade') + '</button>' +
+      '<button type="button" class="btn btn--ghost btn--block ativ-vertodas" data-voltar="pin">Cancelar</button>';
+    wireSheet();
+  }
+
   function renderPin() {
     const p = S.getById(currentId);
     if (!p) { close(); return; }
@@ -230,22 +339,16 @@
 
     /* ---- Check-in em TODO pin (CAP-6 revisada) -------------------------
        Não é preciso plano para visitar: o vendedor passou na porta, entrou.
-       `📍 Check-in` é sempre o primário; `＋ Agendar` é o secundário (planejar
-       para depois é outra intenção). Com visita em andamento, o primário vira
-       `⏱️ Check-out` — é assim que o sheet mostra que há check-in aberto.
+       `📍 Check-in` é sempre o primário e é **um toque só**; `＋ Agendar` é o
+       secundário (planejar para depois é outra intenção). Com visita em
+       andamento, o primário vira `⏱️ Check-out`.
 
-       Acima do botão, os TRÊS chips de tipo: o vendedor só **confere** se o
-       tipo está certo, porque o histórico já sabe qual visita é aquela
-       (D.sugereTipoVisita). Quando existe planejada para hoje ou atrasada, o
-       chip mostra o tipo DELA e trocar corrige a própria tarefa — conferir
-       não cria atividade nova. ---- */
+       ⚖️ O TIPO da visita não é escolhido aqui (28/07). Quem está entrando na
+       porta não classifica nada: a tarefa nasce com o tipo sugerido pelo
+       histórico e o vendedor confirma/corrige **no sheet de conclusão** (§3),
+       quando já sabe o que a visita foi. Se ele agenda, o tipo vem do
+       mini-form de agendar. ---- */
     const aberta = S.tarefaAberta(p.id);
-    const hojeISO = new Date().toISOString().slice(0, 10);
-    // A planejada sobre a qual o check-in vai agir (hoje ou atrasada).
-    const alvo = planejadas.filter(function (t) {
-      return t.data <= hojeISO && !t.checkinEm;
-    })[0] || null;
-
     let checkBtn, tipoHtml = '';
     if (aberta) {
       const tpA = tipoDe(aberta);
@@ -253,22 +356,8 @@
       tipoHtml = '<p class="ativ-tipo-atual">' + tpA.emoji + ' <strong>' + esc(tpA.label) +
         '</strong> em andamento · check-in às ' + fmtTime(aberta.checkinEm) + '</p>';
     } else {
-      const sel = alvo ? alvo.tipo : D.sugereTipoVisita(p, doPin);
       checkBtn = '<button type="button" id="btn-checkin" class="btn btn--checkin">📍 Check-in</button>' +
         '<button type="button" id="btn-agendar" class="btn btn--ghost">＋ Agendar</button>';
-      tipoHtml = '<div class="ativ-tipo">' +
-        '<span class="ativ-tipo__lbl">Tipo da visita</span>' +
-        '<div class="ativ-tipo__chips" role="group" aria-label="Tipo da visita">' +
-          D.TAREFA_TIPO_ORDER.map(function (k) {
-            const tp = D.TAREFA_TIPO[k];
-            return '<button type="button" class="chip' + (k === sel ? ' is-on' : '') +
-              '" data-tipo="' + k + '" aria-pressed="' + (k === sel) + '">' +
-              tp.emoji + ' ' + esc(tp.label) + '</button>';
-          }).join('') +
-        '</div>' +
-        (alvo ? '<span class="ativ-tipo__hint">confere o plano de ' +
-            alvo.data.slice(8) + '/' + alvo.data.slice(5, 7) + '</span>' : '') +
-      '</div>';
     }
 
     /* Histórico: só as 3 últimas. Um ponto de recorrência acumula dezenas de
@@ -370,44 +459,18 @@
     const ag = sheetEl.querySelector('#btn-agendar');
     if (ag) ag.addEventListener('click', function () { window.CRM_ATIV.agendar(currentId); });
 
-    /* Chips de tipo: só CONFEREM o tipo antes do check-in. Com planejada de
-       hoje/atrasada, corrigem a própria tarefa (nada de criar outra); sem
-       planejada, guardam a escolha até o check-in criar a atividade. */
-    Array.prototype.forEach.call(sheetEl.querySelectorAll('[data-tipo]'), function (el) {
-      el.addEventListener('click', function () {
-        tipoEscolhido = el.dataset.tipo;
-        const alvo = alvoDoCheckin();
-        if (alvo) return S.setTipoTarefa(alvo.id, tipoEscolhido);   // re-renderiza pelo emit
-        // Sem tarefa ainda: só pinta a escolha, sem re-render (nada mudou no estado).
-        Array.prototype.forEach.call(sheetEl.querySelectorAll('[data-tipo]'), function (c) {
-          const on = c === el;
-          c.classList.toggle('is-on', on);
-          c.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
-      });
-    });
-
-    // A planejada sobre a qual o check-in age: hoje ou atrasada, sem check-in.
-    function alvoDoCheckin() {
-      const hoje = new Date().toISOString().slice(0, 10);
-      return S.planejadasDoPin(currentId)
-        .filter(function (t) { return t.data <= hoje && !t.checkinEm; })
-        .sort(function (a, b) { return a.data < b.data ? -1 : 1; })[0] || null;
-    }
     const ci = sheetEl.querySelector('#btn-checkin');
     if (ci) ci.addEventListener('click', function () {
-      // Check-in em QUALQUER pin: sem plano, o state cria a tarefa de hoje.
-      const t = S.checkInAgora(currentId, tipoEscolhido);
+      // Um toque só: sem plano, o state cria a tarefa de hoje com o tipo
+      // sugerido — que o vendedor confirma no sheet de conclusão.
+      const t = S.checkInAgora(currentId);
       if (!t) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível fazer check-in.');
-      tipoEscolhido = null;
-      if (window.CRM_TOAST) {
-        window.CRM_TOAST('Check-in em ' + tipoDe(t).label.toLowerCase() + ' — feche com o check-out.');
-      }
+      if (window.CRM_TOAST) window.CRM_TOAST('Check-in registrado — feche com o check-out.');
     });
     const co = sheetEl.querySelector('#btn-checkout');
     if (co) co.addEventListener('click', function () {
       const t = S.tarefaAberta(currentId);
-      if (t) window.CRM_ATIV.concluir(t);
+      if (t) irPara('conclusao', t.id);
     });
     // Navegação entre as três telas do sheet.
     const vt = sheetEl.querySelector('[data-ir]');
@@ -418,14 +481,13 @@
       el.addEventListener('click', function () { irPara('detalhe', el.dataset.tarefa); });
     });
 
+    // (A tela de conclusão é toda delegada — ver onSheetClick/onSheetInput.)
+
     // Ações da tela de detalhe: operam sobre AQUELA tarefa, não sobre "a próxima".
     const dci = sheetEl.querySelector('#btn-det-checkin');
     if (dci) dci.addEventListener('click', function () { S.checkInTarefa(tarefaAberta); });
     const dco = sheetEl.querySelector('#btn-det-checkout');
-    if (dco) dco.addEventListener('click', function () {
-      const t = S.getTarefa(tarefaAberta);
-      if (t) window.CRM_ATIV.concluir(t);
-    });
+    if (dco) dco.addEventListener('click', function () { irPara('conclusao', tarefaAberta); });
     const dcc = sheetEl.querySelector('#btn-det-cancelar');
     if (dcc) dcc.addEventListener('click', function () {
       const t = S.getTarefa(tarefaAberta);
@@ -454,7 +516,7 @@
     currentId = id;
     view = 'pin';               // abrir um pin sempre começa no pin
     tarefaAberta = null;
-    tipoEscolhido = null;       // a escolha de tipo é daquela visita, não do vendedor
+    form.tarefaId = null;       // o rascunho de conclusão é daquela atividade
     render();
     sheetEl.classList.add('is-open');
     backdropEl.classList.add('is-open');
@@ -477,9 +539,73 @@
     if (currentId && sheetEl.classList.contains('is-open')) render();
   }
 
+  /* ---- Chips do sheet de conclusão: DELEGAÇÃO, não listener por elemento.
+          A tela se re-renderiza a cada toque (o campo de motivo depende do
+          resultado), então anexar por elemento é anexar em nó que vai morrer no
+          próximo render. Um listener só, no container que sobrevive, e o
+          `data-*` diz qual campo mudou. ---- */
+  function onSheetClick(e) {
+    if (view !== 'conclusao') return;
+    if (e.target.closest('#btn-conc-ok')) return concluir();
+    const el = e.target.closest('[data-ctipo],[data-cres],[data-cmot]');
+    if (!el || !sheetEl.contains(el)) return;
+    if (el.dataset.ctipo) form.tipo = el.dataset.ctipo;
+    else if (el.dataset.cres) {
+      // Trocar de resultado invalida o motivo: o vocabulário é outro.
+      form.resultado = el.dataset.cres;
+      form.motivo = null;
+      form.motivoTexto = '';
+    } else if (el.dataset.cmot) form.motivo = el.dataset.cmot;
+    render();
+  }
+
+  /* Texto e data no rascunho SEM re-render: refazer o innerHTML a cada tecla
+     tiraria o foco do campo. Quem reflete o estado é o botão, atualizado à mão. */
+  function onSheetInput(e) {
+    if (view !== 'conclusao') return;
+    const el = e.target;
+    if (el.id === 'conc-prox') { form.prox = el.value; return; }
+    if (el.id === 'conc-prox-data') { form.proxData = el.value; return; }
+    if (el.id !== 'conc-mot-txt') return;
+    form.motivoTexto = el.value;
+    const ok = sheetEl.querySelector('#btn-conc-ok');
+    if (!ok) return;
+    const pronto = !!el.value.trim();
+    ok.disabled = !pronto;
+    ok.textContent = pronto ? '✓ Concluir atividade' : 'Descreva o motivo';
+  }
+
+  // Fecha a atividade: o tipo confirmado entra junto, é o mesmo ato.
+  function concluir() {
+    const t = S.getTarefa(form.tarefaId);
+    if (!t) return irPara('pin');
+    const feito = S.concluirTarefa(t.id, {
+      tipo: form.tipo,
+      resultado: form.resultado,
+      motivo: form.motivo,
+      motivoTexto: form.motivoTexto,
+      proximaAcao: form.prox,
+      proximaAcaoData: form.proxData || null
+    });
+    if (!feito) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível concluir.');
+    const pin = S.getById(currentId);
+    form = { tarefaId: null, tipo: null, resultado: null, motivo: null,
+             motivoTexto: '', prox: '', proxData: '' };
+    irPara('pin');
+    if (window.CRM_TOAST && pin) {
+      window.CRM_TOAST('Atividade concluída — ' + pin.name + ' → ' +
+        ((D.STATUS[pin.status] || {}).label || pin.status));
+    }
+  }
+
   function init() {
     sheetEl = document.getElementById('pin-sheet');
     backdropEl = document.getElementById('sheet-backdrop');
+    if (sheetEl) {
+      sheetEl.addEventListener('click', onSheetClick);
+      sheetEl.addEventListener('input', onSheetInput);
+      sheetEl.addEventListener('change', onSheetInput);   // input[type=date]
+    }
     if (backdropEl) backdropEl.addEventListener('click', closeSheet);
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && currentId) closeSheet();

@@ -211,12 +211,21 @@ Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada 
 
 > **Bloco longo dentro do sheet vira sub-tela, não rolagem.** O sheet tem `max-height: 86dvh` e conteúdo obrigatório embaixo (as notas, CAP-3): qualquer lista que cresça sem limite empurra o invariante para fora da tela. Regra: mostra as N primeiras + `Ver todas (N) ›`.
 
-### 6.7.1 Bloco de atividades do pin — conferir e agir (`.ativ-tipo`, `.check-actions`)
-Duas ações lado a lado: **primária** `📍 Check-in` (`flex: 1`) e **secundária** `＋ Agendar` (ghost, largura do conteúdo) — visitar agora e planejar depois são intenções diferentes, e a de campo é a primeira. Com visita em andamento a primária vira `⏱️ Check-out`.
+### 6.7.1 Duas ações no bloco de atividades (`.check-actions`)
+**Primária** `📍 Check-in` (`flex: 1`) e **secundária** `＋ Agendar` (ghost, largura do conteúdo) — visitar agora e planejar depois são intenções diferentes, e a de campo é a primeira. Com visita em andamento a primária vira `⏱️ Check-out` e entra `.ativ-tipo-atual`: faixa verde-clara com espinha `#10b981`, dizendo o tipo e a hora do check-in.
 
-Acima delas, a **conferência de tipo** (`.ativ-tipo`): label 10.5px caixa-alta + **três chips** (reusa o §6.2) com um **já marcado**, e hint opcional em 11px. Chips, não `<select>`: são três valores, o dedo escolhe direto, e o default já é a resposta provável — na maioria das visitas ninguém toca ali. Com check-in aberto os chips dão lugar a `.ativ-tipo-atual`, faixa verde-clara com espinha `#10b981`: o tipo já é fato em curso, não escolha.
+> ⚖️ **O bloco não pede nada — só age.** Chips de tipo já moraram aqui, acima do botão, e saíram: quem está na porta do cliente não classifica visita. Formulário de campo se resolve **no momento em que a informação existe**, e para o tipo esse momento é o check-out (§6.7.2). O check-in é um gesto único. Ver [[spec-07-atividades]] §2.3.
 
-> ⚖️ **Pré-selecionado não é o mesmo que travado.** O chip marcado é sugestão derivada do histórico; o toque manda. É o oposto do `status`, que nunca se digita — ver [[spec-07-atividades]] §2.3.
+### 6.7.2 Formulário de conclusão (`.conc-*`)
+4ª tela do pin-sheet, não um sheet sobre o sheet (§6.7 sub-telas). Padrão do campo: **label 10.5px caixa-alta** (`.conc-lbl`) + controle + **hint 11px** (`.conc-hint`). A obrigatoriedade vai num `<em>` minúsculo ao lado do label (`obrigatório`/`opcional`) — **sem asterisco**, que exigiria legenda em algum lugar da tela.
+
+- **Chips para escolha fechada** (`.conc-chips`, reusa o §6.2). O chip de resultado ativo veste a **cor da entidade** (`.chip--res.is-on { background: var(--c) }`), a mesma do pin e do gráfico.
+- **Campo condicional:** o motivo só existe depois do resultado que o exige, e trocar o resultado **zera** o motivo — o vocabulário é outro.
+- **Inputs a 16px** (`.conc-inp`), pela regra travada do §3 (sem zoom no iOS).
+- **O botão diz o que falta**, desabilitado, em vez de recusar depois do toque: `Escolha o resultado` → `Escolha o motivo` → `✓ Concluir atividade`. Validação que aparece só depois de tentar obriga a errar primeiro.
+- **Aviso âmbar** (`.conc-remota`) quando o registro vai ficar diferente do esperado — mesma família do §6.14: âmbar é **procedência**, não erro.
+
+> ⚖️ **Tela que se re-renderiza a cada toque pede delegação de evento**, não listener por elemento: o nó que recebeu o listener morre no próximo render. Um `click`/`input` no container que sobrevive, e o `data-*` diz qual campo mudou. **Texto e data não re-renderizam** — refazer o HTML a cada tecla tira o foco do campo; quem reflete o estado é o botão, atualizado à mão.
 
 ### 6.8 Modal de criação
 Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e o marcador roxo seguem arrastáveis por trás). Campo básico (nome) + "Mais detalhes" expansível (tipologia, CNPJ, telefone) + dica de qualidade derivada.

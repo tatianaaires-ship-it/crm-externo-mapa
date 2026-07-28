@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 3/4/5"
 status: em-revisao
-fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e sub-telas do sheet) + js/data.js (seed em rotas) — implementado 27–28/07. ⚠️ PENDÊNCIA de UI: o §3 (sheet de conclusão) e o §2.1 (agendar) seguem em window.prompt, não nos sheets desenhados."
+fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e as 4 telas do sheet, incluindo a conclusão) + js/data.js (seed em rotas) — implementado 27–28/07. ⚠️ PENDÊNCIA de UI que sobrou: só o §2.1 (agendar) segue em window.prompt; o §3 (conclusão) virou sheet em 28/07."
 sources:
   - "_bmad-output/specs/spec-crm-externo/SPEC.md — CAP-11 (atividade no pin) · CAP-12 (aba) · CAP-13 (visão gerencial) · CAP-14 (desqualificar) · CAP-6 revisada"
   - "docs/objetos/tarefa.md — campos, enums, tabela resultado→funil, requalificação"
@@ -44,8 +44,8 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 >
 > **Preço aceito:** o badge `Atrasada` sumiu do sheet do pin. A dívida vencida continua visível no **detalhe da atividade** (§2.2) e na **tabela da gerencial** (§5.4), mas quem abre só o pin não vê mais que o compromisso venceu. ⚠️ **O preço subiu em 28/07:** o bloco fixo da Agenda, que era a outra porta, também saiu (§4.2) — sobraram duas telas mais fundas.
 
-- **`📍 Check-in` existe em TODO pin** — não é preciso plano para visitar (§2.3). Ele é o **primário**; `＋ Agendar` fica ao lado como **secundário** (visitar agora e planejar depois são intenções diferentes). Com visita em andamento (`checkin_em` preenchido, `checkout_em` nulo), o primário vira **`⏱️ Check-out`** (abre §3) — é assim que o sheet mostra que há check-in aberto.
-- **Acima do botão, os três chips de `tipo`** — `1ª visita · Follow-up · Recorrência` — com um **já marcado**. O vendedor **só confere** (§2.3).
+- **`📍 Check-in` existe em TODO pin** — não é preciso plano para visitar (§2.3). Ele é o **primário e é um toque só**; `＋ Agendar` fica ao lado como **secundário** (visitar agora e planejar depois são intenções diferentes). Com visita em andamento (`checkin_em` preenchido, `checkout_em` nulo), o primário vira **`⏱️ Check-out`** (abre §3) — é assim que o sheet mostra que há check-in aberto, junto de uma faixa verde com a hora do check-in.
+- **O `tipo` da visita NÃO é escolhido aqui** (28/07). Ele vive no **sheet de conclusão** (§3) — ou no mini-form de agendar (§2.1), se o caminho for planejar.
 - **Histórico — as 3 últimas**, cada uma clicável, mais recente primeiro: emoji do tipo · data · `resultado` (com cor) · duração. Deriva das tarefas, não de `pin.checkins`. Abaixo, **`Ver todas as atividades (N) ›`** quando houver alguma que a tela não mostra (a conta inclui o banner da próxima, não só as realizadas).
 
 > ⚖️ **Por que 3 e não todas.** Um ponto de recorrência acumula dezenas de atividades; a lista inteira empurrava as **notas** — que a CAP-3 obriga a manter sempre visíveis — para fora da tela. O bloco vira um resumo, e a lista completa ganha tela própria.
@@ -54,11 +54,12 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 ### 2.2 Lista e detalhe: as outras duas telas do sheet
 
-O sheet do pin tem **três telas**, não três lugares — tudo dentro do mesmo bottom sheet, com voltar, porque sair do sheet tiraria o vendedor do contexto do ponto:
+O sheet do pin tem **quatro telas**, não quatro lugares — tudo dentro do mesmo bottom sheet, com voltar, porque sair do sheet tiraria o vendedor do contexto do ponto:
 
 1. **Pin** — o que já existia, com o histórico enxugado a 3.
 2. **Lista** (`Ver todas ›`) — todas as atividades do ponto, em dois grupos: **Planejadas** e **Realizadas**. Cabeçalho com voltar, título `Atividades` e o **nome do ponto** por baixo, para não se perder de quem é a lista.
 3. **Detalhe** (toque numa atividade) — a ficha da [[tarefa]]: data · situação · responsável · **rota** · tipo de check-in · check-in/check-out com duração · **distância no check-in** · resultado · motivo · próxima ação · comentário.
+4. **Conclusão** (§3) — o check-out, que era `window.prompt` até 28/07. Entra pelo botão do pin **ou** pelo detalhe da atividade, e volta para a tela do pin ao concluir.
 
 - **Ações vivem só no detalhe de atividade aberta** (`Check-in`/`Check-out` + `Cancelar atividade`), e operam sobre **aquela** tarefa — não sobre "a próxima do pin". Atividade realizada é **registro, não formulário**: nenhum botão.
 - Cancelar a última planejada avisa que o pin **sai do funil** e volta à lista (§2.1).
@@ -90,7 +91,7 @@ Enxuto, no molde do modal de criação (SPEC 00 §6.8). Pede **só o que é digi
 >
 > ⚖️ **Uma atividade aberta por pin** continua valendo: com check-in em curso, o botão é `Check-out` e não há como abrir outra.
 
-**O tipo é conferido, não digitado.** Quem chega para visitar não deveria ter que classificar a visita — o histórico já diz qual ela é. Os chips vêm com a resposta provável marcada (`CRM_DATA.sugereTipoVisita`):
+**O check-in é um toque só, e o tipo se decide no fim.** A tarefa nasce com o tipo **sugerido** pelo histórico (`CRM_DATA.sugereTipoVisita`) e o vendedor **confirma ou corrige no sheet de conclusão** (§3):
 
 | Histórico do ponto | Sugestão |
 |---|---|
@@ -98,19 +99,21 @@ Enxuto, no molde do modal de criação (SPEC 00 §6.8). Pede **só o que é digi
 | cliente (CSC ou Aquisição) | **Recorrência** — é o tipo que existe para isso |
 | visitado, ainda não cliente | **Follow-up** |
 
-- Havendo planejada de hoje/atrasada, o chip mostra o **tipo dela** (não a sugestão) e um hint diz *"confere o plano de dd/mm"*. **Trocar o chip corrige a própria tarefa** — conferir não cria atividade nova.
-- Sem tarefa ainda, a escolha fica só na tela até o check-in criá-la. Ela **morre ao trocar de pin**: é escolha daquela visita, não preferência do vendedor.
-- **Sugestão ≠ classificação derivada.** `tipo` segue sendo campo digitado ([[tarefa]] §4) — o que a regra faz é preencher bem o default. Isso não fere *"classificação nunca é digitada"*, que vale para `qualidade`/`porte`/`origem_confianca`/`status`.
-
-> ⚖️ **Com visita em andamento os chips somem** e o tipo vira texto na faixa verde (`1ª visita em andamento · check-in às 15:31`). Trocar o tipo no meio do check-in reescreveria um fato em curso — e a atividade realizada é **registro, não formulário** (§9). A correção de tipo existe só na janela em que a tarefa ainda é `planejada`.
+> ⚖️ **Os chips de tipo estiveram no pin, acima do botão, por uma hora** (28/07) — e saíram: **quem está entrando na porta do cliente não para para classificar a visita**. Pior, no check-in ele ainda não sabe o que a visita vai ser; no check-out sabe. Então o campo foi para onde a informação existe, e o check-in voltou a ser um gesto único. Se o caminho for **planejar** em vez de visitar, o tipo é pedido no mini-form de agendar (§2.1) — que é o outro momento em que se sabe o propósito.
+>
+> **Sugestão ≠ classificação derivada.** `tipo` segue sendo campo digitado ([[tarefa]] §4) — o que a regra faz é preencher bem o default para que confirmar seja o caso comum. Isso não fere *"classificação nunca é digitada"*, que vale para `qualidade`/`porte`/`origem_confianca`/`status`.
+>
+> **A janela de edição é a mesma:** o tipo só muda enquanto a tarefa é `planejada`, e o check-out é o último instante dessa janela. Depois dele a atividade é **registro, não formulário** (§9).
 
 ## 3. Check-out: o fluxo-assinatura (CAP-11 · CAP-14)
 
-> 🚧 **Implementado como `window.prompt`, não como sheet** (27/07). A mecânica está toda correta — resultado obrigatório, motivo obrigatório nos dois desfechos negativos, próxima ação opcional, e o funil se movendo pelo `resultado`. **Mas a apresentação não é a desta spec**, e qualidade visual é critério de aceite do gate. Trocar os três prompts por um sheet de conclusão (chips de resultado → motivo condicional → próxima ação) é a pendência de UI mais visível da fatia.
+> ✅ **É um sheet de verdade desde 28/07.** Eram três `window.prompt` em sequência — a mecânica estava certa, mas a apresentação não era a desta spec, e era a coisa mais feia do protótipo. Virou a **4ª tela do pin-sheet** (§2.2): mesmo bottom sheet, com voltar, sem tirar o vendedor do contexto do ponto. **O gatilho foi pedir o `tipo` aqui** — não havia formulário onde pôr o campo.
 
-O momento em que a atividade **vira dado** e o funil se move. Sheet de conclusão, em até dois passos:
+O momento em que a atividade **vira dado** e o funil se move. Quatro campos, nesta ordem:
 
-1. **Resultado** — 4 opções, uma escolha obrigatória:
+0. **Tipo da visita** — pré-marcado com o que a tarefa já tem (do plano ou da sugestão). É aqui que o vendedor confirma **o que a visita foi**, porque agora ele sabe (§2.3).
+
+1. **Resultado** — 4 opções, uma escolha obrigatória. O chip ativo **veste a cor do resultado** — a mesma que pinta o pin e o gráfico, porque a cor segue a entidade ([[spec-00-design-system]] §6.13):
 
 | Opção | Efeito no pin |
 |---|---|
@@ -123,6 +126,14 @@ O momento em que a atividade **vira dado** e o funil se move. Sheet de conclusã
 
 2. **Motivo** — aparece **só** para `Perdido` e `Desqualificar`, com o vocabulário fechado do respectivo enum ([[tarefa]] §4); `outro` revela o campo de texto. **Não dá pra concluir sem motivo** nesses dois casos.
 3. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. ⚠️ **Deixou de alimentar a Agenda em 28/07** (§4.2) — sugestão dentro de um calendário lê como compromisso marcado. Continua no registro da atividade e na tabela da gerencial, e **nunca virou tarefa**.
+
+**O botão diz o que falta.** Enquanto o formulário está incompleto ele fica desabilitado e o rótulo é a instrução — `Escolha o resultado` → `Escolha o motivo` → `Descreva o motivo` → `✓ Concluir atividade`. Botão que recusa em silêncio faz o usuário achar que a tela travou; e validação que só aparece **depois** do toque obriga a errar primeiro.
+
+- **Trocar o resultado zera o motivo.** O vocabulário de `perdido` não é o de `desqualificado` ([[tarefa]] §4) — manter a escolha anterior guardaria um motivo do enum errado.
+- **`outro` mostra o texto no pin, não a palavra "Outro".** O `motivo_status` do estabelecimento passa a exibir o que o vendedor escreveu — "Outro" não informa nada a quem abre o pin depois.
+- **Sem check-in, o sheet avisa** que a atividade vai ser registrada como **remota** (faixa âmbar), em vez de deixar o vendedor descobrir na coluna `Tipo de check-in` da gerencial. *(Hoje isso só acontece por dado semeado — §2.)*
+- **A saída lateral se explica aqui**, não só no pin: se o ponto está `perdido`/`desqualificado`, o sheet diz para onde ele volta ao concluir (§3.1). É neste instante que a decisão é tomada.
+- **Interação delegada, não por elemento.** A tela se re-renderiza a cada toque (o campo de motivo depende do resultado), então listener anexado a chip é listener em nó que morre no próximo render — um `click`/`input` só, no sheet, e o `data-*` diz qual campo mudou. Texto e data **não** re-renderizam: refazer o HTML a cada tecla tiraria o foco do campo.
 
 Ao confirmar: `checkout_em`, `status = realizada`, o pin se move pela tabela acima, `ultima_visita` atualiza e `origem_confianca` sobe para `validado_campo`. O **mapa, o Funil e a Inteligência refletem na hora** (mesmo pipeline `emit → reapply → refresh` da SPEC 06 §4).
 
@@ -356,7 +367,10 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Conversão não passa pelo check-out** (§3): `csc`/`aquisicao` vêm do ERP e prevalecem. Um card pode aparecer em Aquisição sem nenhuma atividade concluída.
 - **Agendar põe o pin no funil** (§2.1) — e **o check-in também**, desde 28/07: a tarefa que ele cria nasce `planejada`, então o pin entra em `Visita planejada` e só o `resultado` do check-out o move dali (§2.3). Consequência de produto inalterada: o Funil mostra só o pipeline, e a contagem dele divergir da do mapa é o comportamento correto ([[spec-06-funil]] §5).
 - **Check-in em todo pin, sem exigir plano** (§2.3) — a CAP-6 revisada, finalmente implementada. Alternativa recusada: manter `＋ Agendar` como única porta e fazer o vendedor planejar uma visita que já estava acontecendo.
-- **O tipo é conferido, não perguntado** (§2.3). Alternativa recusada: um passo de confirmação (sheet ou prompt) antes do check-in — seria um toque a mais em cima da ação mais frequente do app, para uma resposta que o histórico já sabe. Os chips ficam visíveis **antes** do botão: quem precisa corrigir, corrige; quem não precisa, só toca em `Check-in`.
+- **O tipo é confirmado no fim, não no começo** (§2.3 + §3). Ele esteve em chips no pin, acima do botão de check-in, por uma hora em 28/07: quem entra na porta do cliente não para para classificar a visita — e no check-in ainda não sabe o que ela vai ser. Foi para o sheet de conclusão, onde a informação existe. Alternativa recusada: um passo de confirmação **antes** do check-in (sheet ou prompt) — um toque a mais na ação mais frequente do app.
+- **O sheet de conclusão nasceu de um campo, não de um refactor** (§3). A pendência dos três `window.prompt` era conhecida havia dois dias; o que a resolveu foi precisar de um lugar para o `tipo`. Fica registrado porque é o padrão útil: pendência de apresentação sai junto com o próximo requisito que a encoste.
+- **O sheet é a 4ª tela do pin-sheet, não um sheet sobre o sheet** (§2.2). Empilhar dois bottom sheets exigiria segundo backdrop e nova camada de z-index para uma tela que sempre pertence a **um** ponto.
+- **Sem check-in, o sheet avisa que a atividade vira remota** (§3) — o único aviso de procedência dentro do fluxo, e ele existe porque a coluna `Tipo de check-in` da gerencial é longe do momento da decisão.
 - **Concluir sem check-in é válido** (atividade remota) — o check-in prova presença, não cria o registro. **Mas não tem botão em lugar nenhum** desde 28/07: saiu do pin (§2) e depois da Agenda (§4.2). A regra do modelo não mudou; o caminho de UI acabou.
 - **`proxima_acao_data` não tem mais superfície na Agenda** (§4.2) — segue no modelo e na tabela da gerencial. Sugestão dentro de um calendário lê como compromisso.
 - **O sheet do pin virou três telas** (§2.2), não uma tela longa. Empilhar lista completa + detalhe dentro do sheet mantém o vendedor no contexto do ponto; abrir tela cheia por atividade perderia o pin de vista.

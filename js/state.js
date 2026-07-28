@@ -439,6 +439,9 @@
     if (r.motivo === 'perda' && !out.motivo) return null;
     if (r.motivo === 'desqualificacao' && !out.motivo) return null;
 
+    // O tipo confirmado no sheet de conclusão entra no mesmo ato — é a última
+    // janela em que a tarefa é `planejada` e, portanto, editável (§8).
+    if (out.tipo && D.TAREFA_TIPO[out.tipo]) t.tipo = out.tipo;
     t.status = 'realizada';
     t.checkoutEm = nowISO();
     t.resultado = r.key;
@@ -451,9 +454,11 @@
     const p = getById(t.estabelecimentoId);
     if (p) {
       p.lastVisit = t.data;
-      p.motivoStatus = t.motivoPerda
+      // Em `outro`, o pin mostra o TEXTO que o vendedor escreveu — "Outro" não
+      // informa nada a quem abre o pin depois.
+      p.motivoStatus = t.motivoTexto || (t.motivoPerda
         ? (D.MOTIVO_PERDA[t.motivoPerda] || null)
-        : (t.motivoDesqualificacao ? (D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || null) : null);
+        : (t.motivoDesqualificacao ? (D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || null) : null));
       // A tabela resultado→status vive em CRM_DATA.RESULTADO (é dado, não switch).
       applyStatus(p, r.status);
       // Concluir é constatação de campo: sobe na escada de confiança.

@@ -731,38 +731,8 @@
     render();
   }
 
-  /* ---- Conclusão (check-out): resultado obrigatório; motivo nos negativos ---- */
-  function pedirConclusao(t) {
-    const opts = D.RESULTADO_ORDER.map(function (k, i) {
-      return (i + 1) + ') ' + D.RESULTADO[k].acao;   // `acao` = verbo do botão
-    }).join('\n');
-    const escolha = window.prompt('Resultado da atividade:\n' + opts +
-      '\n\nCSC e Aquisição não entram aqui — conversão vem do cadastro/pedido.', '1');
-    if (escolha == null) return;
-    const key = D.RESULTADO_ORDER[parseInt(escolha, 10) - 1];
-    const r = D.RESULTADO[key];
-    if (!r) return window.CRM_TOAST && window.CRM_TOAST('Resultado inválido.');
-
-    let motivo = null;
-    if (r.motivo) {
-      const tabela = r.motivo === 'perda' ? D.MOTIVO_PERDA : D.MOTIVO_DESQUALIFICACAO;
-      const keys = Object.keys(tabela);
-      const lista = keys.map(function (k, i) { return (i + 1) + ') ' + tabela[k]; }).join('\n');
-      const m = window.prompt('Motivo (obrigatório):\n' + lista, '1');
-      if (m == null) return;
-      motivo = keys[parseInt(m, 10) - 1];
-      if (!motivo) return window.CRM_TOAST && window.CRM_TOAST('Motivo obrigatório — nada foi concluído.');
-    }
-    const prox = window.prompt('Próxima ação (opcional):', '') || null;
-
-    const ok = S.concluirTarefa(t.id, { resultado: key, motivo: motivo, proximaAcao: prox });
-    if (!ok) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível concluir.');
-    const p = pinOf(t);
-    if (window.CRM_TOAST) {
-      window.CRM_TOAST('Atividade concluída — ' + (p ? p.name + ' → ' : '') +
-        (D.STATUS[p ? p.status : ''] || {}).label);
-    }
-  }
+  /* A conclusão (check-out) vive no sheet do pin — 4ª tela, js/pin.js
+     (spec-07 §3). Eram três `window.prompt` aqui até 28/07. */
 
   function onClick(e) {
     const btn = e.target.closest('[data-act]');
@@ -1057,7 +1027,7 @@
     init: init,
     refresh: refresh,
     render: render,
-    agendar: pedirAgendamento,
-    concluir: pedirConclusao
+    agendar: pedirAgendamento
+    // `concluir` saiu: a conclusão é a 4ª tela do sheet do pin (js/pin.js).
   };
 })();
