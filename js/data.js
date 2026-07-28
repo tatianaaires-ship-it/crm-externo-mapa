@@ -574,9 +574,24 @@
     'Comprou do concorrente esta semana.'
   ];
 
+  /* Anotação do vendedor NO MOMENTO do agendamento (≠ NOTAS_CAMPO, que é o que
+     ele escreveu depois de ir). É o único texto que o card da Agenda mostra. */
+  const NOTAS_AGENDA = [
+    'Cliente pediu retorno neste horário.',
+    'Levar a tabela nova e amostra.',
+    'Falar com o dono, não com o balcão.',
+    'Confirmar por telefone antes de ir.',
+    'Passar depois do almoço — abre 14h.',
+    'Retomar a proposta que ficou parada.'
+  ];
+
+  /* Minutos desde a meia-noite → "HH:MM" (hora é opcional na tarefa — §4). */
+  function hhmm(min) { return pad2(Math.floor(min / 60)) + ':' + pad2(min % 60); }
+
   function buildTarefas(pins, opts) {
     const out = [];
-    let seq = 0;
+    const rotas = [];          // ⚠️ RASCUNHO do objeto Rota (docs/objetos/rota.md)
+    let seq = 0, seqRota = 0;
 
     /* Aleatório DETERMINÍSTICO (LCG, semente fixa): a demo tem que abrir
        exatamente igual toda vez — Math.random daria um gráfico diferente a
@@ -604,6 +619,9 @@
         distanciaKm: presencial
           ? (t.distanciaKm != null ? t.distanciaKm : Math.round(rnd() * 250) / 100)
           : null,
+        // Hora MARCADA (opcional) e a rota a que a parada pertence (null = avulsa).
+        hora: t.hora || null,
+        rotaId: t.rotaId || null,
         resultado: t.resultado || null,
         motivoPerda: t.motivoPerda || null,
         motivoDesqualificacao: t.motivoDesqualificacao || null,
@@ -648,9 +666,14 @@
           { notas: 'Reposição da semana conferida.' });
       } else if (st === 'sem_plano') {
         // A base fora do pipeline. Uma fatia entra por plano, outra saiu pelas laterais.
-        if (nPlan < 6) {                       // → Visita planejada (futuro)
+        if (nPlan < 6) {                       // → Visita planejada AVULSA (futuro)
           nPlan += 1;
-          add(p, { tipo: nPlan % 2 ? 'primeira_visita' : 'follow_up', data: isoPlus(1 + nPlan), status: 'planejada' });
+          // Avulsa = agendada pelo próprio vendedor, fora de rota (`rotaId` null).
+          // Uma em cada três nasce SEM hora — é o caso "dia inteiro" da Agenda.
+          add(p, { tipo: nPlan % 2 ? 'primeira_visita' : 'follow_up',
+                   data: isoPlus(1 + nPlan), status: 'planejada',
+                   hora: nPlan % 3 === 0 ? null : hhmm(14 * 60 + (nPlan % 4) * 45),
+                   notas: NOTAS_AGENDA[(nPlan - 1) % NOTAS_AGENDA.length] });
         } else if (nAtras < 2) {               // → Visita planejada, ATRASADA
           nAtras += 1;
           add(p, { tipo: 'primeira_visita', data: isoPlus(-(2 + nAtras)), status: 'planejada',
@@ -695,57 +718,126 @@
         return rnd() < 0.7 ? 'follow_up' : 'primeira_visita';
       }
 
-      let cur = 0;
-      diasUteis(-44, -1).forEach(function (dia) {
-        const cota = entre(9, 16);
-        for (let k = 0; k < cota; k++) {
-          const p = emCampo[cur++ % emCampo.length];
-          const remota = rnd() < 0.15;      // atividade sem check-in (tarefa.md §5)
-          const hh = 8 + Math.floor(rnd() * 9);
-          add(p, {
-            tipo: tipoDe(p), data: dia, status: 'realizada',
-            checkinEm: remota ? null : dia + 'T' + pad2(hh) + ':' + pad2(entre(0, 5) * 10) + ':00',
-            checkoutEm: remota ? null : dia + 'T' + pad2(hh + 1) + ':05:00',
-            resultado: resultadoDe(p),
-            notas: rnd() < 0.35 ? umDe(NOTAS_CAMPO) : null
-          });
-        }
+      /* ---- TODO dia de campo nasce em ROTA (rascunho do objeto Rota) -----
+         Regra do rascunho (docs/objetos/rota.md): a rota é um CONJUNTO de
+         estabelecimentos de UM vendedor num DIA, e **adicionar estabelecimento
+         à rota é o que CRIA a tarefa planejada**. Por isso o seed cria a rota
+         primeiro e as paradas depois — não agrupa tarefas soltas por dia.
+
+         Vale para o PASSADO também: a visita realizada era a parada de uma rota
+         que foi executada. Sem isso a coluna "Nome Rota" da gerencial diria
+         "Avulsa" em ~460 de 545 linhas — o oposto do que a tela mostra.
+
+         Duas amarras vindas do contrato:
+           · `responsavel_id` é DERIVADO do pin (tarefa.md §5), então uma rota
+             só contém pins do mesmo vendedor;
+           · rota é conjunto, NÃO sequência — nenhuma ordem de paradas é
+             guardada (sequenciamento segue sendo o objeto Rota da Fase 4). A
+             `hora` de cada parada é o horário marcado, e é ela que ordena.
+         As paradas saem por PROXIMIDADE: escolhe-se uma âncora (girando, para
+         a rota não repetir) e pegam-se os vizinhos mais próximos dela. Agrupar
+         por bucket de zona daria rota de uma parada no dataset fictício (cada
+         vendedor tem ~1 pin por bairro), e uma janela qualquer daria "Rota Boa
+         Viagem" com parada em Casa Forte — nome que é enfeite. Com vizinho mais
+         próximo, o bairro dominante do bloco é verdade. */
+      const porVend = {};
+      emCampo.forEach(function (p) {
+        const v = p.vendedorId || VENDEDOR_ORDER[0];
+        (porVend[v] = porVend[v] || { pins: [], cursor: 0 }).pins.push(p);
       });
 
-      /* HOJE, dia em andamento: parte do plano já virou realizada e o resto
-         ainda está de pé. É o único dia em que os dois gráficos L7D contam a
-         história completa ("planejei 12, fiz 6") — e sem isso a última coluna
-         nasce vazia, o que a supervisão lê como gráfico quebrado. */
-      const hj = isoLocal(new Date());
-      if (hj === diaUtil(hj, false)) {                 // não semeia em fim de semana
-        for (let k = 0; k < 6; k++) {
-          const p = emCampo[cur++ % emCampo.length];
-          const hh = 8 + k;
-          add(p, {
-            tipo: tipoDe(p), data: hj, status: 'realizada',
-            checkinEm: hj + 'T' + pad2(hh) + ':' + pad2(entre(0, 5) * 10) + ':00',
-            checkoutEm: hj + 'T' + pad2(hh + 1) + ':05:00',
-            resultado: resultadoDe(p),
-            notas: rnd() < 0.35 ? umDe(NOTAS_CAMPO) : null
-          });
-        }
-        for (let k = 0; k < 6; k++) {                  // o que ainda falta hoje
-          const p = emCampo[cur++ % emCampo.length];
-          add(p, { tipo: tipoDe(p), data: hj, status: 'planejada' });
-        }
+      // Distância só comparativa (grau², sem raiz nem projeção) — serve para
+      // ordenar vizinhos, e não é a `distancia_km` do check-in.
+      function perto(a, b) {
+        const dx = (a.lat - b.lat), dy = (a.lng - b.lng);
+        return dx * dx + dy * dy;
       }
 
-      // Plano da semana que vem. Planejada não move status quando o pin já tem
-      // realizada (o resultado prevalece sobre "existe plano").
-      cur = 3;
-      diasUteis(1, 8).forEach(function (dia) {
-        const cota = entre(7, 13);
-        for (let k = 0; k < cota; k++) {
-          const p = emCampo[cur++ % emCampo.length];
-          add(p, { tipo: tipoDe(p), data: dia, status: 'planejada',
-                   notas: rnd() < 0.2 ? umDe(NOTAS_CAMPO) : null });
+      /* Nome da rota = bairro que mais aparece nas paradas. Dois vendedores em
+         campo no mesmo dia caem no mesmo bairro com frequência, e duas "Rota
+         Boa Viagem" no mesmo dia lê como bug — então o nome é único por DIA:
+         cai para o 2º bairro do bloco e, se ainda colidir, leva o vendedor. */
+      const nomesUsados = {};
+      function nomeDaRota(ps, dia, vendId) {
+        const c = {};
+        ps.forEach(function (p) {
+          const z = p.zone || 'do dia';
+          c[z] = (c[z] || 0) + 1;
+        });
+        const zonas = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; });
+        if (!zonas.length) zonas.push('do dia');
+        for (let i = 0; i < zonas.length; i++) {
+          const cand = 'Rota ' + zonas[i];
+          if (!nomesUsados[dia + '|' + cand]) {
+            nomesUsados[dia + '|' + cand] = 1;
+            return cand;
+          }
         }
-      });
+        const quem = ((VENDEDORES[vendId] || {}).nome || '').split(' ')[0];
+        return 'Rota ' + zonas[0] + (quem ? ' · ' + quem : '');
+      }
+
+      /* Uma rota por vendedor por dia; paradas espaçadas de 45min.
+         `feita = true` gera a rota EXECUTADA (paradas realizadas, com check-in
+         no horário marcado e 15% de atividade remota — tarefa.md §5);
+         `feita = false` gera o PLANO (paradas planejadas). */
+      function rotaDoDia(dia, min, max, inicio, feita) {
+        VENDEDOR_ORDER.forEach(function (v) {
+          const bag = porVend[v];
+          if (!bag || !bag.pins.length) return;
+          const n = Math.min(entre(min, max), bag.pins.length);
+          const ancora = bag.pins[bag.cursor % bag.pins.length];
+          const paradas = bag.pins.slice()
+            .sort(function (a, b) { return perto(a, ancora) - perto(b, ancora); })
+            .slice(0, n);
+          // A âncora do próximo dia anda um passo além do bloco de hoje.
+          bag.cursor = (bag.cursor + n) % bag.pins.length;
+
+          seqRota += 1;
+          const rota = {
+            id: 'r' + pad(seqRota),
+            nome: nomeDaRota(paradas, dia, v),
+            data: dia,
+            responsavelId: v,
+            criadaEm: dia + 'T07:00:00'
+          };
+          rotas.push(rota);
+
+          let hora = inicio;
+          paradas.forEach(function (p) {
+            const h = hhmm(hora);
+            const remota = feita && rnd() < 0.15;   // concluída sem check-in
+            add(p, {
+              tipo: tipoDe(p), data: dia, rotaId: rota.id, hora: h,
+              status: feita ? 'realizada' : 'planejada',
+              checkinEm:  (feita && !remota) ? dia + 'T' + h + ':00' : null,
+              checkoutEm: (feita && !remota) ? dia + 'T' + hhmm(hora + 40) + ':00' : null,
+              resultado: feita ? resultadoDe(p) : null,
+              // Depois de ir, a nota é de campo; antes, é a do agendamento.
+              notas: feita ? (rnd() < 0.35 ? umDe(NOTAS_CAMPO) : null)
+                           : (rnd() < 0.3  ? umDe(NOTAS_AGENDA) : null)
+            });
+            hora += 45;
+          });
+        });
+      }
+
+      // Passado: as rotas que rodaram (3 vendedores × 3–5 paradas por dia útil).
+      diasUteis(-44, -1).forEach(function (dia) { rotaDoDia(dia, 3, 5, 8 * 60 + 30, true); });
+
+      /* HOJE, dia em andamento: a rota da manhã já foi executada e a da tarde
+         está de pé. É o único dia em que os dois gráficos L7D contam a história
+         completa ("planejei, executei parte") — sem isso a última coluna nasce
+         vazia, o que a supervisão lê como gráfico quebrado. Planejada não move
+         status de pin que já tem realizada (o resultado prevalece). */
+      const hj = isoLocal(new Date());
+      if (hj === diaUtil(hj, false)) {          // não semeia em fim de semana
+        rotaDoDia(hj, 2, 2, 8 * 60 + 30, true);
+        rotaDoDia(hj, 2, 3, 13 * 60 + 30, false);
+      }
+
+      // Plano da semana que vem.
+      diasUteis(1, 8).forEach(function (dia) { rotaDoDia(dia, 3, 5, 8 * 60 + 30, false); });
     }
 
     /* Promoção opcional a TD encontrado — só o DADO REAL usa (`opts.promoverTd`).
@@ -765,7 +857,9 @@
           });
     }
 
-    return out;
+    // Devolve as DUAS coleções: a rota é objeto próprio (rascunho), não um
+    // rótulo derivado das tarefas — quem agrupa é o `rotaId` da parada.
+    return { tarefas: out, rotas: rotas };
   }
 
   /* ---- Reconcilia o status do pin A PARTIR das tarefas + ERP.

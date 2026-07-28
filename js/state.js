@@ -6,11 +6,12 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v5'; // v5: tarefa ganha distancia_km + seed adensado
+  const KEY = 'crm-externo-map:v6'; // v6: tarefa ganha hora + rotaId; entra a coleção `rotas`
   const D = window.CRM_DATA;
 
   let pins = [];
   let tarefas = [];       // atividades datadas (check-in/out É a tarefa)
+  let rotas = [];         // RASCUNHO do objeto Rota (docs/objetos/rota.md)
   let realMode = false;   // dado real (porteiro) — NUNCA persiste no localStorage
   const listeners = [];
 
@@ -26,8 +27,11 @@
      seguro do que migrar meia-boca.
      v5 (28/07): a tarefa ganhou `distancia_km` e o seed foi adensado para ritmo
      de campo real. Estado v4 tem tarefas sem o campo e volume antigo — os
-     gráficos por dia nasceriam ralos em quem já abriu a demo. */
-  const STATE_V = 5;
+     gráficos por dia nasceriam ralos em quem já abriu a demo.
+     v6 (28/07): a tarefa ganhou `hora` e `rotaId`, e o estado passou a carregar
+     a coleção `rotas`. Estado v5 tem planejadas sem rota nenhuma — a Agenda em
+     calendário nasceria sem uma única rota em quem já abriu a demo. */
+  const STATE_V = 6;
 
   // Snapshot real e persistência antiga podem trazer o enum velho.
   const STATUS_LEGADO = {
@@ -45,13 +49,17 @@
   function persist() {
     if (realMode) return;   // dado real fica só em memória (privacidade)
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: STATE_V, pins: pins, tarefas: tarefas }));
+      localStorage.setItem(KEY, JSON.stringify({
+        v: STATE_V, pins: pins, tarefas: tarefas, rotas: rotas
+      }));
     } catch (e) { console.warn('Persistência indisponível:', e); }
   }
 
   function seedFicticio() {
     pins = D.buildSeed();
-    tarefas = D.buildTarefas(pins);
+    const seed = D.buildTarefas(pins);   // devolve as duas coleções
+    tarefas = seed.tarefas;
+    rotas = seed.rotas;
     D.reconcileStatus(pins, tarefas);   // o status DERIVA das tarefas + ERP
   }
 
@@ -71,6 +79,7 @@
     if (restored) {
       pins = restored.pins.map(migrateStatus);
       tarefas = Array.isArray(restored.tarefas) ? restored.tarefas : [];
+      rotas = Array.isArray(restored.rotas) ? restored.rotas : [];
     } else {
       seedFicticio();
       persist();
@@ -125,7 +134,9 @@
 
     // A régua do snapshot não conhece "TD encontrado" — sem promover alguns, a
     // coluna nasce vazia no board (spec-06 §7).
-    tarefas = D.buildTarefas(pins, { promoverTd: Math.min(30, Math.round(nVisitado * 0.15)) });
+    const sim = D.buildTarefas(pins, { promoverTd: Math.min(30, Math.round(nVisitado * 0.15)) });
+    tarefas = sim.tarefas;
+    rotas = sim.rotas;          // as rotas simuladas também morrem no reload
     D.reconcileStatus(pins, tarefas);
 
     const comTarefa = {};
@@ -289,6 +300,34 @@
     return 't' + String(max + 1).padStart(3, '0');
   }
 
+  /* ---- ROTA (rascunho — docs/objetos/rota.md) -------------------------
+     A rota é um CONJUNTO de estabelecimentos de um vendedor num dia; cada
+     estabelecimento adicionado É uma tarefa planejada (a parada). Não há
+     ordem guardada — sequenciamento continua sendo o objeto Rota da Fase 4.
+     Tarefa sem `rotaId` é AVULSA (o vendedor marcou aquele compromisso). ---- */
+  function getRotas() { return rotas.slice(); }
+  function getRota(id) { return rotas.find(function (r) { return r.id === id; }) || null; }
+  function paradasDaRota(id) {
+    return tarefas.filter(function (t) { return t.rotaId === id && t.status === 'planejada'; });
+  }
+
+  // Cancelar a rota = cancelar todas as paradas dela. Nada se deleta (nem a
+  // rota, nem as tarefas), e cada pin que perde o último plano SAI do board.
+  function cancelarRota(id) {
+    const r = getRota(id);
+    if (!r) return null;
+    const paradas = paradasDaRota(id);
+    paradas.forEach(function (t) {
+      t.status = 'cancelada';
+      const p = getById(t.estabelecimentoId);
+      if (p && !planejadasDoPin(p.id).length && p.status === 'visita_planejada') {
+        applyStatus(p, 'sem_plano');
+      }
+    });
+    if (paradas.length) emit();
+    return paradas.length;
+  }
+
   // Agendar: o pin ENTRA no funil (sem_plano → visita_planejada).
   function agendarTarefa(data) {
     const p = data && getById(data.pinId);
@@ -298,6 +337,9 @@
       estabelecimentoId: p.id,
       tipo: data.tipo,
       data: data.data || todayISO(),
+      // Hora é OPCIONAL (tarefa.md §4): sem ela a parada é "dia inteiro".
+      hora: /^\d{2}:\d{2}$/.test(data.hora || '') ? data.hora : null,
+      rotaId: data.rotaId || null,          // null = avulsa, fora de rota
       status: 'planejada',
       responsavelId: p.vendedorId || D.VENDEDOR_SESSAO,  // DERIVADO, nunca digitado
       checkinEm: null, checkoutEm: null,
@@ -452,6 +494,11 @@
     tarefaAberta: tarefaAberta,
     agendarTarefa: agendarTarefa,
     cancelarTarefa: cancelarTarefa,
+    // Rota (rascunho — docs/objetos/rota.md)
+    getRotas: getRotas,
+    getRota: getRota,
+    paradasDaRota: paradasDaRota,
+    cancelarRota: cancelarRota,
     checkInTarefa: checkInTarefa,
     concluirTarefa: concluirTarefa,
     resetDemo: resetDemo,

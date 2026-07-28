@@ -31,6 +31,7 @@ originou fica em `sources:` (rastreabilidade), não no corpo.
 |---|---|---|---|
 | **Estabelecimento** — o ponto no mapa: cliente cadastrado **ou** não (o pin) | [objetos/estabelecimento.md](objetos/estabelecimento.md) | domínio | 🟡 em revisão |
 | **Tarefa** — a atividade datada no pin; **check-in/out é a própria tarefa** | [objetos/tarefa.md](objetos/tarefa.md) | domínio | 🟡 em revisão |
+| **Rota** — conjunto de estabelecimentos de um vendedor num dia; **cada parada é uma Tarefa** | [objetos/rota.md](objetos/rota.md) | domínio | 🚧 rascunho |
 | **Vendedor / Usuário** — quem opera, e alvo de RLS | `objetos/vendedor.md` | domínio | ⬜ a fazer |
 | ~~**Visita**~~ — absorvida por [Tarefa](objetos/tarefa.md) (27/07): check-in/out **é** a tarefa | ~~`objetos/visita.md`~~ | — | ⛔ não existe |
 | **cnae_tier** — CNAE → tier; deriva `qualidade` (editável no Admin) | `objetos/cnae_tier.md` | referência | ⬜ a fazer |
@@ -40,6 +41,8 @@ originou fica em `sources:` (rastreabilidade), não no corpo.
 > `nota_estabelecimento` (notas do pin, 1:N) também vive dentro de [Estabelecimento](objetos/estabelecimento.md), não é doc próprio.
 
 > **Decisão 27/07 — Check-in/out É a Tarefa, são sinônimos.** Não existe objeto `Visita`: a atividade datada, o check-in, o check-out e o desfecho vivem num só registro ([Tarefa](objetos/tarefa.md)). O `resultado` da tarefa concluída é o **único** caminho automático que move o `status` do Estabelecimento no funil.
+
+> **Decisão 28/07 — a Tarefa passou a ser a PARADA de uma Rota, e Rota entrou como RASCUNHO.** A [Tarefa](objetos/tarefa.md) §6 mantinha Rota fora de escopo até a Fase 4 (*"uma tarefa não é uma parada"*); com a Agenda em calendário mostrando rotas, ela ganhou `rota_id` + `hora` e o rótulo derivado `nome_rota` morreu. O que existe é o **mínimo** ([Rota](objetos/rota.md)): identidade, nome, dia e dono. **Sequenciamento e otimização de trajeto continuam Fase 4** — é o que mantém o objeto de verdade adiado. Tarefa sem `rota_id` é **avulsa**.
 
 ## Design & Telas
 
@@ -54,7 +57,7 @@ O **SPEC 00** é o alicerce visual (tokens, componentes, shell) que toda spec de
 | **SPEC 04 — Criar pin** | `telas/spec-04-criar.md` | ⬜ a fazer |
 | **SPEC 05 — Inteligência** (lista de leads) | `telas/spec-05-intel.md` | ⬜ a fazer |
 | **SPEC 06 — Funil** (Kanban por status, arrastar card) | [telas/spec-06-funil.md](telas/spec-06-funil.md) | 🟡 em revisão |
-| **SPEC 07 — Atividades** (bloco no pin, agenda, visão gerencial com gráficos, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
+| **SPEC 07 — Atividades** (bloco no pin, agenda em calendário de rotas, visão gerencial com gráficos, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
 
 > Superfícies do protótipo: **mapa** · **sheet do pin** (com sub-telas de atividade) · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Atividades (gerencial + agenda)** · **aba Inteligência**. Nav de 4 abas, nesta ordem: 🗺️ Mapa · 📋 Intel. · 📊 Funil · 🗓️ Atividades. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
 

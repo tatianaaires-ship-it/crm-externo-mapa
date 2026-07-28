@@ -752,34 +752,117 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
   margin: 8px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .04em; color: var(--muted);
 }
-/* Atrasadas: bloco fixo no topo da agenda — ignora o filtro de período. */
-.ativ-group--late { color: #9f1239; }
-.ativ-card {
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
-  padding: 10px 11px; display: flex; flex-direction: column; gap: 5px;
-}
-.ativ-card.is-late { border-left: 3px solid #9f1239; }
-.ativ-card__top { display: flex; align-items: center; gap: 7px; }
-.ativ-card__tipo { font-size: 15px; flex: 0 0 auto; }
-.ativ-card__name {
-  flex: 1 1 auto; min-width: 0; text-align: left; font-size: 13.5px; font-weight: 700;
-  color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 .ativ-badge {
   flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 2px 8px;
   border-radius: var(--r-pill); color: #fff; background: var(--c, var(--muted));
 }
 .ativ-badge--late { background: #9f1239; }
-.ativ-card__sub { display: flex; flex-wrap: wrap; gap: 5px; font-size: 11.5px; color: var(--muted); }
-.ativ-card__mot { font-weight: 700; color: var(--ink-2); }
-.ativ-card__next { margin: 2px 0 0; font-size: 12px; color: var(--ink-2); }
-.ativ-card__acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.ativ-sug {
-  font-size: 12px; color: var(--ink-2); background: var(--surface-2);
-  border: 1px dashed var(--line-2); border-radius: var(--r-sm); padding: 7px 9px;
-}
 .ativ-vazio { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 0; }
+
+/* =====================================================================
+   AGENDA em CALENDÁRIO (SPEC 07 §4.2) — molde do Google Agenda: um bloco
+   por dia, data na sarjeta, horário à esquerda de cada item.
+   Duas naturezas: ROTA (conjunto de paradas) e AVULSA (compromisso solto).
+   Sem check-in e sem concluir: a Agenda é o plano, não a execução.
+   `--gut` é a sarjeta de horário — a mesma medida no dia e no item, senão
+   a coluna da esquerda não lê como coluna.
+   ===================================================================== */
+.ativ-body { --gut: 52px; }
+.ag-dia { display: flex; flex-direction: column; gap: 6px; }
+.ag-dia + .ag-dia { margin-top: 14px; }
+/* Cabeçalho do dia cola no topo enquanto o dia rola — é o que responde
+   "o que é de qual dia" numa lista longa. */
+.ag-dia__h {
+  position: sticky; top: -10px; z-index: 2;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 7px; margin: 0 0 2px;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.ag-dia__gut {
+  flex: 0 0 var(--gut); display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.ag-dia__dow {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .08em; color: var(--muted);
+}
+.ag-dia__num {
+  font-size: 19px; font-weight: 800; line-height: 1; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Hoje ganha o disco de marca — é a âncora do calendário. */
+.ag-dia__h.is-hoje .ag-dia__dow { color: var(--brand); }
+.ag-dia__h.is-hoje .ag-dia__num {
+  color: #fff; background: var(--brand); border-radius: var(--r-pill);
+  min-width: 26px; padding: 4px 0; text-align: center;
+}
+.ag-dia__t {
+  min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  font-size: 14px; font-weight: 800; color: var(--ink);
+}
+.ag-dia__t small { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+
+/* Item (parada de rota ou avulsa): sarjeta de hora + corpo + cancelar. */
+.ag-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; }
+.ag-item--avulsa {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2); border-radius: var(--r-md);
+  padding: 9px 10px 9px 8px;
+}
+.ag-h {
+  flex: 0 0 var(--gut); padding-top: 1px; text-align: center;
+  font-size: 12.5px; font-weight: 800; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Sem hora não é buraco: é "dia inteiro", e vai no topo do dia. */
+.ag-h--all {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--muted); line-height: 1.15;
+}
+.ag-item__b { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ag-nome {
+  text-align: left; font-size: 13.5px; font-weight: 700; color: var(--ink);
+  background: none; border: 0; padding: 0; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-item__sub {
+  display: flex; flex-wrap: wrap; gap: 5px; font-size: 11.5px; color: var(--muted);
+}
+/* Anotação do vendedor no agendamento — o único texto do card. */
+.ag-nota { margin: 2px 0 0; font-size: 12px; color: var(--ink-2); }
+.ag-x {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); font-size: 12px; line-height: 1;
+}
+.ag-x:active { background: var(--surface-2); }
+
+/* Rota: o conjunto de paradas do dia. A espinha à esquerda é o que faz as
+   paradas lerem como um grupo, e não como itens soltos. */
+.ag-rota {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand); border-radius: var(--r-md);
+  padding: 9px 10px 4px 8px;
+}
+.ag-rota__h {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  column-gap: 7px; row-gap: 2px;
+}
+.ag-rota__ic { font-size: 14px; }
+.ag-rota__nome {
+  min-width: 0; font-size: 13.5px; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-rota__x {
+  grid-column: 3; font-size: 11px; font-weight: 700; color: var(--muted);
+  background: none; border: 0; padding: 2px 0 2px 6px;
+}
+.ag-rota__meta {
+  grid-column: 2 / 4; font-size: 11.5px; color: var(--muted);
+}
+/* ⚠️ `ul` de propósito: rota é CONJUNTO, não sequência de paradas. */
+.ag-paradas { list-style: none; margin: 4px 0 0; padding: 0; }
+.ag-paradas > li + li { border-top: 1px dashed var(--line); }
+.ag-paradas .ag-item { padding: 7px 0; }
+.ag-paradas .ag-h { flex-basis: calc(var(--gut) - 8px); }
 .ativ-back { align-self: flex-start; }
 
 /* Gerencial: manchete → KPIs → quebras (SPEC 07 §5). Hierarquia em três níveis;

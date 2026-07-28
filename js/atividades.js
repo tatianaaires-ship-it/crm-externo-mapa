@@ -4,7 +4,10 @@
      · Gerencial → o retrato do período (CAP-13): KPIs, quebras, gráficos L7D
                    e a TABELA detalhada. Abre por padrão. Todo número da tela
                    filtra essa tabela (drill) em vez de trocar de tela.
-     · Agenda    → status = planejada. Atrasadas primeiro, depois por dia.
+     · Agenda    → status = planejada, de hoje em diante, em CALENDÁRIO (um
+                   bloco por dia): rotas (conjunto de paradas) e atividades
+                   avulsas. Só plano — não faz check-in nem conclui, e não
+                   mostra atrasadas/sugestões (isso é a tabela da Gerencial).
    (Havia um 3º recorte "Realizadas" em cards; a tabela da Gerencial já é a
     lista detalhada, então ele saiu em 28/07 — spec-07 §4.)
    Respeita o conjunto filtrado do mapa; vendedor/período são filtros DESTA
@@ -69,10 +72,10 @@
 
   /* A quickbar não aparece nesta aba — se houver filtro do mapa ativo, o hint
      avisa e leva de volta ao Mapa, onde se mexe nele. Filtro nunca é invisível. */
-  function setHint(txt) {
+  function setHint(txt, extra) {
     if (!hintEl) return;
     const nf = window.CRM_FILTERS ? window.CRM_FILTERS.activeCount() : 0;
-    hintEl.innerHTML = esc(txt) + (nf
+    hintEl.innerHTML = esc(txt) + (extra ? ' ' + extra : '') + (nf
       ? ' <button class="head-filtro" data-act="ir-mapa">' + nf +
         (nf === 1 ? ' filtro' : ' filtros') + ' do mapa</button>' : '');
   }
@@ -134,93 +137,168 @@
     });
   }
 
-  /* ---- Card de atividade (molde do card de lead — SPEC 00 §6.9) ---- */
-  function cardHtml(t) {
+  /* =====================================================================
+     AGENDA — calendário (no molde do Google Agenda: um dia por bloco, com
+     data na sarjeta e horário à esquerda de cada item). Duas naturezas:
+
+       · ROTA (rascunho — docs/objetos/rota.md): conjunto de estabelecimentos
+         de um vendedor num dia. Cada parada É uma tarefa planejada.
+       · AVULSA (`rotaId` null): o compromisso que o próprio vendedor marcou
+         ("retorno na quinta às 15h").
+
+     O que a Agenda NÃO faz (decisões 28/07):
+       · não tem Check-in nem Concluir — a Agenda é o plano, a execução é no
+         sheet do pin. Cada item mostra só a anotação do agendamento, o horário
+         marcado, Cancelar, e o nome que abre o pin no mapa.
+       · não mostra ATRASADAS nem SUGESTÕES — a dívida vencida e a
+         `proxima_acao_data` são vistas na tabela da Gerencial.
+     ===================================================================== */
+  const DOW = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  // Ordem no dia: quem não tem hora ("dia inteiro") vem primeiro, como no
+  // Google Agenda; depois o resto pelo horário marcado.
+  function ordHora(h) {
+    return /^\d{2}:\d{2}$/.test(h || '') ? (+h.slice(0, 2) * 60 + +h.slice(3, 5)) : -1;
+  }
+  function horaGutter(h) {
+    return h ? '<span class="ag-h">' + esc(h) + '</span>'
+             : '<span class="ag-h ag-h--all">dia inteiro</span>';
+  }
+  function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
+
+  /* Linha de item — serve à parada de rota e à avulsa. Só o que foi combinado
+     no agendamento: horário, nome (abre o pin), tipo, anotação e cancelar. */
+  function itemHtml(t, avulsa) {
     const p = pinOf(t);
     if (!p) return '';
     const tipo = D.TAREFA_TIPO[t.tipo] || { emoji: '📌', label: t.tipo };
-    const atrasada = t.status === 'planejada' && t.data < hoje();
-    const r = t.resultado ? D.RESULTADO[t.resultado] : null;
-    const motivo = t.motivoPerda ? D.MOTIVO_PERDA[t.motivoPerda]
-                 : (t.motivoDesqualificacao ? D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] : null);
+    return (
+      '<div class="ag-item' + (avulsa ? ' ag-item--avulsa' : '') + '">' +
+        horaGutter(t.hora) +
+        '<div class="ag-item__b">' +
+          '<button class="ag-nome" data-act="abrir" data-pin="' + esc(p.id) + '">' +
+            esc(p.name || '(sem nome)') + '</button>' +
+          '<div class="ag-item__sub">' +
+            '<span>' + tipo.emoji + ' ' + esc(tipo.label) + '</span>' +
+            (avulsa ? '<span>· ' + esc(nomeVend(t.responsavelId)) + '</span>' : '') +
+          '</div>' +
+          (t.notas ? '<p class="ag-nota">' + esc(t.notas) + '</p>' : '') +
+        '</div>' +
+        '<button class="ag-x" data-act="cancelar" data-id="' + esc(t.id) + '" ' +
+          'aria-label="Cancelar atividade">✕</button>' +
+      '</div>'
+    );
+  }
 
-    let badge = '';
-    if (atrasada) badge = '<span class="ativ-badge ativ-badge--late">Atrasada</span>';
-    else if (r) badge = '<span class="ativ-badge" style="--c:' + r.color + '">' + esc(r.label) + '</span>';
-
-    const acoes = t.status === 'planejada'
-      ? '<div class="ativ-card__acts">' +
-          (t.checkinEm
-            ? '<button class="btn btn--sm btn--checkout" data-act="checkout" data-id="' + esc(t.id) + '">Check-out</button>'
-            : '<button class="btn btn--sm btn--checkin" data-act="checkin" data-id="' + esc(t.id) + '">📍 Check-in</button>') +
-          '<button class="btn btn--sm btn--ghost" data-act="concluir" data-id="' + esc(t.id) + '">Concluir</button>' +
-          '<button class="btn btn--sm btn--ghost" data-act="cancelar" data-id="' + esc(t.id) + '">Cancelar</button>' +
-        '</div>'
-      : '';
+  /* Bloco de rota. `paradas` são só as que passaram no filtro — se sobrou
+     menos que o total, o cabeçalho diz "2 de 5 paradas": rota encurtada sem
+     aviso lê como rota errada.
+     ⚠️ `<ul>`, não `<ol>`: a rota é CONJUNTO, não sequência (tarefa.md §6). */
+  function rotaHtml(rota, paradas) {
+    const total = S.paradasDaRota(rota.id).length;
+    const horas = paradas.map(function (t) { return t.hora; })
+                         .filter(function (h) { return !!h; }).sort();
+    const faixa = horas.length
+      ? (horas.length > 1 ? horas[0] + '–' + horas[horas.length - 1] : horas[0])
+      : 'sem horário';
+    const quantas = paradas.length === total
+      ? plural(total, 'parada', 'paradas')
+      : paradas.length + ' de ' + plural(total, 'parada', 'paradas');
 
     return (
-      '<article class="ativ-card' + (atrasada ? ' is-late' : '') + '" data-pin="' + esc(p.id) + '">' +
-        '<div class="ativ-card__top">' +
-          '<span class="ativ-card__tipo" aria-hidden="true">' + tipo.emoji + '</span>' +
-          '<button class="ativ-card__name" data-act="abrir" data-pin="' + esc(p.id) + '">' + esc(p.name || '(sem nome)') + '</button>' +
-          badge +
-        '</div>' +
-        '<div class="ativ-card__sub">' +
-          '<span>' + esc(tipo.label) + '</span>' +
-          '<span>· ' + fmtDia(t.data) + '</span>' +
-          '<span>· ' + esc(nomeVend(t.responsavelId)) + '</span>' +
-          (motivo ? '<span class="ativ-card__mot">· ' + esc(motivo) + '</span>' : '') +
-        '</div>' +
-        (t.proximaAcao ? '<p class="ativ-card__next">➜ ' + esc(t.proximaAcao) +
-            (t.proximaAcaoData ? ' <em>(' + fmtDia(t.proximaAcaoData) + ')</em>' : '') + '</p>' : '') +
-        acoes +
+      '<article class="ag-rota">' +
+        '<header class="ag-rota__h">' +
+          '<span class="ag-rota__ic" aria-hidden="true">🧭</span>' +
+          '<span class="ag-rota__nome">' + esc(rota.nome) + '</span>' +
+          '<button class="ag-rota__x" data-act="cancelar-rota" data-rota="' + esc(rota.id) + '">' +
+            'Cancelar rota</button>' +
+          '<span class="ag-rota__meta">' + esc(quantas) + ' · ' + esc(faixa) + ' · ' +
+            esc(nomeVend(rota.responsavelId)) + '</span>' +
+        '</header>' +
+        '<ul class="ag-paradas">' +
+          paradas.map(function (t) { return '<li>' + itemHtml(t, false) + '</li>'; }).join('') +
+        '</ul>' +
       '</article>'
     );
   }
 
-  /* ---- Agenda: atrasadas primeiro, depois agrupada por dia.
-          ⚖️ As ATRASADAS ignoram o filtro de período (spec-07 §4): dívida
-          vencida não pode sumir porque o recorte é "hoje" ou "mês passado".
-          O período vale para o resto da agenda. ---- */
+  function diaHeadHtml(dataIso, nRotas, nAvulsas) {
+    const d = new Date(dataIso + 'T00:00:00');
+    const rot = rotuloDia(dataIso);
+    const titulo = (rot === 'Hoje' || rot === 'Amanhã')
+      ? rot
+      : d.getDate() + ' de ' + MESES[d.getMonth()];
+    const meta = [];
+    if (nRotas) meta.push(plural(nRotas, 'rota', 'rotas'));
+    if (nAvulsas) meta.push(plural(nAvulsas, 'avulsa', 'avulsas'));
+    return (
+      '<header class="ag-dia__h' + (dataIso === hoje() ? ' is-hoje' : '') + '">' +
+        '<span class="ag-dia__gut">' +
+          '<span class="ag-dia__dow">' + DOW[d.getDay()] + '</span>' +
+          '<span class="ag-dia__num">' + d.getDate() + '</span>' +
+        '</span>' +
+        '<span class="ag-dia__t">' + esc(titulo) +
+          '<small>' + esc(meta.join(' · ')) + '</small></span>' +
+      '</header>'
+    );
+  }
+
   function renderAgenda() {
-    const base = tarefasVisiveis().filter(function (t) { return t.status === 'planejada'; });
-    const atrasadas = base.filter(function (t) { return t.data < hoje(); });
-    const resto = base.filter(function (t) { return t.data >= hoje() && noPeriodo(t.data); });
-    const asc = function (a, b) { return a.data < b.data ? -1 : 1; };
-    atrasadas.sort(asc); resto.sort(asc);
-
-    const n = atrasadas.length + resto.length;
-    countEl.textContent = n + (n === 1 ? ' planejada' : ' planejadas');
-    setHint(atrasadas.length
-      ? rotuloPeriodo() + ' · atrasadas sempre visíveis'
-      : rotuloPeriodo() + ' · agendar põe o pin no funil');
-    emptyMsgEl.textContent = 'Nenhuma atividade planejada neste recorte.';
-    emptyEl.classList.toggle('is-visible', n === 0);
-    if (!n) return (bodyEl.innerHTML = '');
-
-    let html = '';
-    if (atrasadas.length) {
-      html += '<h3 class="ativ-group ativ-group--late">Atrasadas</h3>' +
-              atrasadas.map(cardHtml).join('');
-    }
-    let grupo = null;
-    resto.forEach(function (t) {
-      const g = rotuloDia(t.data);
-      if (g !== grupo) { grupo = g; html += '<h3 class="ativ-group">' + esc(g) + '</h3>'; }
-      html += cardHtml(t);
+    const planejadas = tarefasVisiveis().filter(function (t) { return t.status === 'planejada'; });
+    // De hoje em diante: a Agenda é o plano. O que venceu é assunto da
+    // Gerencial (o hint leva até lá quando há dívida escondida).
+    const base = planejadas.filter(function (t) {
+      return t.data >= hoje() && noPeriodo(t.data);
     });
+    const nAtrasadas = planejadas.filter(function (t) { return t.data < hoje(); }).length;
 
-    // proxima_acao_data aparece na agenda como SUGESTÃO — não é tarefa.
-    const sug = tarefasVisiveis().filter(function (t) { return noPeriodo(t.proximaAcaoData); });
-    if (sug.length) {
-      html += '<h3 class="ativ-group">Sugestões (não são tarefas)</h3>' +
-        sug.slice(0, 8).map(function (t) {
-          const p = pinOf(t); if (!p) return '';
-          return '<div class="ativ-sug"><strong>' + esc(p.name) + '</strong> — ' +
-                 esc(t.proximaAcao) + ' <em>' + fmtDia(t.proximaAcaoData) + '</em></div>';
-        }).join('');
-    }
-    bodyEl.innerHTML = html;
+    // Agrupa por dia e, dentro do dia, por rota (`rotaId`) ou avulsa.
+    const dias = {};
+    base.forEach(function (t) {
+      const d = (dias[t.data] = dias[t.data] || { rotas: {}, ordem: [], avulsas: [] });
+      if (t.rotaId) {
+        if (!d.rotas[t.rotaId]) { d.rotas[t.rotaId] = []; d.ordem.push(t.rotaId); }
+        d.rotas[t.rotaId].push(t);
+      } else {
+        d.avulsas.push(t);
+      }
+    });
+    const chaves = Object.keys(dias).sort();
+    let nRotas = 0;
+    chaves.forEach(function (k) { nRotas += dias[k].ordem.length; });
+
+    countEl.textContent = nRotas
+      ? plural(nRotas, 'rota', 'rotas') + ' · ' + plural(base.length, 'atividade', 'atividades')
+      : plural(base.length, 'atividade', 'atividades');
+    setHint(rotuloPeriodo() + ' · de hoje em diante', nAtrasadas
+      ? '<button class="head-filtro" data-act="ir-gerencial">' +
+        plural(nAtrasadas, 'atrasada', 'atrasadas') + ' na Gerencial</button>' : '');
+    emptyMsgEl.textContent = 'Nada planejado neste recorte.' +
+      (nAtrasadas ? ' Há ' + plural(nAtrasadas, 'atividade atrasada', 'atividades atrasadas') +
+        ' — veja na Gerencial.' : '');
+    emptyEl.classList.toggle('is-visible', base.length === 0);
+    if (!base.length) return (bodyEl.innerHTML = '');
+
+    bodyEl.innerHTML = chaves.map(function (k) {
+      const d = dias[k];
+      // Rota entra na posição da sua primeira parada; avulsa, na sua hora.
+      const itens = d.ordem.map(function (rid) {
+        const paradas = d.rotas[rid].slice().sort(function (a, b) { return ordHora(a.hora) - ordHora(b.hora); });
+        const rota = S.getRota(rid) ||
+          { id: rid, nome: 'Rota', data: k, responsavelId: paradas[0].responsavelId };
+        return { ord: ordHora(paradas[0].hora), html: rotaHtml(rota, paradas) };
+      }).concat(d.avulsas.map(function (t) {
+        return { ord: ordHora(t.hora), html: itemHtml(t, true) };
+      }));
+      itens.sort(function (a, b) { return a.ord - b.ord; });
+
+      return '<section class="ag-dia">' +
+        diaHeadHtml(k, d.ordem.length, d.avulsas.length) +
+        itens.map(function (i) { return i.html; }).join('') +
+      '</section>';
+    }).join('');
   }
 
 
@@ -252,12 +330,14 @@
     }).join(' · ');
   }
 
-  /* Nome da rota é DERIVADO (vendedor + dia), não campo: `tarefa.md` §9 mantém
-     Rota como objeto próprio da Fase 4 e crava que uma tarefa não é uma parada.
-     O rótulo dá a coluna do print sem antecipar o objeto. */
+  /* Nome da rota deixou de ser rótulo derivado (28/07): agora vem do RASCUNHO
+     do objeto Rota (docs/objetos/rota.md), via `tarefa.rotaId`. Tarefa fora de
+     rota é avulsa e a coluna diz isso, em vez de inventar uma rota que não
+     existe — era o que o rótulo derivado (vendedor + dia) fazia. */
   function nomeRota(t) {
-    const p = t.data.split('-');
-    return 'Rota (' + p[2] + '/' + p[1] + '/' + p[0] + ')';
+    if (!t.rotaId) return 'Avulsa';
+    const r = S.getRota(t.rotaId);
+    return r ? r.nome : 'Avulsa';
   }
   function tipoCheckin(t) {
     if (t.status !== 'realizada') return '—';
@@ -695,6 +775,7 @@
       return;
     }
     if (act === 'ir-agenda') { setRecorte('agenda'); return; }
+    if (act === 'ir-gerencial') { setRecorte('gerencial'); return; }
     if (act === 'ir-tabela') { drill = null; render(); vaiPraTabela(); return; }
     if (act === 'ordenar') {
       const c = btn.dataset.col;
@@ -728,15 +809,34 @@
       return;
     }
 
+    // Cancelar a rota = cancelar todas as paradas dela. Diz quantas, e quantos
+    // pins saem do funil — é a única reversão do board (tarefa.md §5).
+    if (act === 'cancelar-rota') {
+      const r = S.getRota(btn.dataset.rota);
+      if (!r) return;
+      const paradas = S.paradasDaRota(r.id);
+      if (!paradas.length) return;
+      const saem = paradas.filter(function (x) {
+        const p = S.getById(x.estabelecimentoId);
+        return p && p.status === 'visita_planejada' && S.planejadasDoPin(p.id).length === 1;
+      }).length;
+      const msg = 'Cancelar a rota "' + r.nome + '"?\n' +
+        paradas.length + (paradas.length === 1 ? ' atividade planejada será cancelada' :
+                          ' atividades planejadas serão canceladas') + '.' +
+        (saem ? '\n' + saem + (saem === 1 ? ' pin sai do funil' : ' pins saem do funil') +
+                ' (voltam a Sem plano).' : '');
+      if (!window.confirm(msg)) return;
+      const n = S.cancelarRota(r.id);
+      if (window.CRM_TOAST) window.CRM_TOAST('Rota cancelada — ' + n +
+        (n === 1 ? ' atividade' : ' atividades') + '.');
+      return;
+    }
+
+    // A Agenda não faz check-in nem conclui (28/07): é o plano, não a execução.
+    // Sobrou cancelar — e cancelar o último plano tira o pin do board.
     const t = S.getTarefa(btn.dataset.id);
     if (!t) return;
-    if (act === 'checkin') {
-      S.checkInTarefa(t.id);
-      if (window.CRM_TOAST) window.CRM_TOAST('Check-in registrado.');
-    } else if (act === 'checkout' || act === 'concluir') {
-      pedirConclusao(t);
-    } else if (act === 'cancelar') {
-      // Cancelar o último plano tira o pin do board — vale confirmar.
+    if (act === 'cancelar') {
       const p = pinOf(t);
       const unico = p && S.planejadasDoPin(p.id).length === 1;
       const msg = unico
@@ -902,6 +1002,8 @@
     if (bodyEl) bodyEl.addEventListener('click', onClick);
     if (hintEl) hintEl.addEventListener('click', function (e) {
       if (e.target.closest('[data-act="ir-mapa"]')) showMap();
+      // A Agenda não mostra atrasadas: o atalho leva à tabela da Gerencial.
+      else if (e.target.closest('[data-act="ir-gerencial"]')) setRecorte('gerencial');
     });
     SEG.forEach(function (pair) {
       const el = document.getElementById(pair[0]);

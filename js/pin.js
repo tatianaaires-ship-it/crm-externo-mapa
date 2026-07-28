@@ -140,12 +140,17 @@
               : (t.motivoDesqualificacao ? D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] : null);
     const vend = (D.VENDEDORES[t.responsavelId] || {}).nome || '—';
     const feita = t.status === 'realizada';
-    const rota = 'Rota (' + t.data.split('-').reverse().join('/') + ')';
+    // Rota vem do rascunho do objeto Rota (docs/objetos/rota.md) — quem não
+    // tem `rotaId` foi agendada solta pelo vendedor.
+    const r0 = t.rotaId && S.getRota ? S.getRota(t.rotaId) : null;
+    // Sob o rótulo "Rota", o nome canônico ("Rota Boa Vista") repetiria a
+    // palavra — aqui vai só o bairro; o nome cheio fica na Agenda e na tabela.
+    const rota = r0 ? r0.nome.replace(/^Rota\s+/, '') : 'Avulsa (fora de rota)';
 
     sheetEl.querySelector('.sheet__scroll').innerHTML =
       subHead(tp.emoji + ' ' + tp.label, p.name, 'lista') +
       '<section class="info">' +
-        infoRow('Data', fmtDate(t.data)) +
+        infoRow('Data', fmtDate(t.data) + (t.hora ? ' às ' + esc(t.hora) : '')) +
         infoRow('Situação', feita
           ? '<span class="pill" style="--c:#10b981">Realizada</span>'
           : '<span class="pill" style="--c:' + (t.data < new Date().toISOString().slice(0, 10) ? '#9f1239' : '#94a3b8') + '">' +

@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 3/4/5"
 status: em-revisao
-fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas) + js/pin.js (bloco e sub-telas do sheet) + js/data.js (seed adensado) — implementado 27–28/07. ⚠️ PENDÊNCIA de UI: o §3 (sheet de conclusão) e o §2.1 (agendar) seguem em window.prompt, não nos sheets desenhados."
+fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e sub-telas do sheet) + js/data.js (seed em rotas) — implementado 27–28/07. ⚠️ PENDÊNCIA de UI: o §3 (sheet de conclusão) e o §2.1 (agendar) seguem em window.prompt, não nos sheets desenhados."
 sources:
   - "_bmad-output/specs/spec-crm-externo/SPEC.md — CAP-11 (atividade no pin) · CAP-12 (aba) · CAP-13 (visão gerencial) · CAP-14 (desqualificar) · CAP-6 revisada"
   - "docs/objetos/tarefa.md — campos, enums, tabela resultado→funil, requalificação"
@@ -14,6 +14,7 @@ related:
   - "[[spec-06-funil]]"
   - "[[spec-02-pin-sheet]]"
   - "[[tarefa]]"
+  - "[[rota]]"
   - "[[estabelecimento]]"
 ---
 
@@ -111,7 +112,7 @@ Aba full-screen que **cobre o mapa** (z 25 — mesma camada de Funil e Inteligê
 **Segmented control** no topo, **dois** recortes da mesma coleção — **a aba abre na Gerencial**:
 
 - **Gerencial** — §5. O retrato do período: KPIs, quebras, gráficos L7D e a **tabela detalhada** no fim. É o default.
-- **Agenda** — `status = planejada`. **Atrasadas primeiro**, em bloco destacado; depois agrupadas por dia (Hoje · Amanhã · datas). Inclui as `proxima_acao_data` registradas, marcadas como **sugestão** (não são tarefas).
+- **Agenda** — §4.2. `status = planejada`, **de hoje em diante**, em **calendário**: um bloco por dia, com **rotas** ([[rota]]) e **atividades avulsas**.
 
 > **Havia um terceiro recorte, "Realizadas"** (cards de `status = realizada`, mais recente primeiro). **Removido em 28/07:** a tabela do §5.4 já é a lista detalhada, com mais colunas e ordenação — manter as duas era manter duas respostas para a mesma pergunta.
 >
@@ -126,25 +127,45 @@ Logo abaixo do segmented control, **um único estado de filtro compartilhado pel
 - **Vendedor** — `<select>` com `Todos os vendedores` (default) + os vendedores; o da sessão vem marcado `(eu)`. Filtra por `responsavel_id` **da tarefa**, não por `vendedor_responsavel_id` do pin.
 - **Período** — chips: `Hoje · Ontem · Esta semana · Semana passada · Este mês · Mês passado · 📅 Período`. Default **Este mês**. `📅 Período` revela dois campos `de`/`até` com o **date picker nativo** do sistema (sem calendário próprio: sem build, sem componente novo pra manter). A semana começa na **segunda**; `Esta semana`/`Este mês` vão até o **fim** do período, o que os torna úteis também na Agenda.
 
-Onde cada recorte aplica o período: **Gerencial** em `data` (de planejada e de realizada — §5.1); **Agenda** em `data` da planejada, e as **sugestões** em `proxima_acao_data`.
+Onde cada recorte aplica o período: **Gerencial** em `data` (de planejada e de realizada — §5.1); **Agenda** em `data` da planejada, com o piso extra de **hoje** (§4.2).
 
-**Duas exceções ao período, ambas rotuladas na tela** (exceção que não se anuncia é bug): o bloco **`Atrasadas`** da Agenda e os **gráficos por dia `L7D`** (§5.4).
+**Uma exceção ao período, rotulada na tela** (exceção que não se anuncia é bug): os **gráficos por dia `L7D`** (§5.4). *(Havia duas — o bloco `Atrasadas` da Agenda era a outra, e ele saiu em 28/07: §4.2.)*
 
 **Quatro filtros, todos visíveis**, em grade de 2 colunas (~172px por célula em 375px): **Vendedor** · **Tipo de visita** · **Tipo de check-in** (`Presencial` · `Remoto`) · **CNPJ** (busca por dígitos, com *debounce* — não re-renderiza por tecla). Controle com valor diferente de `Todos` fica **marcado em `--brand`**: com quatro lado a lado, é preciso ver de relance quais estão agindo.
 
 > **Ficaram um tempo recolhidos atrás de um botão `Mais`** com badge de contagem, para poupar altura (a barra ia de 88px para 127px). Revertido em 28/07: **filtro que não se acha não é filtro**, e a economia de 39px não paga o custo de o usuário não saber que o controle existe. A marcação em `--brand` substitui o badge no papel de mostrar o que está ativo.
 
-> **O filtro de check-in esvazia a Agenda de propósito.** `tipo_checkin` só existe em tarefa realizada; com `Presencial` ou `Remoto` ativo, o recorte Agenda fica vazio — não é bug, é a resposta correta ("nenhuma planejada tem check-in ainda"). O badge de `Mais` explica a tela vazia.
-
-> ⚖️ **As atrasadas ignoram o período.** Na Agenda, tarefas planejadas com `data < hoje` ficam **sempre** no bloco fixo do topo, qualquer que seja o filtro — dívida vencida não pode sumir porque o recorte é "hoje" ou "mês passado". O período vale para o resto da agenda. É a única exceção da barra, e o hint da aba avisa (`… · atrasadas sempre visíveis`).
+> **O filtro de check-in esvazia a Agenda de propósito.** `tipo_checkin` só existe em tarefa realizada; com `Presencial` ou `Remoto` ativo, o recorte Agenda fica vazio — não é bug, é a resposta correta ("nenhuma planejada tem check-in ainda").
 
 > ⚠️ **Efeito colateral do filtro único:** com `Este mês` no dia 27, a Agenda esconde o que está marcado para o mês seguinte. É o preço de um estado compartilhado — o vendedor troca para `📅 Período` ou para um preset mais largo. Se incomodar no uso, a saída é dar à Agenda um default próprio (`sem recorte`), não quebrar o compartilhamento.
 
 O filtro **não persiste** entre sessões (nada de `localStorage` até a Fase 4).
 
-**Card de atividade** (componente novo, no molde do card de lead, SPEC 00 §6.9): emoji do `tipo` + **nome do estabelecimento** + data · badge de `resultado` (ou `Atrasada`) · responsável. **Toque = abre o pin** no mapa (volta à aba Mapa, foca e abre o sheet) — mesmo gesto do Funil e da Inteligência. **Ação rápida no card:** check-in/check-out sem sair da aba.
+### 4.2 A Agenda é um calendário de rotas (28/07)
 
-**Criar atividade daqui** exige escolher o pin — o FAB da aba abre um seletor buscável (mesma busca da Inteligência). Toda tarefa tem `estabelecimento_id` obrigatório; não há atividade órfã.
+Antes era uma pilha de cards de atividade agrupada por dia, com `Atrasadas` no topo e `Sugestões` no fim. **O problema era de leitura:** com ~80 planejadas, não se via *o que é de qual dia* — e o que o vendedor planeja não são atividades soltas, é **rota**.
+
+**A forma agora é a do Google Agenda:** um bloco por dia, **data na sarjeta** (`TER 28` + `Hoje` / `Amanhã` / `4 de agosto`, com disco de marca em hoje), cabeçalho do dia **grudado no topo** enquanto o dia rola, e **horário na sarjeta de cada item**. Dentro do dia, duas naturezas:
+
+| Natureza | O que é | Como aparece |
+|---|---|---|
+| **Rota** ([[rota]]) | conjunto de estabelecimentos de um vendedor no dia; **cada parada é uma tarefa planejada** | bloco com espinha em `--brand`: `🧭 nome · N paradas · faixa de horário · vendedor`, `Cancelar rota`, e as paradas em lista |
+| **Avulsa** | o compromisso que o vendedor marcou solto (`rota_id` null) — *"retorno na quinta às 15h"* | card com espinha neutra, com o vendedor no subtítulo |
+
+- **Ordem dentro do dia:** quem **não tem `hora`** vem primeiro, sob o rótulo `DIA INTEIRO` (a `hora` é opcional — [[tarefa]] §4); depois, tudo pelo horário. A rota entra na posição da **sua primeira parada**.
+- **O item mostra o que foi combinado, e só:** horário marcado · nome do estabelecimento · tipo · **a anotação do vendedor no agendamento** (`tarefa.notas`) · `✕` cancelar. **Toque no nome abre o pin** no mapa (volta à aba Mapa, foca e abre o sheet) — mesmo gesto do Funil e da Inteligência.
+- **Rota encurtada por filtro diz que foi encurtada:** o cabeçalho vira `2 de 5 paradas`. Rota que perde paradas em silêncio lê como rota errada.
+- **`Cancelar rota`** cancela **todas** as paradas dela e avisa quantas são e **quantos pins saem do funil** — é a única reversão do board ([[tarefa]] §5). A rota não se deleta; ela apenas fica sem paradas e some da Agenda.
+
+> ⚖️ **A Agenda perdeu `Check-in` e `Concluir`.** Ela é o **plano**; a execução é no sheet do pin, que já tem o botão contextual (§2). Duas ações de execução num card de agenda competiam com o gesto principal (abrir o pin) e espalhavam o fluxo de conclusão por duas telas.
+>
+> **Preço aceito, e é o maior desta mudança:** a **atividade remota** (`tipo_checkin = remoto`) ficou **sem nenhuma porta de UI**. O §2 tirou `Concluir sem check-in` do pin em 28/07 e disse que o botão do card da Agenda era a última porta — agora ela fechou também. O modelo mantém o caso ([[tarefa]] §5) e o seed mantém ~14% de realizadas sem check-in, então o filtro `Tipo de check-in → Remoto` continua devolvendo linhas; o que não existe é como **criar** uma. Resolve a ponta solta da fatia com um "sim, some" — e é reversível pelo detalhe da atividade (§2.2), que já é o lugar das ações.
+
+> ⚖️ **A Agenda não mostra mais atrasadas.** Era bloco fixo no topo e exceção ao filtro de período. Saiu porque a Agenda passou a ser *"o que vem por aí"*, e dívida vencida no topo de um calendário empurra o dia de hoje para fora da tela. **Onde a dívida vive agora:** na **tabela da gerencial** (§5.4), que lista planejadas com `Realizado = Não` em data passada. Para a omissão não ser silenciosa, o *hint* da Agenda mostra **`N atrasadas na Gerencial`** — e o botão troca de recorte. ⚠️ **Consequência a acompanhar:** a tabela **não tem** marca própria de `atrasada` nem coluna de atraso, e obedece ao filtro de período; com `Hoje` selecionado, a atrasada de ontem não aparece em lugar nenhum. Se isso incomodar no uso, o conserto é na Gerencial (badge na coluna `Realizado`), não trazer o bloco de volta.
+
+> ⚖️ **As `Sugestões` (`proxima_acao_data`) saíram da Agenda.** Elas eram "não-tarefas" num calendário — exatamente o tipo de item que alguém lê como compromisso marcado. O campo continua no modelo e na tabela da gerencial; a Agenda ficou só com compromisso real.
+
+**Criar rota ou atividade daqui ainda não existe.** O FAB da aba com seletor buscável de pin segue prometido e não implementado (§9) — e agora ele tem duas formas a resolver: criar **avulsa** (um pin) e **montar rota** (N pins, o que cria N tarefas planejadas). Agendar pelo sheet do pin cria sempre uma **avulsa**. Toda tarefa tem `estabelecimento_id` obrigatório; não há atividade órfã.
 
 ## 5. Visão gerencial (CAP-13)
 
@@ -219,12 +240,15 @@ As 4 cores de `resultado` são as **mesmas do funil** — e isso é correto, nã
 
 - **Vazio vai sempre para o fim**, nas duas direções: se `—` subisse ao topo ao inverter, ordenar esconderia o dado em vez de revelá-lo.
 - **Teto de 150 linhas por ordenação, dito na tela.** Sem teto, cada toque custava ~250ms para reconstruir 300+ linhas × 10 células. O rodapé informa quantas ficaram fora — corte silencioso lê como "cobri tudo" quando não cobriu.
-- **Três colunas não são campos** e não viram campos: `nome da rota` é rótulo derivado (`responsavel_id` + `data`), `tipo de check-in` deriva de `checkin_em`, `realizado` deriva de `status`. Ver [[tarefa]] §4 e §6 — em especial por que a coluna de rota **não** antecipa o objeto Rota da Fase 4.
+- **`nome da rota` deixou de ser rótulo derivado** (28/07): vem do **objeto [[rota]]** via `tarefa.rota_id`, e mostra **`Avulsa`** para tarefa fora de rota. No seed, ~4 em cada 5 linhas têm rota de verdade (com nome de bairro); as `Avulsa` são as visitas-âncora e as agendadas soltas. *(Era `Rota (dd/mm/aaaa)` a partir de `responsavel_id` + `data` — o rótulo existia justamente para não antecipar o objeto, e o objeto rascunho o substituiu.)*
+- **Duas colunas continuam não sendo campos:** `tipo de check-in` deriva de `checkin_em` e `realizado` deriva de `status`. Ver [[tarefa]] §4 e §6.
 - **`distancia_km` é campo novo** ([[tarefa]] §4), derivado no check-in e persistido. Exceção consciente ao não-escopo de GPS: o campo entrou, o motor que o preenche não. No protótipo o valor é **fictício**.
 
 ### 5.5 O seed precisou crescer
 
 Com uma tarefa por pin, os gráficos por dia davam **pico de 4** e a tela parecia de brinquedo. O seed foi adensado para ritmo de campo: **63 → 538 tarefas**, 9–16 visitas por dia útil, **nenhuma em fim de semana**, e **hoje como dia em andamento** (parte do plano já realizada, o resto de pé).
+
+> ⚖️ **Depois (28/07) o seed passou a nascer em ROTAS, inclusive no passado** — um caminho de código só (`rotaDoDia`) para o dia que já rodou e para o dia que vem: **522 tarefas em 117 rotas**, 3 vendedores × 3–5 paradas por dia útil, paradas espaçadas de 45min. **As paradas de cada rota saem por proximidade** (vizinhos mais próximos de uma âncora que gira), porque foi isso que fez o nome da rota ser verdade: uma janela qualquer dava *"Rota Boa Viagem"* com parada em Casa Forte, que é enfeite. **O passado tinha que virar rota também** — sem isso a coluna `Nome Rota` da tabela diria `Avulsa` em ~460 de 522 linhas, o oposto do que a tela passou a afirmar. **O funil não se moveu:** mesmas 7 colunas e mesmas contagens (verificado — `resultado` de cada parada continua vindo da âncora do pin).
 
 > ✅ **Série temporal saiu do parking (28/07).** Ela tinha sido cortada por falta de dado; com o adensamento, os gráficos por dia passaram a ter forma.
 
@@ -257,12 +281,13 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 
 ## 8. Estados
 
-- **Agenda vazia:** "Nenhuma atividade planejada neste recorte" — as **atrasadas seguem visíveis** mesmo assim (§4.1).
+- **Agenda vazia:** "Nada planejado neste recorte." — e, se houver dívida vencida, a frase continua: *"Há N atividades atrasadas — veja na Gerencial."* (§4.2). Vazio sem explicação lê como bug.
+- **Rota sem parada planejada:** não é renderizada. Cancelar todas as paradas faz a rota sair da Agenda (o registro dela fica — nada se deleta).
 - **Gerencial sem realizadas:** os KPIs continuam (o plano existe), as quebras somem — não se renderiza barra vazia — e o texto diz quantas planejadas há no recorte. A **tabela ainda aparece**, com as planejadas.
 - **Tabela com drill que não casa nada:** o chip do critério continua visível, para o vazio ter explicação e ter saída.
 - **Pin sem atividade:** o bloco do §2 mostra só o botão `＋ Agendar atividade`.
 - **Pin só com planejada:** botão contextual + `Ver todas as atividades (1) ›`. Sem histórico, e sem banner (§2).
-- **Check-in aberto:** o botão do pin vira `Check-out` — é assim que o sheet mostra que há visita em andamento, já que a planejada não tem mais linha própria. O card da Agenda continua marcando.
+- **Check-in aberto:** o botão do pin vira `Check-out` — é assim que o sheet mostra que há visita em andamento, já que a planejada não tem mais linha própria. ⚠️ **A Agenda não marca mais isso** (não tem ação de execução, §4.2): a visita em andamento se vê no pin.
 - **Loading:** protótipo estático (sem loading) — parking de skeleton no SPEC 00 §10.
 
 ## 9. Decisões & casos de borda
@@ -272,19 +297,21 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **A quickbar some no Funil e nas Atividades**, não na Inteligência. Intel. é a *mesma base* do mapa em forma de lista, onde o filtro de pin é a ferramenta principal; Funil e Atividades são recortes de trabalho, onde ele é ruído. Consequência aceita: o filtro do mapa fica menos evidente nessas duas — mitigado pelo pill do head (§6), não eliminado.
 - **Visão gerencial é sub-visão**, não aba (§5) — **e é a que abre por padrão** (§4). As duas coisas convivem: continua não valendo uma 5ª aba, mas é ela que dá o contexto de entrada.
 - **Um filtro só para os três recortes** (§4.1), não um por sub-aba. Trocar de recorte mantém a pergunta ("este vendedor, neste período") e muda só a lente. O custo é o efeito colateral do §4.1.
-- **Atrasadas são a exceção do filtro de período** (§4.1) — a alternativa (filtro literal em `data`) fazia o bloco mais útil da agenda sumir quando o recorte era retrospectivo.
+- **A Agenda é calendário de rotas, de hoje em diante** (§4.2) — sem atrasadas, sem sugestões, sem check-in e sem concluir. A alternativa (manter tudo e só reagrupar por dia) devolvia a pilha que não deixava ver de qual dia era cada coisa.
+- **[[rota]] entrou como RASCUNHO declarado**, contra o que a [[tarefa]] §6 dizia (Rota é Fase 4, tarefa não é parada). O que entrou é identidade + nome + dia + dono; **sequenciamento continua fora**, e é ele que faz o objeto da Fase 4. Alternativa recusada: agrupar por `(vendedor, dia)` derivado — não distinguia rota de avulsa, e era justamente a distinção pedida.
+- **Cancelar rota é cancelamento em lote, não exclusão** — N paradas viram `cancelada` e a rota fica sem paradas. Espelha *"tarefa não se deleta"*.
 - **Calendário = `input type="date"` nativo**, não componente próprio. Sem build, sem 150 linhas novas para manter, e o Android já entrega o date picker do sistema. O preço é que esse controle não usa os tokens do [[spec-00-design-system]].
 - **Perdido e Desqualificado só pelo check-out** (§3.1) — nunca botão solto, nunca arraste. A [[spec-06-funil]] recusa o drop nessas duas colunas (exigem motivo) e também em CSC/Aquisição (vêm do ERP).
 - **Conversão não passa pelo check-out** (§3): `csc`/`aquisicao` vêm do ERP e prevalecem. Um card pode aparecer em Aquisição sem nenhuma atividade concluída.
 - **Agendar é o que põe o pin no funil** (§2.1). Consequência de produto: o Funil deixa de mostrar a base inteira e passa a mostrar só o pipeline — a contagem dele divergir da do mapa é o comportamento correto ([[spec-06-funil]] §5).
-- **Concluir sem check-in é válido** (atividade remota) — o check-in prova presença, não cria o registro. **Mas deixou de ter botão no pin** (§2): sobrou como ação do card da Agenda. A regra do modelo não mudou, o atalho é que saiu.
+- **Concluir sem check-in é válido** (atividade remota) — o check-in prova presença, não cria o registro. **Mas não tem botão em lugar nenhum** desde 28/07: saiu do pin (§2) e depois da Agenda (§4.2). A regra do modelo não mudou; o caminho de UI acabou.
+- **`proxima_acao_data` não tem mais superfície na Agenda** (§4.2) — segue no modelo e na tabela da gerencial. Sugestão dentro de um calendário lê como compromisso.
 - **O sheet do pin virou três telas** (§2.2), não uma tela longa. Empilhar lista completa + detalhe dentro do sheet mantém o vendedor no contexto do ponto; abrir tela cheia por atividade perderia o pin de vista.
 - **Atividade realizada não tem ação** — é registro. Corrigir um desfecho errado exige concluir uma **nova** atividade, que é o mesmo caminho da requalificação (§3.1). Não há edição retroativa.
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.
-- **`proxima_acao_data` aparece na agenda mas não é tarefa** — é sugestão. Vira tarefa só quando o vendedor agenda de fato.
 - **Uma atividade aberta por pin** (com check-in sem check-out). Tentar abrir outra oferece fechar a anterior.
 - **Sobre dado real:** o snapshot não traz atividades. Até 28/07 a aba nascia **vazia** com dado real; agora ela recebe as **mesmas tarefas simuladas** do fictício, com faixa fixa de procedência (§5.6). A alternativa era demonstrar a fatia só em dado fictício — o que tornaria o login no porteiro um caminho pior que o de demonstração.
 
 ## 10. Como o SPEC 07 usa o SPEC 00
 
-Não repete tokens nem componentes: reusa o pin-sheet (§6.7), o sheet/painel bottom (§6.6), o modal de criação (§6.8), o card de lead como molde do card de atividade (§6.9), os transientes (§6.15), o shell/nav (§5) e o **chip** (§6.2) nos presets de período. **Pede ao SPEC 00:** a 4ª aba na navegação (§5.2), **três cores novas** de status (`csc`, `perdido`, `desqualificado`) e um badge de `resultado` (4 valores) — ambas em §2.6 — mais **cinco componentes novos** registrados agora: o **segmented control** (§6.10), o **pill de filtro herdado** (§6.11), a **barra de filtros de aba** (§6.12), os **gráficos da gerencial** (§6.13, com as regras de cor que passam a valer para qualquer gráfico do produto) e a **faixa de procedência** (§6.14).
+Não repete tokens nem componentes: reusa o pin-sheet (§6.7), o sheet/painel bottom (§6.6), o modal de criação (§6.8), os transientes (§6.15), o shell/nav (§5) e o **chip** (§6.2) nos presets de período. **Pede ao SPEC 00:** a 4ª aba na navegação (§5.2), **três cores novas** de status (`csc`, `perdido`, `desqualificado`) e um badge de `resultado` (4 valores) — ambas em §2.6 — mais **seis componentes novos**: o **segmented control** (§6.10), o **pill de filtro herdado** (§6.11), a **barra de filtros de aba** (§6.12), os **gráficos da gerencial** (§6.13, com as regras de cor que passam a valer para qualquer gráfico do produto), a **faixa de procedência** (§6.14) e o **calendário da Agenda** (§6.16: bloco de dia com sarjeta e cabeçalho grudado, item com sarjeta de horário, bloco de rota com espinha). *(O card de atividade no molde do card de lead saiu junto com os cards da Agenda — §4.2.)*

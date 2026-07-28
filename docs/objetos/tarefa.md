@@ -10,6 +10,7 @@ sources:
 related:
   - "[[estabelecimento]]"
   - "[[vendedor]]"
+  - "[[rota]]"
   - "[[spec-06-funil]]"
 ---
 
@@ -42,8 +43,10 @@ CREATE TABLE tarefa (
   estabelecimento_id  uuid NOT NULL REFERENCES estabelecimento(id),  -- o vínculo com o pin
   tipo                text NOT NULL,        -- primeira_visita | follow_up | recorrencia
   data                date NOT NULL,        -- planejada (futuro) ou realizada (passado)
+  hora                time,                 -- horário MARCADO; NULL = "dia inteiro" (§4)
   status              text NOT NULL DEFAULT 'planejada',  -- planejada | realizada | cancelada
   responsavel_id      uuid REFERENCES usuario(id),        -- DERIVADO (§5) — alvo de RLS
+  rota_id             uuid REFERENCES rota(id),           -- NULL = AVULSA (fora de rota, §4)
   -- execução (check-in É a tarefa)
   checkin_em          timestamptz,
   checkout_em         timestamptz,          -- preenchido => status = realizada
@@ -75,6 +78,7 @@ CREATE TABLE tarefa (
 | 2 | `estabelecimento_id` | fk → [[estabelecimento]] | **Sim** | auto | — | vem do pin de onde foi criada; **1 tarefa = 1 pin** |
 | 3 | `tipo` | enum (3) | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência |
 | 4 | `data` | date | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | futuro = planejada; passado = realizada |
+| 4b | `hora` | time | Não | `campo` | **Agenda** (sarjeta de horário) · sheet do pin | horário **marcado**. **Opcional**: sem ela, a atividade é *dia inteiro* e vai no topo do dia ([[spec-07-atividades]] §4.2). ⚠️ **`atrasada` continua sendo por DIA** (§5), nunca por hora |
 | 5 | `status` | enum (3) | Sim | **derivado**/fluxo | sheet do pin · aba Atividades | §5 — nasce `planejada` |
 | 6 | `responsavel_id` | fk → [[vendedor]] | Não | **derivado** | aba Atividades · **filtro gerencial** | §5 — nunca digitado; alvo de RLS |
 | 7 | `checkin_em` | timestamptz | Não | `auto` (fluxo) | sheet do pin | botão de check-in; promove o pin a `validado_campo` |
@@ -91,7 +95,8 @@ CREATE TABLE tarefa (
 | 18 | `atrasada` | boolean | — | **derivado** | aba Atividades (destaque) | §5 — não persiste |
 | 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
 | 20 | `tipo_checkin` | enum (2) | — | **derivado** | **visão gerencial** (tabela) | `presencial` se `checkin_em` existe, `remoto` se a tarefa foi concluída sem ele (§5). **Não é campo** — não há o que digitar |
-| 21 | `nome_rota` | text | — | **derivado** (rótulo) | **visão gerencial** (tabela) | `Rota (dd/mm/aaaa)` a partir de `responsavel_id` + `data`. **Não é campo e não é o objeto Rota** — ver §9 |
+| 21 | ~~`nome_rota`~~ | — | — | — | — | ⛔ **Deixou de existir (28/07).** Era rótulo derivado (`Rota (dd/mm/aaaa)`); agora o nome vem do **objeto [[rota]]** via `rota_id`, e a tabela da gerencial mostra `rota.nome` ou **`Avulsa`** |
+| 22 | `rota_id` | fk → [[rota]] | Não | `campo` | **Agenda** (agrupa as paradas) · **visão gerencial** (coluna Nome Rota) | a rota de que esta tarefa é **parada**. **`NULL` = avulsa** — o vendedor marcou este compromisso solto. ⚠️ [[rota]] é **rascunho**, não objeto fechado |
 
 - **Origem:** `fonte:sf` · `derivado` · `admin` · `campo` (digitado pelo vendedor) · `auto`.
 - **Onde aparece:** `sheet do pin` (CAP-11) · `aba Atividades` (CAP-12) · `filtro gerencial` / `visão gerencial` (CAP-13) · `card do Funil` ([[spec-06-funil]]).
@@ -114,7 +119,7 @@ CREATE TABLE tarefa (
 
 - **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada` (caminho normal, presencial). Concluir **sem check-in** também é válido — atividade remota, ex. follow-up por telefone: registra-se `resultado` e a tarefa vira `realizada` com `checkin_em`/`checkout_em` nulos. `cancelada` só por ação explícita (**não há deletar** — §8).
 - **`responsavel_id`** — herda `vendedor_responsavel_id` do [[estabelecimento]]; se nulo, é o **criador** da atividade. Sem auth por usuário até a Fase 4, "criador" é a identidade única da sessão. **Nunca digitado.**
-- **`atrasada`** — `status = planejada` **E** `data < hoje`. Só de exibição.
+- **`atrasada`** — `status = planejada` **E** `data < hoje`. Só de exibição. ⚖️ **Por DIA, nunca por hora**, mesmo com `hora` preenchida: uma tarefa marcada para hoje às 15h não vira "atrasada" às 15h05. Numa demo isso significaria a tela mudando de estado no meio de uma reunião, e no campo significaria acusar atraso de quem está a caminho. ⚠️ Desde 28/07 a **Agenda não mostra atrasadas** — quem as mostra é a tabela da gerencial ([[spec-07-atividades]] §4.2).
 - **`duracao_min`** — `checkout_em − checkin_em`. Insumo da visão gerencial; nulo se a tarefa não teve check-in/out.
 - **`resultado` → `status` do [[estabelecimento]]** — a tarefa move **só as etapas de campo**:
 
@@ -140,7 +145,7 @@ CREATE TABLE tarefa (
 - **Visão gerencial (CAP-13)** — **não é objeto novo**: é agregação pura sobre esta mesma coleção. Agrupamentos: `tipo`, `responsavel_id`, `resultado`, `data`. Cada contagem abre a **lista detalhada** das tarefas por trás dela.
   - O recorte **não é só `realizada`**: a gerencial põe o **plano ao lado da execução**, então `status = planejada` também entra (KPIs de planejadas/atrasadas, gráfico por dia e a tabela detalhada). Ver [[spec-07-atividades]] §5.
   - **"Planejadas do dia" = TODAS as tarefas com aquela data**, não só as que continuam `planejada`. Planejada e realizada são o mesmo objeto: o que foi feito hoje estava no plano de hoje. É o que faz o par de gráficos ler como *"planejei X, executei Y"* — a diferença entre as duas barras é o não-realizado.
-- **`tipo_checkin` (presencial × remoto)** — derivado de `checkin_em`, não é campo. Concluir sem check-in é válido (atividade remota, §5): o check-in prova presença, não cria o registro. ⚠️ Desde 28/07 **o sheet do pin não oferece mais esse botão** ([[spec-07-atividades]] §2) — a regra do modelo continua, o atalho ficou só no card da Agenda.
+- **`tipo_checkin` (presencial × remoto)** — derivado de `checkin_em`, não é campo. Concluir sem check-in é válido (atividade remota, §5): o check-in prova presença, não cria o registro. ⚠️ Desde 28/07 **não há mais botão para isso em lugar nenhum**: saiu do sheet do pin ([[spec-07-atividades]] §2) e depois saiu do card da Agenda, quando a Agenda deixou de ter ações de execução (§8). A regra do modelo e o dado semeado continuam; o caminho de UI, não.
 - **`distancia_km`** — calculada **uma vez**, no check-in, e persistida. Não é recalculável depois (o vendedor já saiu de lá), e é o que dá lastro ao check-in presencial. Enquanto não houver GPS (Fase 3/4), o protótipo **semeia valor fictício**.
 
 ## 6. O que NUNCA fica aqui
@@ -149,17 +154,18 @@ CREATE TABLE tarefa (
 - **Nota do ponto** (`nota_estabelecimento`) — é do estabelecimento e sempre visível no pin. `tarefa.notas` é da **atividade**, e morre com o contexto dela.
 - **Fotos, raio de proximidade, GPS de validação** — Fase 3/4 (check-in completo). ⚠️ **Exceção aberta em 28/07:** `distancia_km` (§4) entrou antes, porque a tabela da visão gerencial precisa da coluna. O **campo** existe e persiste; quem o **preenche de verdade** (o GPS) segue na Fase 3/4 — no protótipo o valor é fictício.
 - **SLA / tempo em etapa** — é métrica do **funil** (estado do estabelecimento), não da tarefa. Fase 4.
-- **Rota / sequenciamento de paradas** — objeto próprio, Fase 4. Uma tarefa não é uma parada. ⚠️ A tabela da gerencial tem uma coluna **"Nome Rota"**, e ela **não viola isto**: o valor é um **rótulo derivado** (`responsavel_id` + `data` → `Rota (dd/mm/aaaa)`), não um campo e não uma FK. Nada é guardado, nada é sequenciado — quando o objeto Rota nascer, a coluna passa a apontar para ele sem migração de dado.
-- **Agenda externa** (Google Agenda) — integração a avaliar na Fase 3; a agenda da Fase 2 é a própria lista de tarefas planejadas.
+- **Sequenciamento de paradas, otimização de trajeto, deslocamento, ETA, rota recorrente** — seguem sendo Fase 4, agora dentro de [[rota]] §6.
+  > ⚠️ **Esta regra mudou em 28/07, e a mudança é declarada.** Até então dizia *"Rota é objeto próprio da Fase 4; uma tarefa não é uma parada"*, e a coluna "Nome Rota" da gerencial era só um **rótulo derivado** (`responsavel_id` + `data`). Com a Agenda em calendário mostrando **rotas** (decisão Tatiana, 28/07), a tarefa **passou a ser a parada**: ganhou `rota_id` (§4) e o rótulo derivado morreu. O que entrou é o [[rota]] **rascunho** — identidade, nome, dia e dono. **Uma tarefa continua não sendo uma sequência**: nenhuma ordem é guardada, e é isso que mantém o objeto de verdade na Fase 4.
+- **Agenda externa** (Google Agenda) — integração a avaliar na Fase 3. A agenda da Fase 2 é a própria coleção de tarefas planejadas; desde 28/07 ela é **apresentada** no formato de calendário ([[spec-07-atividades]] §4.2), o que não é integração nenhuma.
 
 ## 7. Relações
 
 ```text
- ┌───────────────────┐         ┌──────────────────┐
- │  ESTABELECIMENTO  │◄── N:1 ─┤      TAREFA      ├─ N:1 ──► VENDEDOR
- │   (o pin)         │         │ atividade datada │          responsavel_id
- └───────────────────┘         │  = check-in/out  │          criado_por
-         ▲                     └──────────────────┘
+ ┌───────────────────┐         ┌──────────────────┐         ┌──────────┐
+ │  ESTABELECIMENTO  │◄── N:1 ─┤      TAREFA      ├─ N:1 ──►│   ROTA   │
+ │   (o pin)         │         │ atividade datada │  rota_id│ (rascunho)│
+ └───────────────────┘         │  = check-in/out  ├─ N:1 ──► VENDEDOR
+         ▲                     └──────────────────┘          responsavel_id
          │  resultado empurra o `status` (monotônico, §5)
          └──────────────────────────────────────────┘
 ```
@@ -167,6 +173,7 @@ CREATE TABLE tarefa (
 | Relação | Tipo | Nota |
 |---|---|---|
 | Estabelecimento → Tarefa | 1:N | um pin acumula N atividades; `pin.checkins` **deriva** daqui |
+| [[rota]] → Tarefa | 1:N | `rota_id` — **a tarefa é a parada** da rota. `NULL` = avulsa. ⚠️ rascunho (28/07) |
 | Tarefa → Vendedor | N:1 | `responsavel_id` (derivado) — alvo de RLS na Fase 4 |
 | Tarefa → `status` do Estabelecimento | efeito | via `resultado`; move as etapas **de campo** e as duas saídas laterais. `csc`/`aquisicao` vêm do **ERP** e prevalecem |
 
@@ -179,7 +186,8 @@ CREATE TABLE tarefa (
 - **O `resultado` move as etapas de campo do funil**, monotonicamente na escada. **Não move `csc`/`aquisicao`** — esses são derivados do ERP e prevalecem ([[estabelecimento]] §5). O invariante do `status` deixa de ser "muda só por fluxo" e passa a ser **"nunca é digitado"**: ou vem de tarefa concluída, ou vem do ERP.
 - **Motivo é obrigatório nos dois desfechos negativos**, de **vocabulário fechado** + `outro` com texto: `motivo_perda` quando `resultado = perdido`, `motivo_desqualificacao` quando `resultado = desqualificado`. Ambos movem o pin para a saída lateral correspondente.
 - **`perdido` e `desqualificado` são estados revisáveis, nunca exclusão** — o pin **segue visível no mapa** e o filtro apenas oculta. Só acontecem **por tarefa concluída** (constatação de campo tem autor e data), nunca por toque solto no pin; e **voltar de lá também exige tarefa** (§5). A diferença entre os dois vive no **motivo**, não na mecânica: `perdido` = a negociação morreu, o ponto segue oportunidade; `desqualificado` = o ponto não é oportunidade.
-- **Tarefa não se deleta — cancela-se** (`status = cancelada`). Espelha *"o pin nunca some"*.
+- **Tarefa não se deleta — cancela-se** (`status = cancelada`). Espelha *"o pin nunca some"*. Cancelar a **rota** cancela todas as paradas dela ([[rota]] §2.3) — é o mesmo cancelamento, N vezes, e só quem perdeu o **último** plano sai do board.
+- **Concluir é sempre no pin, nunca na Agenda** (28/07). A Agenda é o **plano**: mostra horário, anotação do agendamento e cancelar, e nada mais. Check-in/check-out e conclusão vivem no sheet do pin. ⚠️ **Consequência aceita:** a **atividade remota** (`tipo_checkin = remoto`, §5) perdeu a última porta de UI que tinha — a regra do modelo continua e o dado semeado continua tendo remotas, mas **ninguém cria uma** no protótipo. Ver [[spec-07-atividades]] §4.2.
 - **Classificação nunca é digitada:** `status`, `responsavel_id`, `atrasada`, `duracao_min` são derivados.
 - **Recorrência não gera nada** na Fase 2 (decisão Tatiana): é só um valor de `tipo`.
 - **Tudo em memória/sessão** — sem banco, sem persistência entre aberturas do app.
@@ -187,7 +195,8 @@ CREATE TABLE tarefa (
 
 ## 9. Anexos / parkings
 
-- **Parkings (motor):** `recorrencia_dias` + geração automática da próxima ocorrência · SLA/tempo em etapa · fotos e check-in por proximidade (PostGIS) · agenda semanal / Google Agenda · persistência + auth/RLS · alerta "cliente sem visita há N dias" · sync completo tarefa→funil.
+- **Parkings (motor):** `recorrencia_dias` + geração automática da próxima ocorrência · SLA/tempo em etapa · fotos e check-in por proximidade (PostGIS) · agenda semanal / Google Agenda · persistência + auth/RLS · alerta "cliente sem visita há N dias" · sync completo tarefa→funil · **objeto [[rota]] completo** (sequenciamento, trajeto, ETA, recorrência — §6).
+- **Chave de estado subiu para v6** (`js/state.js`): a tarefa ganhou `hora` e `rota_id`, e o estado passou a carregar a coleção `rotas`. Estado v5 não tem rota nenhuma, então a Agenda em calendário nasceria sem rotas em quem já abriu a demo.
 - **Resolve um parking do [[estabelecimento]]:** `proximo_contato_agendado` (§9 de estabelecimento.md) passa a ser `proxima_acao` + `proxima_acao_data` **aqui** — não é campo do pin.
 - **Implementação do enum de 8 valores / 7 colunas:** `STATUS` em `js/data.js` precisa ganhar `sem_plano` (novo default, **sem coluna**), `visita_planejada` (renomeia `nao_visitado`), `td_encontrado` (renomeia `em_negociacao`), `csc` + `aquisicao` (substituem `convertido`), `perdido` e `desqualificado` — as colunas do Kanban saem daí, então o board se ajusta sozinho ([[spec-06-funil]] §2). **Três cores novas** (`csc`, `perdido`, `desqualificado`): decisão de design, `css/styles.css` é a fonte de verdade (regras em [[spec-00-design-system]] §2.6). O seed fictício precisa popular `data_cadastro`/`data_primeira_compra` para que CSC e Aquisição tenham cards.
 - **Divergência de enum com o Notion: RESOLVIDA.** O plano (Fase 4) falava `Novo → Em progresso → CSC → Convertido`; a escada agora é `visita_planejada → visitado → td_encontrado → csc → aquisicao` (com `sem_plano` fora do board) — o `CSC` do plano entrou e "Convertido" virou `aquisicao`. Sobra só diferença de rótulo nas duas primeiras etapas.

@@ -254,6 +254,17 @@ Faixa âmbar (`#fef3c7` sobre texto `#7c2d12`, borda `#f59e0b`) presa ao topo de
 ### 6.15 Transientes
 **Toast** (pill escuro, rodapé, acima da nav) · **banners de modo** (`placing`/`moving`, faixa escura no topo do mapa) · **install-toast** (Android, "Adicionar à tela inicial") · **empty states** (mapa e lista, com CTA "Limpar filtros").
 
+### 6.16 Calendário da Agenda (`.ag-*`)
+Formato de agenda-lista (molde do Google Agenda), na aba Atividades — [[spec-07-atividades]] §4.2. Uma variável de sarjeta (`--gut: 52px`) governa as três peças, e é ela que faz a coluna da esquerda existir como coluna:
+
+- **Bloco de dia** (`.ag-dia` + `.ag-dia__h`) — cabeçalho `position: sticky` sobre `--bg` com borda inferior: **dia de calendário na sarjeta** (`DOW` 9.5px/800 caixa-alta + número 19px `tabular-nums`) e, à direita, título (`Hoje` · `Amanhã` · `4 de agosto`) com contagem em `small`. **Hoje ganha disco `--brand`** com número branco — é a âncora visual da lista.
+- **Item** (`.ag-item`) — `flex` de três partes: sarjeta de **horário** (`.ag-h`, 12.5px/800 `tabular-nums`) · corpo (nome como `button`, subtítulo, e a anotação do agendamento em `.ag-nota`) · botão redondo de 28px para cancelar (`.ag-x`). Sem horário, a sarjeta diz **`dia inteiro`** (`.ag-h--all`, 9.5px caixa-alta) e o item vai para o topo do dia: sarjeta vazia lê como dado faltando.
+- **Bloco de rota** (`.ag-rota`) — cartão com **espinha de 3px `--brand`** à esquerda e cabeçalho em grade de 3 colunas (ícone · nome · ação), com a linha de meta ocupando as colunas 2–3. As paradas ficam em `<ul>` (`.ag-paradas`) separadas por `1px dashed` — **`ul` e não `ol` de propósito**: rota é conjunto, não sequência ([[rota]] §2). A variante **avulsa** (`.ag-item--avulsa`) é o mesmo item em cartão com espinha `--line-2`: mesma forma, hierarquia menor, sem espinha de marca.
+
+> A espinha é o que faz N paradas lerem como **um** compromisso. Sem ela, uma rota de 5 paradas parecia 5 itens soltos — que era exatamente o problema que este formato veio resolver.
+
+> **O card de atividade saiu.** A Agenda usava o card de lead (§6.9) como molde, com badge de `resultado`/`Atrasada` e botões de check-in/concluir. Ele foi **substituído** por estas peças em 28/07 ([[spec-07-atividades]] §4.2): o `.ativ-card` não existe mais, e do bloco antigo sobrou só o **badge** (`.ativ-badge`), ainda usado no histórico do pin.
+
 ## 7. Ícones
 
 Hoje **baseados em emoji/glifos** (vanilla, sem lib): `◈` marca · `＋` criar · `◎` localizar · `⟲` reset · `≡`/`🎛` filtros · `🗺️`/`📋` nav · `🔎` busca · `👆`/`✥` banners · `✓` validado. *(O CRM-KA usa Lucide via React.)* **Parking:** se o produto real for React, migrar para um set consistente (ex. Lucide) e mapear os emojis atuais.
