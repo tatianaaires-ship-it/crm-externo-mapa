@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 4/5"
 status: em-revisao
-fonte_de_verdade: "index.html + js/funil.js + js/state.js + js/filters.js (o doc espelha o código) — ⚠️ EXCEÇÃO TEMPORÁRIA: o enum de 7 colunas está À FRENTE do código (fatia Tarefa, 27/07); ver aviso abaixo"
+fonte_de_verdade: "index.html + js/funil.js + js/state.js + js/filters.js (o doc espelha o código)"
 sources:
   - "js/funil.js — Kanban por status, arraste (Pointer Events), toque→pin"
   - "js/state.js — setStatus (move em memória); STATUS (funil)"
@@ -22,13 +22,13 @@ related:
 
 > 🎯 **Objetivo.** A **visão de funil** — dor-manchete da KR ("falta visão de funil"): um **Kanban** que agrupa os leads pelo campo `status`, para o vendedor planejar e a liderança enxergar o pipeline. **Herda o [[spec-00-design-system]]** — tokens, shell e componentes não se repetem aqui.
 
-> 🚧 **Este doc está temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[tarefa]] · [[spec-07-atividades]]). O contrato pede um enum de **8 valores / 7 colunas** (`sem_plano` fora do board, `visita_planejada → visitado → td_encontrado → csc → aquisicao`, + as laterais `perdido` · `desqualificado`), mas o `STATUS` em `js/data.js` ainda tem **4** (`nao_visitado`, `em_negociacao` e `convertido` seguem lá, e o seed usa esses valores). O `isConverted` derivado do arraste em `js/state.js` também já não vale — passa a vir do ERP. Ao implementar, o doc volta a ser espelho e este aviso sai.
+> ✅ **Implementado (27/07).** Enum de **8 valores / 7 colunas** em `js/data.js` (`STATUS_BOARD`), board excluindo `sem_plano`, divisor antes das laterais e as três recusas de drop em `js/funil.js` + `js/state.js` (`applyStatus`). O `isConverted` do arraste foi removido — conversão vem do ERP. O doc voltou a ser espelho do código.
 
 > 🧩 **Casca × motor.** Esta é a **casca** (Fase 2): colunas + card + **arrastar em memória**, sobre o `status` que o lead já tem — **sem objeto novo, sem banco**. O **motor** restante (persistência real, SLA/tempo-em-etapa) é **Fase 4**. ℹ️ O **sync check-in→funil** e a **visão gerencial** saíram deste bloco: viraram a fatia de Tarefa ([[spec-07-atividades]], CAP-11 a CAP-14).
 
 ## 1. Layout
 
-Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25 — mesma camada da Inteligência no SPEC 00 §5.1). Estrutura: **cabeçalho** (contagem + dica) → **board horizontal** de colunas → **empty state**. Segunda aba da bottom nav (🗺️ Mapa · **📊 Funil** · 🗓️ Atividades · 📋 Intel. — 4 abas desde a [[spec-07-atividades]]); nessas abas os controles do mapa (FAB, banners) somem.
+Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25 — mesma camada da Inteligência no SPEC 00 §5.1). Estrutura: **cabeçalho** (contagem + dica) → **board horizontal** de colunas → **empty state**. **Terceira** aba da bottom nav (🗺️ Mapa · 📋 Intel. · **📊 Funil** · 🗓️ Atividades — 4 abas desde a [[spec-07-atividades]], agrupadas em base e pipeline: SPEC 00 §5.2); nessas abas os controles do mapa (FAB, banners) somem — **e a quickbar também** (§5).
 
 ## 2. Colunas (o funil)
 
@@ -64,6 +64,8 @@ Compacto, no molde do card de lead ([[spec-05-intel]] §6.9 / SPEC 00 §6.9), ma
 O Funil consome o mesmo conjunto filtrado do mapa e da Inteligência (`filters.reapply` → `CRM_FUNIL.refresh(list)`), **menos os pins `sem_plano`** — esses não estão no pipeline. Mudar qualquer filtro atualiza as três superfícies. O filtro **oculta** cards — **nunca deleta** (o pin nunca some). Filtrar por `status` restringe **quais colunas têm cards** (não esconde a coluna).
 
 > ⚠️ **Este é o ponto em que o Funil deixa de espelhar o mapa.** Antes o board mostrava todo pin visível; agora mostra só quem entrou no pipeline. A contagem do cabeçalho do Funil vai divergir da do mapa — e isso é o comportamento correto, não bug.
+
+**A quickbar não aparece nesta aba** (SPEC 00 §5.2): o filtro do mapa não é útil sobre um Kanban e custava 52px de altura, que voltam para o board. O filtro segue valendo — daí o pill **`N filtros do mapa`** no cabeçalho quando há algum ativo (SPEC 00 §6.11), que devolve ao Mapa ao toque. O botão `Limpar filtros` do empty state continua onde estava, para o caso extremo de zerar o board.
 
 ## 6. Dados exibidos (do Estabelecimento)
 

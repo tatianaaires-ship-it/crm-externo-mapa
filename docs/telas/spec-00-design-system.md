@@ -3,7 +3,7 @@ title: "SPEC 00 — Design System & App Shell (CRM Externo / Praso Maps)"
 tipo: design-spec
 fase: "Protótipo do Mapa (Fase 1–2)"
 status: ratificado
-fonte_de_verdade: "css/styles.css (o doc espelha o CSS, não o inverso) — ⚠️ EXCEÇÃO TEMPORÁRIA: §2.6 e a nota de 4 abas em §5.2 estão À FRENTE do código (fatia Tarefa, 27/07); ver aviso abaixo"
+fonte_de_verdade: "css/styles.css (o doc espelha o CSS, não o inverso)"
 sources:
   - "css/styles.css — tokens e componentes implementados"
   - "index.html — estrutura do shell"
@@ -21,7 +21,7 @@ related:
 > 🎯 **Objetivo.** Definir os padrões visuais, tokens, componentes e a estrutura de navegação que **toda tela do Praso Maps herda**. É o alicerce: cada spec de tela (`spec-01`, `spec-02`…) refere a este documento em vez de repetir tokens.
 > ⚠️ **Fonte de verdade = `css/styles.css`.** Este doc **transcreve** o que já está implementado no protótipo. Mudou o CSS, atualize aqui (e vice-versa). Não é design aspiracional.
 
-> 🚧 **Duas partes deste doc estão temporariamente À FRENTE do código** (fatia Tarefa, 27/07 — [[spec-07-atividades]]): a **§2.6** (paleta de status do funil — 8 valores, cores já aprovadas) e a **nota de 4 abas** em §5.2. O `STATUS` em `js/data.js` ainda tem 4 valores e a nav ainda tem 3 abas. Ao implementar, o doc volta a ser espelho e este aviso sai.
+> ✅ **Implementado (27/07).** A §2.6 (8 valores, 3 cores novas) está em `js/data.js` e a nav de 4 abas em `index.html` + `app.js`. O doc voltou a ser espelho do código.
 
 ## 1. Princípios de design
 
@@ -134,7 +134,7 @@ Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco
 
 - **Raios:** `--r-sm 10px` · `--r-md 14px` · `--r-lg 20px` · `--r-pill 999px`.
 - **Sombras:** `--shadow-sm` (cards/barras) · `--shadow-md` (flutuantes: legenda, FAB-locate, toast) · `--shadow-lg` (projeta pra **cima** — sheets e modais).
-- **Alturas de barra:** topbar `56px` · quickbar `52px` · bottomnav `56px` (todas + safe-area).
+- **Alturas de barra:** topbar `56px` · quickbar `52px` (**oculta** no Funil e nas Atividades — §5.2) · bottomnav `56px` (todas + safe-area).
 - **Safe-area:** `--sat` (topo/notch) e `--sab` (base/barra de gesto) somadas às barras e aos flutuantes ancorados no rodapé (FAB, toast).
 
 ## 5. App Shell — estrutura
@@ -176,9 +176,11 @@ Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conte
 
 ### 5.2 Navegação
 
-Bottom nav de **3 abas** — Mapa, **Funil** (Kanban por status) e Inteligência — que **compartilham os mesmos filtros** (mudar filtro atualiza as três). Não há sidebar (contraste deliberado com o CRM-KA). Aba ativa: cor `--brand` + barrinha de 3px no topo do tab. Nas abas Funil e Inteligência, os controles do mapa (FAB, banners) somem.
+Bottom nav de **4 abas**, nesta ordem: **🗺️ Mapa · 📋 Intel. · 📊 Funil · 🗓️ Atividades**. As quatro **compartilham o mesmo conjunto filtrado** (mudar filtro atualiza todas). Não há sidebar (contraste deliberado com o CRM-KA). Aba ativa: cor `--brand` + barrinha de 3px no topo do tab. Com 4 abas o rótulo de Inteligência encurta para `Intel.`; abaixo de 360px o rótulo pode ceder ao ícone. Nas abas que cobrem o mapa (z 25), os controles do mapa (FAB, banners) somem.
 
-> ⚠️ **A implementar (SPEC 07):** a nav passa a **4 abas** — 🗺️ Mapa · 📊 Funil · 🗓️ **Atividades** · 📋 Intel. Com 4 abas o rótulo de Inteligência encurta para `Intel.`; abaixo de 360px o rótulo pode ceder ao ícone. A aba Atividades entra na **mesma camada** de Funil/Inteligência (z 25) e também esconde os controles do mapa. Ver [[spec-07-atividades]] §4.
+> ⚖️ **A ordem agrupa por natureza, não por importância:** **Mapa** e **Intel.** são o *mesmo conjunto* em duas formas (mapa e lista) e mantêm a quickbar; **Funil** e **Atividades** são o *pipeline de trabalho* e **escondem a quickbar** (abaixo). A fronteira cai no meio da nav.
+
+**A quickbar some no Funil e nas Atividades.** Ela é o filtro **do mapa**: nessas duas abas não é útil e custa `52px` de altura, que voltam para o conteúdo. O filtro **continua valendo** — as duas leem o conjunto filtrado —, então, para o filtro não ficar invisível, o *head* da aba mostra um pill **`N filtros do mapa`** quando há algum ativo, e tocá-lo devolve ao Mapa. Ver [[spec-06-funil]] §5 e [[spec-07-atividades]] §6.
 
 **Tela de entrada (porteiro).** Em build com porteiro configurado (`js/config.js`), o app abre numa **tela de login** sobre o shell (`#login-gate`, z 100): login `@praso.com.br` carrega o dado real; **"Seguir sem login"** segue no fictício, com um "Entrar" no topo para logar depois. Sem porteiro, vai direto ao mapa. (Detalhe do fluxo em `porteiro/README.md`.)
 
@@ -203,7 +205,11 @@ Card semi-transparente (`backdrop-filter: blur`) colapsável, ancorado no canto 
 Base comum: sobe de baixo (`translateY`), `border-radius` no topo, `max-height 86dvh`, handle de 40×4px, `--shadow-lg`. Usado por: **pin-sheet** (detalhe do local), **painel de filtros**. Transição `.3s cubic-bezier(.22,.61,.36,1)`. No desktop (≥620px) viram cards flutuantes centralizados.
 
 ### 6.7 Pin-sheet (anatomia)
-Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada de confiança em dots) · **info rows** (chave/valor) · **blocos** (check-in/out, notas) · **notas** (sempre visíveis; nota = cartão âmbar; input inline). Botões check-in (verde) / check-out (âmbar).
+Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada de confiança em dots) · **info rows** (chave/valor) · **blocos** (atividades, notas) · **notas** (sempre visíveis; nota = cartão âmbar; input inline). Botões check-in (verde) / check-out (âmbar).
+
+**Sub-telas.** O sheet empilha telas em vez de crescer: cabeçalho `.sheet__head--sub` com **`.sheet__back`** (círculo `34px`), título do recorte e o nome do ponto por baixo. Toda tela nova entra com `scrollTop = 0`; reabrir o pin volta à tela raiz. Linha de item navegável = **`.ativ-item`** (emoji · duas linhas de texto · chevron). Usado pela lista e pelo detalhe de atividade ([[spec-07-atividades]] §2.2).
+
+> **Bloco longo dentro do sheet vira sub-tela, não rolagem.** O sheet tem `max-height: 86dvh` e conteúdo obrigatório embaixo (as notas, CAP-3): qualquer lista que cresça sem limite empurra o invariante para fora da tela. Regra: mostra as N primeiras + `Ver todas (N) ›`.
 
 ### 6.8 Modal de criação
 Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e o marcador roxo seguem arrastáveis por trás). Campo básico (nome) + "Mais detalhes" expansível (tipologia, CNPJ, telefone) + dica de qualidade derivada.
@@ -211,7 +217,36 @@ Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e 
 ### 6.9 Card de lead (aba Inteligência)
 Linha com dot de origem (mesmas pistas do pin), nome, sub, CNPJ e badge de qualidade. Toque foca o pin correspondente no mapa.
 
-### 6.10 Transientes
+### 6.10 Segmented control (`.seg`)
+Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (Gerencial · Agenda — [[spec-07-atividades]] §4).
+
+### 6.11 Pill de filtro herdado (`.head-filtro`)
+Pill pequeno `--brand` sobre `--brand-050`, no *head* das abas que escondem a quickbar (Funil e Atividades). Aparece só quando `CRM_FILTERS.activeCount() > 0`, diz `N filtro(s) do mapa` e, ao toque, volta para o Mapa. Existe para que esconder a quickbar não crie **filtro invisível** — a aba mostra menos dado do que a base e o usuário precisa saber por quê.
+
+### 6.12 Barra de filtros de aba (`.ativ-filtros`)
+Faixa `--surface-2` logo abaixo do segmented control, separada por `--line`. Peças: **grade de 2 colunas** (`.ativ-grid`) de **`<select>`/`<input>`** rotulados (`.ativ-sel`) · **trilha de chips rolável na horizontal** (`.ativ-chips` — reusa o chip do §6.2, ativo `is-on`; a trilha sangra o padding lateral com `margin: 0 -12px` para o chip não parecer cortado, e esconde a barra de rolagem) · **par de `input[type="date"]`** (`.ativ-custom`, revelado só no preset personalizado — precisa de `[hidden]{display:none}` explícito porque `display:flex` vence o `[hidden]` do UA).
+
+> **Filtro não se esconde.** Uma gaveta "Mais" chegou a existir aqui e foi removida: economizava 39px de altura ao custo de o usuário não descobrir os controles. Em vez de esconder, **marcar** — controle com valor diferente de `Todos` ganha `.is-on` e vira `--brand`, para dar de relance a leitura do que está agindo. Mesmo princípio do pill de filtro herdado (§6.11). Busca em campo de texto usa *debounce*, nunca re-render por tecla.
+
+> Filtro de **conteúdo da aba**, não do mapa: nunca escreve na quickbar. O `input[type=date]` é **nativo de propósito** (sem build, date picker do sistema no Android) e é o único controle do app fora dos tokens.
+
+### 6.13 Gráficos (visão gerencial)
+Sem lib: SVG/CSS puro, coerente com o "sem build" (o Leaflet é vendorizado, não CDN). Três peças, todas com **drill ao toque** — marca que não abre nada é regressão:
+
+- **Número-manchete** (`.ger-hero strong`) — `≥48px`, peso 800, **figuras proporcionais**; nunca `tabular-nums` (afrouxa dígito grande) e nunca serifa/display.
+- **KPI tile** (`.ger-kpi`) — grid de 3, número `21px` + rótulo `10px` caixa-alta + **terceira linha com o denominador** (`.ger-kpi__s`). Quando os tiles formam um funil, cada um é % do **anterior**, e a terceira linha diz de quê — percentual sem denominador visível é número solto. Variante `--late` pinta número e borda em `#9f1239`.
+- **Barra empilhada 100%** (`.ger-stack`) — a forma de **parte-do-todo** (donut é reservado a "à primeira vista, ≤6 fatias"; em 375px a empilhada é mais precisa). Altura `14px`, cantos `4px` só nas pontas, **respiro de 2px entre segmentos** — que é a superfície aparecendo, não borda —, `min-width: 4px` para fatia mínima nunca sumir. Legenda (`.ger-legenda`) obrigatória, com dot + rótulo + número, alvo de toque `≥24px`. **Segmento mostra, legenda leva:** o segmento é alvo de tooltip e a legenda carrega o drill — no toque, um gesto não pode abrir detalhe *e* navegar.
+
+- **Coluna empilhada por dia** (`.ger-barras` / `.ger-col`) — série temporal com identidade por vendedor. Janela **fixa de 7 dias**: as colunas dividem a largura (`flex: 1`, ~47px) em vez de rolar, respiro de `2px` entre segmentos, total em cima, data embaixo. Quando há dois gráficos irmãos, **uma escala só** para os dois — alturas que não se comparam são pior que nenhum gráfico. Janela fixa dentro de uma tela filtrada exige **selo visível** (`.ger-l7d`): filtro que não age precisa dizer que não age.
+- **Tooltip de gráfico** (`.ger-tip`) — painel escuro `#1e293b`, `position: fixed`, preso dentro da viewport (vira para baixo quando não cabe em cima). Linhas com dot · rótulo · valor · **%**, e uma linha de **Total** separada por régua. Disparado por `pointerover` (cobre mouse e toque) e por `focusin` (teclado); some no `scroll`. `pointer-events: none` para não roubar o toque da coluna. Estado vazio é **texto**, nunca ausência.
+- **Tabela pivô** (`.ger-pivo`) — cruzamento de duas dimensões nominais, com totais de linha e coluna. Números à direita, `tabular-nums`, célula vazia como `·` discreto. Célula = drill de dois critérios.
+- **Tabela detalhada** (`.ger-tab`) — rola nos dois eixos, cabeçalho `sticky`, cada cabeçalho ordena (mesma coluna inverte). **Vazio vai para o fim nas duas direções** e **teto de linhas é declarado na tela**.
+
+**Duas paletas categóricas, validadas por script:** `resultado` reusa as cores de status (a cor segue a **entidade** — é o mesmo `resultado` que pinta o pin) · **vendedor** tem paleta própria — `#6d28d9` · `#db2777` · `#65a30d` — presa ao **id**, nunca à posição, e que **não toca** nas cores de status.
+
+**Regras de cor que valem para qualquer gráfico daqui em diante:** hue categórico em **ordem fixa do enum, nunca por ranking** (a cor segue a entidade — filtrar não pode repintar quem sobrou) · **uma cor só** para todas as barras de uma mesma série (colorir por tamanho duplica o comprimento) · paleta categórica **validada por script antes de subir**, nunca no olho · cor **nunca sozinha**: rótulo + número sempre presentes · e **`tabular-nums` só onde número alinha na vertical** (coluna de tabela, tick de eixo), nunca em número grande solto. Ver o laudo das cores de `resultado` em [[spec-07-atividades]] §5.3.
+
+### 6.14 Transientes
 **Toast** (pill escuro, rodapé, acima da nav) · **banners de modo** (`placing`/`moving`, faixa escura no topo do mapa) · **install-toast** (Android, "Adicionar à tela inicial") · **empty states** (mapa e lista, com CTA "Limpar filtros").
 
 ## 7. Ícones

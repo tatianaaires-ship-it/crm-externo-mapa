@@ -47,6 +47,8 @@ CREATE TABLE tarefa (
   -- execução (check-in É a tarefa)
   checkin_em          timestamptz,
   checkout_em         timestamptz,          -- preenchido => status = realizada
+  distancia_km        numeric(5,2),         -- DERIVADA no check-in: GPS do vendedor × geo do pin.
+                                            -- NULL em atividade remota (sem check-in). Nunca digitada.
   -- desfecho
   resultado           text,                 -- sem_avanco | td_encontrado | perdido | desqualificado
                                             -- NÃO existe 'convertido': conversão vem do ERP, não de tarefa (§5)
@@ -85,8 +87,11 @@ CREATE TABLE tarefa (
 | 14 | `proxima_acao_data` | date | Não | `campo` | aba Atividades (agenda) | alimenta a agenda sem criar tarefa |
 | 15 | `notas` | text | Não | `campo` | sheet do pin | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6) |
 | 16 | `criado_por` | fk → [[vendedor]] | Não | `auto` | — | fallback de `responsavel_id` |
-| 17 | `atrasada` | boolean | — | **derivado** | aba Atividades (destaque) | §5 — não persiste |
-| 18 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
+| 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) | GPS do vendedor × geo do pin no momento do check-in. `NULL` em atividade remota. **Persiste** — é prova de presença, não pode ser recalculada depois |
+| 18 | `atrasada` | boolean | — | **derivado** | aba Atividades (destaque) | §5 — não persiste |
+| 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
+| 20 | `tipo_checkin` | enum (2) | — | **derivado** | **visão gerencial** (tabela) | `presencial` se `checkin_em` existe, `remoto` se a tarefa foi concluída sem ele (§5). **Não é campo** — não há o que digitar |
+| 21 | `nome_rota` | text | — | **derivado** (rótulo) | **visão gerencial** (tabela) | `Rota (dd/mm/aaaa)` a partir de `responsavel_id` + `data`. **Não é campo e não é o objeto Rota** — ver §9 |
 
 - **Origem:** `fonte:sf` · `derivado` · `admin` · `campo` (digitado pelo vendedor) · `auto`.
 - **Onde aparece:** `sheet do pin` (CAP-11) · `aba Atividades` (CAP-12) · `filtro gerencial` / `visão gerencial` (CAP-13) · `card do Funil` ([[spec-06-funil]]).
@@ -132,15 +137,19 @@ CREATE TABLE tarefa (
 
 - **Reabrir uma saída lateral** (voltar de `perdido` ou `desqualificado`) — **exige nova tarefa concluída**, não há toggle. Concluir qualquer tarefa num pin nesses estados **restaura `status_anterior`** e só então aplica o `resultado` novo pela tabela acima. Sair e voltar são simétricos: ambos são constatação de campo, ambos têm autor e data. *(Um pedido chegando pelo ERP também tira o pin da lateral — ERP prevalece.)*
 
-- **Visão gerencial (CAP-13)** — **não é objeto novo**: é agregação pura sobre esta mesma coleção. Recorte = `status = realizada` **E** `data` dentro do período; agrupamentos = `tipo`, `responsavel_id`, `resultado`. Cada contagem abre a **lista detalhada** das tarefas por trás dela.
+- **Visão gerencial (CAP-13)** — **não é objeto novo**: é agregação pura sobre esta mesma coleção. Agrupamentos: `tipo`, `responsavel_id`, `resultado`, `data`. Cada contagem abre a **lista detalhada** das tarefas por trás dela.
+  - O recorte **não é só `realizada`**: a gerencial põe o **plano ao lado da execução**, então `status = planejada` também entra (KPIs de planejadas/atrasadas, gráfico por dia e a tabela detalhada). Ver [[spec-07-atividades]] §5.
+  - **"Planejadas do dia" = TODAS as tarefas com aquela data**, não só as que continuam `planejada`. Planejada e realizada são o mesmo objeto: o que foi feito hoje estava no plano de hoje. É o que faz o par de gráficos ler como *"planejei X, executei Y"* — a diferença entre as duas barras é o não-realizado.
+- **`tipo_checkin` (presencial × remoto)** — derivado de `checkin_em`, não é campo. Concluir sem check-in é válido (atividade remota, §5): o check-in prova presença, não cria o registro. ⚠️ Desde 28/07 **o sheet do pin não oferece mais esse botão** ([[spec-07-atividades]] §2) — a regra do modelo continua, o atalho ficou só no card da Agenda.
+- **`distancia_km`** — calculada **uma vez**, no check-in, e persistida. Não é recalculável depois (o vendedor já saiu de lá), e é o que dá lastro ao check-in presencial. Enquanto não houver GPS (Fase 3/4), o protótipo **semeia valor fictício**.
 
 ## 6. O que NUNCA fica aqui
 
 - **Estado do estabelecimento** (`status`, `ultima_visita`, `geo_verificado`, `origem_confianca`) — vive no [[estabelecimento]]. A tarefa **empurra**, não guarda.
 - **Nota do ponto** (`nota_estabelecimento`) — é do estabelecimento e sempre visível no pin. `tarefa.notas` é da **atividade**, e morre com o contexto dela.
-- **Fotos, raio de proximidade, GPS de validação** — Fase 3/4 (check-in completo).
+- **Fotos, raio de proximidade, GPS de validação** — Fase 3/4 (check-in completo). ⚠️ **Exceção aberta em 28/07:** `distancia_km` (§4) entrou antes, porque a tabela da visão gerencial precisa da coluna. O **campo** existe e persiste; quem o **preenche de verdade** (o GPS) segue na Fase 3/4 — no protótipo o valor é fictício.
 - **SLA / tempo em etapa** — é métrica do **funil** (estado do estabelecimento), não da tarefa. Fase 4.
-- **Rota / sequenciamento de paradas** — objeto próprio, Fase 4. Uma tarefa não é uma parada.
+- **Rota / sequenciamento de paradas** — objeto próprio, Fase 4. Uma tarefa não é uma parada. ⚠️ A tabela da gerencial tem uma coluna **"Nome Rota"**, e ela **não viola isto**: o valor é um **rótulo derivado** (`responsavel_id` + `data` → `Rota (dd/mm/aaaa)`), não um campo e não uma FK. Nada é guardado, nada é sequenciado — quando o objeto Rota nascer, a coluna passa a apontar para ele sem migração de dado.
 - **Agenda externa** (Google Agenda) — integração a avaliar na Fase 3; a agenda da Fase 2 é a própria lista de tarefas planejadas.
 
 ## 7. Relações

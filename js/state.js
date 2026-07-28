@@ -6,10 +6,11 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v3'; // v3: objeto Lead estruturado (20 campos + derivados)
+  const KEY = 'crm-externo-map:v5'; // v5: tarefa ganha distancia_km + seed adensado
   const D = window.CRM_DATA;
 
   let pins = [];
+  let tarefas = [];       // atividades datadas (check-in/out É a tarefa)
   let realMode = false;   // dado real (porteiro) — NUNCA persiste no localStorage
   const listeners = [];
 
@@ -19,11 +20,39 @@
   }
   function onChange(fn) { listeners.push(fn); }
 
+  /* v4: enum do funil foi de 4 para 8 valores (fatia Tarefa, 27/07) e o estado
+     passou a carregar `tarefas`. Estado v3 no localStorage tem status que já não
+     existem (nao_visitado / em_negociacao / convertido) — descartar é mais
+     seguro do que migrar meia-boca.
+     v5 (28/07): a tarefa ganhou `distancia_km` e o seed foi adensado para ritmo
+     de campo real. Estado v4 tem tarefas sem o campo e volume antigo — os
+     gráficos por dia nasceriam ralos em quem já abriu a demo. */
+  const STATE_V = 5;
+
+  // Snapshot real e persistência antiga podem trazer o enum velho.
+  const STATUS_LEGADO = {
+    nao_visitado:  'sem_plano',
+    em_negociacao: 'td_encontrado',
+    convertido:    'csc'          // conservador: cadastrado, compra não comprovada
+  };
+  function migrateStatus(p) {
+    if (p && STATUS_LEGADO[p.status]) p.status = STATUS_LEGADO[p.status];
+    if (p && !D.STATUS[p.status]) p.status = 'sem_plano';
+    if (p && p.checkins == null) p.checkins = [];
+    return p;
+  }
+
   function persist() {
     if (realMode) return;   // dado real fica só em memória (privacidade)
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 3, pins: pins }));
+      localStorage.setItem(KEY, JSON.stringify({ v: STATE_V, pins: pins, tarefas: tarefas }));
     } catch (e) { console.warn('Persistência indisponível:', e); }
+  }
+
+  function seedFicticio() {
+    pins = D.buildSeed();
+    tarefas = D.buildTarefas(pins);
+    D.reconcileStatus(pins, tarefas);   // o status DERIVA das tarefas + ERP
   }
 
   function load() {
@@ -32,25 +61,36 @@
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.pins) && parsed.pins.length) restored = parsed.pins;
+        // Só aceita estado da versão corrente — v3 tem enum incompatível.
+        if (parsed && parsed.v === STATE_V && Array.isArray(parsed.pins) && parsed.pins.length) {
+          restored = parsed;
+        }
       }
     } catch (e) { console.warn('Falha ao ler persistência:', e); }
-    pins = restored || D.buildSeed();
-    if (!restored) persist();
+
+    if (restored) {
+      pins = restored.pins.map(migrateStatus);
+      tarefas = Array.isArray(restored.tarefas) ? restored.tarefas : [];
+    } else {
+      seedFicticio();
+      persist();
+    }
   }
 
   function resetDemo() {
     realMode = false;       // volta ao fictício (e volta a persistir)
-    pins = D.buildSeed();
+    seedFicticio();
     emit();
   }
 
   // Troca o dataset para o snapshot real vindo do porteiro (auth.js).
-  // Não persiste (privacidade) e não deriva nada — os pins já chegam prontos.
+  // Não persiste (privacidade). O snapshot NÃO traz tarefas — logo a aba
+  // Atividades nasce vazia e o board mostra só Visitado/CSC (spec-06 §8).
   function useRealData(realPins) {
     if (!Array.isArray(realPins) || !realPins.length) return false;
     realMode = true;
-    pins = realPins;
+    pins = realPins.map(migrateStatus);
+    tarefas = [];
     emit();
     return true;
   }
@@ -98,6 +138,41 @@
     return p.checkins.find(function (c) { return !c.out; }) || null;
   }
 
+  /* ---- Escrita do status do funil — o ÚNICO lugar que mexe em p.status.
+          Contrato (docs/objetos/estabelecimento.md §5): o comercial (ERP)
+          prevalece; o avanço na escada é monotônico; as laterais guardam a
+          etapa de origem; e a única reversão é visita_planejada → sem_plano
+          (cancelar o plano). Devolve true se mudou. ---- */
+  function applyStatus(p, novo) {
+    if (!p || !D.STATUS[novo] || p.status === novo) return false;
+    const atualFam = D.STATUS[p.status] ? D.STATUS[p.status].family : 'entrada';
+
+    // O ERP vence o campo: quem tem cadastro/pedido não sai de csc/aquisicao.
+    const comercial = D.deriveStatusComercial(p.dataCadastro, p.dataPrimeiraCompra);
+    if (comercial && D.STATUS[novo].family !== 'comercial') return false;
+
+    // Saída lateral: guarda de onde saiu (só se não estava já numa lateral).
+    if (D.STATUS[novo].family === 'lateral') {
+      if (atualFam !== 'lateral') p.statusAnterior = p.status;
+      p.status = novo;
+      return true;
+    }
+
+    // Voltando de uma lateral: restaura a etapa de origem antes de aplicar.
+    if (atualFam === 'lateral') {
+      p.status = p.statusAnterior || 'sem_plano';
+      p.statusAnterior = null;
+      if (p.status === novo) return true;
+    }
+
+    // Cancelar o plano é a única reversão permitida na escada.
+    const cancelandoPlano = (novo === 'sem_plano' && p.status === 'visita_planejada');
+    if (!cancelandoPlano && !D.statusAvanca(p.status, novo)) return false;
+
+    p.status = novo;
+    return true;
+  }
+
   function checkIn(id) {
     const p = getById(id);
     if (!p) return null;
@@ -105,7 +180,7 @@
     p.checkins.unshift({ in: nowISO(), out: null });
     // Um check-in é uma visita: registra e marca como visitado.
     p.lastVisit = todayISO();
-    if (p.status === 'nao_visitado') p.status = 'visitado';
+    applyStatus(p, 'visitado');
     // Presença confirmada => sobe na escada de confiança (monotônico).
     promoteToFieldValidated(p);
     emit();
@@ -123,16 +198,135 @@
   }
 
   // Move o lead entre colunas do funil (casca do Kanban — arrastar em memória).
-  // NOTA de domínio: no produto real o status avança por FLUXO/check-in, não por
-  // toque solto. Aqui é afordância de protótipo (demonstra a visão de funil).
+  // NOTA de domínio: o status nunca é digitado; no produto real anda por tarefa
+  // ou pelo ERP. Aqui o arraste é afordância de protótipo, com TRÊS RECUSAS
+  // (SPEC 06 §4): as laterais exigem motivo (só por tarefa concluída) e
+  // csc/aquisicao vêm do ERP. Devolve null quando recusa.
   function setStatus(id, status) {
     const p = getById(id);
     if (!p || !D.STATUS[status] || p.status === status) return null;
-    p.status = status;
-    p.isConverted = (status === 'convertido');
-    if (status === 'convertido' && !p.convertedAt) p.convertedAt = todayISO();
+    const fam = D.STATUS[status].family;
+    if (fam === 'lateral' || fam === 'comercial') return null;
+    if (!applyStatus(p, status)) return null;
     emit();
     return p;
+  }
+
+  /* =====================================================================
+     TAREFAS — a Tarefa dirige o funil: agendar faz o pin ENTRAR, concluir
+     move a etapa pelo `resultado`, cancelar o último plano faz SAIR.
+     Contrato: docs/objetos/tarefa.md §5
+     ===================================================================== */
+
+  function getTarefas() { return tarefas.slice(); }
+  function getTarefa(id) { return tarefas.find(function (t) { return t.id === id; }) || null; }
+  function getTarefasByPin(pinId) {
+    return tarefas.filter(function (t) { return t.estabelecimentoId === pinId; });
+  }
+  function planejadasDoPin(pinId) {
+    return tarefas.filter(function (t) {
+      return t.estabelecimentoId === pinId && t.status === 'planejada';
+    });
+  }
+  function tarefaAberta(pinId) {   // check-in feito e check-out pendente
+    return tarefas.find(function (t) {
+      return t.estabelecimentoId === pinId && t.status === 'planejada' && t.checkinEm && !t.checkoutEm;
+    }) || null;
+  }
+  function nextTarefaId() {
+    let max = 0;
+    tarefas.forEach(function (t) {
+      const n = parseInt(String(t.id).replace(/\D/g, ''), 10);
+      if (!isNaN(n) && n > max) max = n;
+    });
+    return 't' + String(max + 1).padStart(3, '0');
+  }
+
+  // Agendar: o pin ENTRA no funil (sem_plano → visita_planejada).
+  function agendarTarefa(data) {
+    const p = data && getById(data.pinId);
+    if (!p || !D.TAREFA_TIPO[data.tipo]) return null;
+    const t = {
+      id: nextTarefaId(),
+      estabelecimentoId: p.id,
+      tipo: data.tipo,
+      data: data.data || todayISO(),
+      status: 'planejada',
+      responsavelId: p.vendedorId || D.VENDEDOR_SESSAO,  // DERIVADO, nunca digitado
+      checkinEm: null, checkoutEm: null,
+      resultado: null, motivoPerda: null, motivoDesqualificacao: null, motivoTexto: null,
+      proximaAcao: null, proximaAcaoData: null,
+      notas: (data.notas && data.notas.trim()) || null,
+      criadoPor: D.VENDEDOR_SESSAO
+    };
+    tarefas.push(t);
+    applyStatus(p, 'visita_planejada');
+    emit();
+    return t;
+  }
+
+  // Cancelar: não se deleta tarefa. Se era o último plano, o pin SAI do board.
+  function cancelarTarefa(id) {
+    const t = getTarefa(id);
+    if (!t || t.status !== 'planejada') return null;
+    t.status = 'cancelada';
+    const p = getById(t.estabelecimentoId);
+    if (p && !planejadasDoPin(p.id).length && p.status === 'visita_planejada') {
+      applyStatus(p, 'sem_plano');
+    }
+    emit();
+    return t;
+  }
+
+  // Check-in: marca presença na tarefa e promove a origem (monotônico).
+  function checkInTarefa(id) {
+    const t = getTarefa(id);
+    if (!t || t.status !== 'planejada' || t.checkinEm) return null;
+    t.checkinEm = nowISO();
+    const p = getById(t.estabelecimentoId);
+    if (p) { promoteToFieldValidated(p); p.geoVerificado = { lat: p.lat, lng: p.lng }; }
+    emit();
+    return t;
+  }
+
+  // Concluir (check-out): é aqui que a atividade vira dado e o funil se move.
+  // `resultado` é obrigatório; perdido/desqualificado exigem motivo.
+  // Concluir SEM check-in é válido (atividade remota — tarefa.md §5).
+  function concluirTarefa(id, out) {
+    const t = getTarefa(id);
+    out = out || {};
+    if (!t || t.status !== 'planejada') return null;
+    const r = D.RESULTADO[out.resultado];
+    if (!r) return null;
+    if (r.motivo === 'perda' && !out.motivo) return null;
+    if (r.motivo === 'desqualificacao' && !out.motivo) return null;
+
+    t.status = 'realizada';
+    t.checkoutEm = nowISO();
+    t.resultado = r.key;
+    t.motivoPerda = (r.motivo === 'perda') ? out.motivo : null;
+    t.motivoDesqualificacao = (r.motivo === 'desqualificacao') ? out.motivo : null;
+    t.motivoTexto = (out.motivo === 'outro' && out.motivoTexto) ? String(out.motivoTexto).trim() : null;
+    t.proximaAcao = (out.proximaAcao && out.proximaAcao.trim()) || null;
+    t.proximaAcaoData = out.proximaAcaoData || null;
+
+    const p = getById(t.estabelecimentoId);
+    if (p) {
+      p.lastVisit = t.data;
+      p.motivoStatus = t.motivoPerda
+        ? (D.MOTIVO_PERDA[t.motivoPerda] || null)
+        : (t.motivoDesqualificacao ? (D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || null) : null);
+      // A tabela resultado→status vive em CRM_DATA.RESULTADO (é dado, não switch).
+      applyStatus(p, r.status);
+      // Concluir é constatação de campo: sobe na escada de confiança.
+      if (t.checkinEm) promoteToFieldValidated(p);
+      p.checkins = getTarefasByPin(p.id)
+        .filter(function (x) { return x.checkinEm; })
+        .map(function (x) { return { in: x.checkinEm, out: x.checkoutEm }; })
+        .reverse();
+    }
+    emit();
+    return t;
   }
 
   function nextId() {
@@ -146,7 +340,8 @@
 
   // Criar pin manual (CAP-4): básico = nome + local; expandir = cnpj, tipologia, telefone.
   // Lead achado na rua pelo vendedor => origem "validado em campo" (derivada).
-  // Nasce SEMPRE "nao_visitado" — status só anda por fluxo/check-in (não no form).
+  // Nasce SEMPRE "sem_plano" — fora do funil até ganhar uma visita planejada.
+  // O status nunca é digitado nem entra no form.
   function createPin(data) {
     if (!data || !data.name || !data.name.trim()) return null;
     const meta = (D.ZONE_META && D.ZONE_META[data.zone]) || { city: 'Recife', uf: 'PE' };
@@ -169,16 +364,18 @@
       geoVerificado: { lat: lat, lng: lng },        // marcado em campo = já verificado
       zone: data.zone || 'Recife',
       origin: D.deriveOrigemConfianca({ fieldValidated: true }), // validado_campo
-      status: 'nao_visitado',
+      status: 'sem_plano',                          // fora do funil até ganhar um plano
+      statusAnterior: null,
       motivoStatus: null,
       qualidade: D.deriveQualidade(cnae),           // DERIVADA da tipologia (via CNAE default)
       porte: null,                                  // chega via CNPJá (Fase 3)
-      vendedor: 'Pedro Rocha',
+      vendedorId: D.VENDEDOR_SESSAO,
+      vendedor: D.VENDEDORES[D.VENDEDOR_SESSAO].nome,
       lastVisit: null,
-      convertedAt: null,
-      contaId: null,
+      dataCadastro: null,                           // vem do ERP
+      dataPrimeiraCompra: null,                     // vem do ERP
+      cadastrado: false,                            // DERIVADO
       phone: phone,
-      isConverted: false,
       notes: [],
       checkins: [],
       createdByUser: true
@@ -200,6 +397,16 @@
     openCheckin: openCheckin,
     createPin: createPin,
     setStatus: setStatus,
+    // Tarefas (a Tarefa dirige o funil — tarefa.md §5)
+    getTarefas: getTarefas,
+    getTarefa: getTarefa,
+    getTarefasByPin: getTarefasByPin,
+    planejadasDoPin: planejadasDoPin,
+    tarefaAberta: tarefaAberta,
+    agendarTarefa: agendarTarefa,
+    cancelarTarefa: cancelarTarefa,
+    checkInTarefa: checkInTarefa,
+    concluirTarefa: concluirTarefa,
     resetDemo: resetDemo,
     useRealData: useRealData,
     isRealMode: isRealMode

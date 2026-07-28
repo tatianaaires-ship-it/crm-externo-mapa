@@ -54,9 +54,9 @@ O **SPEC 00** é o alicerce visual (tokens, componentes, shell) que toda spec de
 | **SPEC 04 — Criar pin** | `telas/spec-04-criar.md` | ⬜ a fazer |
 | **SPEC 05 — Inteligência** (lista de leads) | `telas/spec-05-intel.md` | ⬜ a fazer |
 | **SPEC 06 — Funil** (Kanban por status, arrastar card) | [telas/spec-06-funil.md](telas/spec-06-funil.md) | 🟡 em revisão |
-| **SPEC 07 — Atividades** (bloco no pin, agenda, visão gerencial, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
+| **SPEC 07 — Atividades** (bloco no pin, agenda, visão gerencial com gráficos, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
 
-> Superfícies do protótipo: **mapa** · **sheet do pin** · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Atividades (agenda + gerencial)** · **aba Inteligência**. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
+> Superfícies do protótipo: **mapa** · **sheet do pin** (com sub-telas de atividade) · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Atividades (gerencial + agenda)** · **aba Inteligência**. Nav de 4 abas, nesta ordem: 🗺️ Mapa · 📋 Intel. · 📊 Funil · 🗓️ Atividades. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
 
 ## Contratos e fontes de verdade (rastreabilidade)
 

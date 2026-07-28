@@ -13,6 +13,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('is-visible'); }, 3200);
   }
+  window.CRM_TOAST = showToast;   // usado por funil.js / atividades.js
 
   function openFilters() {
     $('filter-panel').classList.add('is-open');
@@ -23,11 +24,13 @@
     $('filter-backdrop').classList.remove('is-open');
   }
 
-  /* ---- Abas Mapa / Funil / Inteligência (filtros compartilhados) ---- */
+  /* ---- Abas Mapa / Funil / Atividades / Inteligência (filtros compartilhados).
+          4 abas desde a fatia Tarefa (SPEC 00 §5.2 / SPEC 07 §4). ---- */
   function showTab(which) {
     document.body.classList.toggle('view-funil', which === 'funil');
+    document.body.classList.toggle('view-ativ', which === 'ativ');
     document.body.classList.toggle('view-intel', which === 'intel');
-    [['tab-map', 'map'], ['tab-funil', 'funil'], ['tab-intel', 'intel']].forEach(function (pair) {
+    [['tab-map', 'map'], ['tab-funil', 'funil'], ['tab-ativ', 'ativ'], ['tab-intel', 'intel']].forEach(function (pair) {
       const el = $(pair[0]); if (!el) return;
       const on = which === pair[1];
       el.classList.toggle('is-active', on);
@@ -46,6 +49,7 @@
 
     $('tab-map').addEventListener('click', function () { showTab('map'); });
     $('tab-funil').addEventListener('click', function () { showTab('funil'); });
+    $('tab-ativ').addEventListener('click', function () { showTab('ativ'); });
     $('tab-intel').addEventListener('click', function () { showTab('intel'); });
 
     $('btn-empty-clear').addEventListener('click', function () {
@@ -181,6 +185,7 @@
     // Inteligência e Funil antes do primeiro reapply (reapply → refresh das abas).
     window.CRM_INTEL.init({ showMap: function () { showTab('map'); } });
     window.CRM_FUNIL.init({ showMap: function () { showTab('map'); } });
+    window.CRM_ATIV.init({ showMap: function () { showTab('map'); } });
 
     window.CRM_MAP.onSelect(function (id) {
       if (window.CRM_CREATE && window.CRM_CREATE.isPlacing()) window.CRM_CREATE.cancel();
