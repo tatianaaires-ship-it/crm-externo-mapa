@@ -246,7 +246,12 @@ Sem lib: SVG/CSS puro, coerente com o "sem build" (o Leaflet é vendorizado, nã
 
 **Regras de cor que valem para qualquer gráfico daqui em diante:** hue categórico em **ordem fixa do enum, nunca por ranking** (a cor segue a entidade — filtrar não pode repintar quem sobrou) · **uma cor só** para todas as barras de uma mesma série (colorir por tamanho duplica o comprimento) · paleta categórica **validada por script antes de subir**, nunca no olho · cor **nunca sozinha**: rótulo + número sempre presentes · e **`tabular-nums` só onde número alinha na vertical** (coluna de tabela, tick de eixo), nunca em número grande solto. Ver o laudo das cores de `resultado` em [[spec-07-atividades]] §5.3.
 
-### 6.14 Transientes
+### 6.14 Faixa de procedência (`.sim-banner`)
+Faixa âmbar (`#fef3c7` sobre texto `#7c2d12`, borda `#f59e0b`) presa ao topo de uma aba, **fora da área que rola**. Só existe sob `body.real-mode`. Avisa que o que está abaixo é **dado verdadeiro com atividade simulada** ([[spec-07-atividades]] §5.5) — hoje nas abas Atividades e Funil.
+
+> **Âmbar, não Danger.** Não é erro nem ação destrutiva: é aviso de **procedência**. E fica fora do scroll de propósito — um print recortado do gráfico tem que sair com o aviso junto, senão o número circula sozinho como se fosse real.
+
+### 6.15 Transientes
 **Toast** (pill escuro, rodapé, acima da nav) · **banners de modo** (`placing`/`moving`, faixa escura no topo do mapa) · **install-toast** (Android, "Adicionar à tela inicial") · **empty states** (mapa e lista, com CTA "Limpar filtros").
 
 ## 7. Ícones
