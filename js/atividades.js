@@ -263,23 +263,6 @@
     if (t.status !== 'realizada') return '—';
     return t.checkinEm ? 'Presencial' : 'Remoto';
   }
-  function quebra(ts, campo) {
-    const acc = {};
-    ts.forEach(function (t) { const v = valorDe(t, campo); acc[v] = (acc[v] || 0) + 1; });
-    return Object.keys(acc).sort(function (a, b) { return acc[b] - acc[a]; })
-      .map(function (k) { return { rotulo: k, n: acc[k] }; });
-  }
-  function blocoHtml(titulo, campo, linhas, max) {
-    return '<section class="ger-bloco"><h3 class="ativ-group">' + esc(titulo) + '</h3>' +
-      linhas.map(function (l) {
-        const pct = max ? Math.round((l.n / max) * 100) : 0;
-        return '<button class="ger-linha" data-act="drill" data-campo="' + campo + '" data-valor="' + esc(l.rotulo) + '">' +
-          '<span class="ger-linha__lbl">' + esc(l.rotulo) + '</span>' +
-          '<span class="ger-linha__bar"><i style="width:' + pct + '%"></i></span>' +
-          '<span class="ger-linha__n">' + l.n + '</span>' +
-        '</button>';
-      }).join('') + '</section>';
-  }
   function realizadasNoPeriodo() {
     return tarefasVisiveis().filter(function (t) {
       return t.status === 'realizada' && noPeriodo(t.data);
@@ -638,15 +621,15 @@
       return;
     }
 
-    const porVend = quebra(ts, 'vendedor');
-    const maxN = Math.max.apply(null, porVend.map(function (l) { return l.n; }));
     // A tabela e os gráficos por dia cobrem planejadas E realizadas do período.
     const todas = ts.concat(planejadas);
 
+    // Não há bloco "Por vendedor": a pivô já dá o total por vendedor (coluna
+    // Total) e ainda cruza com o tipo. Duas leituras da mesma dimensão, uma
+    // delas mais pobre, só custava altura.
     bodyEl.innerHTML =
       kpis +
       stackHtml(ts) +
-      blocoHtml('Por vendedor', 'vendedor', porVend, maxN) +
       pivoHtml(ts) +
       graficosDiaHtml() +
       tabelaHtml(todas);

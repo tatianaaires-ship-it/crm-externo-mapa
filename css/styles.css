@@ -928,15 +928,6 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
 .ger-sim { font-weight: 700; color: var(--muted); }
 .ger-sim.is-sim { color: #10b981; }
 .ger-bloco { display: flex; flex-direction: column; gap: 4px; }
-.ger-linha {
-  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 7px 9px; cursor: pointer;
-}
-.ger-linha__lbl { flex: 0 0 34%; font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.ger-linha__bar { flex: 1 1 auto; height: 7px; background: var(--bg); border-radius: var(--r-pill); overflow: hidden; }
-.ger-linha__bar i { display: block; height: 100%; background: var(--brand); border-radius: var(--r-pill); }
-.ger-linha__n { flex: 0 0 auto; font-size: 12.5px; font-weight: 800; color: var(--ink); min-width: 22px; text-align: right; }
 
 /* ---- Aba Funil (Kanban por status) ---- */
 .funil-view {
