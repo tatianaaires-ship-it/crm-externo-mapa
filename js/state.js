@@ -379,6 +379,12 @@
     const hoje = todayISO();
     if (t.data < hoje) t.data = hoje;
     t.checkinEm = nowISO();
+    /* A distância é medida AGORA e persiste — é ela que classifica a visita em
+       presencial × remoto (D.deriveTipoCheckin) e não é recalculável depois (o
+       vendedor já saiu de lá). Sem GPS até a Fase 3/4, o protótipo semeia um
+       valor dentro do raio: quem toca o botão estando no sheet do ponto está,
+       para todos os efeitos da demo, na porta. */
+    if (t.distanciaKm == null) t.distanciaKm = Math.round(Math.random() * 18) / 100;
     const p = getById(t.estabelecimentoId);
     if (p) { promoteToFieldValidated(p); p.geoVerificado = { lat: p.lat, lng: p.lng }; }
     emit();
@@ -427,13 +433,17 @@
     return nova ? checkInTarefa(nova.id) : null;
   }
 
-  // Concluir (check-out): é aqui que a atividade vira dado e o funil se move.
-  // `resultado` é obrigatório; perdido/desqualificado exigem motivo.
-  // Concluir SEM check-in é válido (atividade remota — tarefa.md §5).
+  /* Concluir (check-out): é aqui que a atividade vira dado e o funil se move.
+     `resultado` é obrigatório; perdido/desqualificado exigem motivo.
+     ⚖️ **Exige check-in** (28/07): sem presença registrada a tarefa não vira
+     realizada — fica não realizada, e `tipo_checkin` fica nulo. O que separa
+     `presencial` de `remoto` é a DISTÂNCIA no check-in, não a ausência dele
+     (tarefa.md §5). */
   function concluirTarefa(id, out) {
     const t = getTarefa(id);
     out = out || {};
     if (!t || t.status !== 'planejada') return null;
+    if (!t.checkinEm) return null;          // sem check-in não há conclusão
     const r = D.RESULTADO[out.resultado];
     if (!r) return null;
     if (r.motivo === 'perda' && !out.motivo) return null;

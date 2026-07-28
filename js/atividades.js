@@ -137,11 +137,9 @@
   function tarefasVisiveis() {
     return tarefasBase().filter(function (t) {
       if (filtro.tipo !== 'todos' && t.tipo !== filtro.tipo) return false;
-      // Check-in é DERIVADO: planejada ainda não tem, então nunca casa.
-      if (filtro.checkin !== 'todos') {
-        const ci = t.status === 'realizada' ? (t.checkinEm ? 'presencial' : 'remoto') : null;
-        if (ci !== filtro.checkin) return false;
-      }
+      // `tipo_checkin` é DERIVADO da DISTÂNCIA no check-in: sem check-in é
+      // nulo, então tarefa não realizada nunca casa com este filtro.
+      if (filtro.checkin !== 'todos' && D.deriveTipoCheckin(t) !== filtro.checkin) return false;
       return true;
     });
   }
@@ -343,9 +341,10 @@
     const r = S.getRota(t.rotaId);
     return r ? r.nome : 'Avulsa';
   }
+  // Presencial × remoto = perto × longe do pin no check-in. Sem check-in, nulo.
   function tipoCheckin(t) {
-    if (t.status !== 'realizada') return '—';
-    return t.checkinEm ? 'Presencial' : 'Remoto';
+    const k = D.deriveTipoCheckin(t);
+    return k ? CHECKIN[k] : '—';
   }
   function realizadasNoPeriodo() {
     return tarefasVisiveis().filter(function (t) {

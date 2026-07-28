@@ -600,6 +600,24 @@
   }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
 
+  /* ---- tipo_checkin: quem decide é a DISTÂNCIA (28/07) --------------------
+     `presencial` × `remoto` **não** é "teve check-in × não teve": é **onde o
+     vendedor estava** quando fez o check-in. Perto do pin, presencial; longe,
+     remoto — ele registrou a visita de fora (ligou, falou no portão, passou
+     de carro). Sem check-in nenhum, o campo é **NULL** e a tarefa não é
+     realizada: sem presença registrada não há o que classificar.
+
+     ⚠️ O raio é PARÂMETRO DE NEGÓCIO provisório. 300m dá folga ao erro de GPS
+     de celular em rua fechada (~20–50m) sem deixar passar quem está a duas
+     quadras. Quem define de verdade é a supervisão, no Admin da Fase 4. */
+  const RAIO_PRESENCIAL_KM = 0.3;
+
+  function deriveTipoCheckin(t) {
+    if (!t || !t.checkinEm) return null;               // sem check-in: nulo
+    if (t.distanciaKm == null) return 'presencial';    // sem medição, assume presença
+    return t.distanciaKm <= RAIO_PRESENCIAL_KM ? 'presencial' : 'remoto';
+  }
+
   /* ---- Tipo de visita SUGERIDO (não digitado, não travado) ----------------
      O check-in existe em todo pin (spec-07 §2), e quem chega para visitar não
      deveria ter que classificar a visita — o histórico já diz qual ela é. Esta
@@ -643,9 +661,14 @@
     function add(pin, t) {
       seq += 1;
       t.data = diaUtil(t.data, t.status === 'planejada');
-      // Check-in presencial ⇒ há distância medida; atividade remota ⇒ não há.
-      // `distancia_km` é DERIVADA no check-in (GPS × geo do pin) — nunca digitada.
-      const presencial = !!t.checkinEm;
+      /* `distancia_km` existe SEMPRE que houve check-in — é ela que decide
+         presencial × remoto (deriveTipoCheckin). Sem check-in não há medição
+         nem classificação: os dois campos ficam nulos.
+         A distribuição: 85% das visitas acontecem na porta (0–250m) e 15% de
+         algum lugar mais longe (0,35–4 km) — é o que faz a coluna `Remoto` da
+         gerencial existir com a razão certa, em vez de vir de tarefa sem
+         check-in. Derivada no check-in (GPS × geo do pin), nunca digitada. */
+      const temCheckin = !!t.checkinEm;
       out.push({
         id: 't' + pad(seq),
         estabelecimentoId: pin.id,
@@ -655,9 +678,10 @@
         responsavelId: pin.vendedorId,        // DERIVADO: herda o vendedor do pin
         checkinEm: t.checkinEm || null,
         checkoutEm: t.checkoutEm || null,
-        distanciaKm: presencial
-          ? (t.distanciaKm != null ? t.distanciaKm : Math.round(rnd() * 250) / 100)
-          : null,
+        distanciaKm: !temCheckin ? null
+          : (t.distanciaKm != null ? t.distanciaKm
+            : (rnd() < 0.85 ? Math.round(rnd() * 25) / 100          // até 250m: presencial
+                            : Math.round(35 + rnd() * 365) / 100)), // 0,35–4 km: remoto
         // Hora MARCADA (opcional) e a rota a que a parada pertence (null = avulsa).
         hora: t.hora || null,
         rotaId: t.rotaId || null,
@@ -845,16 +869,23 @@
           let hora = inicio;
           paradas.forEach(function (p) {
             const h = hhmm(hora);
-            const remota = feita && rnd() < 0.15;   // concluída sem check-in
+            /* Parte do plano NÃO acontece — 12% das paradas de rota passada
+               ficam `planejada` em data vencida. É o que dá ao par de gráficos
+               L7D o "planejei X, executei Y" com diferença de verdade; duas
+               barras coladas não mostram nada.
+               ⚠️ Isto substitui as "remotas sem check-in" que o seed gerava
+               até 28/07: sem check-in não há realização (tarefa.md §5). */
+            const naoFoi = feita && rnd() < 0.12;
+            const realizou = feita && !naoFoi;
             add(p, {
               tipo: tipoDe(p), data: dia, rotaId: rota.id, hora: h,
-              status: feita ? 'realizada' : 'planejada',
-              checkinEm:  (feita && !remota) ? dia + 'T' + h + ':00' : null,
-              checkoutEm: (feita && !remota) ? dia + 'T' + hhmm(hora + 40) + ':00' : null,
-              resultado: feita ? resultadoDe(p) : null,
+              status: realizou ? 'realizada' : 'planejada',
+              checkinEm:  realizou ? dia + 'T' + h + ':00' : null,
+              checkoutEm: realizou ? dia + 'T' + hhmm(hora + 40) + ':00' : null,
+              resultado: realizou ? resultadoDe(p) : null,
               // Depois de ir, a nota é de campo; antes, é a do agendamento.
-              notas: feita ? (rnd() < 0.35 ? umDe(NOTAS_CAMPO) : null)
-                           : (rnd() < 0.3  ? umDe(NOTAS_AGENDA) : null)
+              notas: realizou ? (rnd() < 0.35 ? umDe(NOTAS_CAMPO) : null)
+                              : (rnd() < 0.3  ? umDe(NOTAS_AGENDA) : null)
             });
             hora += 45;
           });
@@ -996,6 +1027,8 @@
     isoPlus: isoPlus,
     matchBusca: matchBusca,
     sugereTipoVisita: sugereTipoVisita,
+    RAIO_PRESENCIAL_KM: RAIO_PRESENCIAL_KM,
+    deriveTipoCheckin: deriveTipoCheckin,
     buildSeed: buildSeed,
     buildTarefas: buildTarefas,
     reconcileStatus: reconcileStatus

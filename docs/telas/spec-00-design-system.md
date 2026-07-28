@@ -223,7 +223,7 @@ Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada 
 - **Campo condicional:** o motivo só existe depois do resultado que o exige, e trocar o resultado **zera** o motivo — o vocabulário é outro.
 - **Inputs a 16px** (`.conc-inp`), pela regra travada do §3 (sem zoom no iOS).
 - **O botão diz o que falta**, desabilitado, em vez de recusar depois do toque: `Escolha o resultado` → `Escolha o motivo` → `✓ Concluir atividade`. Validação que aparece só depois de tentar obriga a errar primeiro.
-- **Aviso âmbar** (`.conc-remota`) quando o registro vai ficar diferente do esperado — mesma família do §6.14: âmbar é **procedência**, não erro.
+- **A faixa do topo diz o estado do check-in em curso** (`.ativ-tipo-atual`, verde): hora e minutos em campo — e, quando a distância passou do raio, `remoto (1,2 km do pin)`. O vendedor fica sabendo **como a visita vai ser classificada antes de fechar**, não depois, na coluna da gerencial. *(Uma faixa âmbar `.conc-remota` existiu aqui por uma hora, avisando que "sem check-in a atividade será remota" — a premissa estava errada e ela saiu: ver [[spec-07-atividades]] §2.)*
 
 > ⚖️ **Tela que se re-renderiza a cada toque pede delegação de evento**, não listener por elemento: o nó que recebeu o listener morre no próximo render. Um `click`/`input` no container que sobrevive, e o `data-*` diz qual campo mudou. **Texto e data não re-renderizam** — refazer o HTML a cada tecla tira o foco do campo; quem reflete o estado é o botão, atualizado à mão.
 

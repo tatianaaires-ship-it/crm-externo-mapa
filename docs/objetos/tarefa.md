@@ -51,7 +51,8 @@ CREATE TABLE tarefa (
   checkin_em          timestamptz,
   checkout_em         timestamptz,          -- preenchido => status = realizada
   distancia_km        numeric(5,2),         -- DERIVADA no check-in: GPS do vendedor × geo do pin.
-                                            -- NULL em atividade remota (sem check-in). Nunca digitada.
+                                            -- NULL sem check-in. E ELA que classifica
+                                            -- presencial x remoto (§5). Nunca digitada.
   -- desfecho
   resultado           text,                 -- sem_avanco | td_encontrado | perdido | desqualificado
                                             -- NÃO existe 'convertido': conversão vem do ERP, não de tarefa (§5)
@@ -91,10 +92,10 @@ CREATE TABLE tarefa (
 | 14 | `proxima_acao_data` | date | Não | `campo` | **visão gerencial** (tabela) | ⚠️ **saiu da Agenda em 28/07** ([[spec-07-atividades]] §4.2): sugestão dentro de um calendário lê como compromisso marcado. Continua no modelo, sem virar tarefa |
 | 15 | `notas` | text | Não | `campo` | sheet do pin | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6) |
 | 16 | `criado_por` | fk → [[vendedor]] | Não | `auto` | — | fallback de `responsavel_id` |
-| 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) | GPS do vendedor × geo do pin no momento do check-in. `NULL` em atividade remota. **Persiste** — é prova de presença, não pode ser recalculada depois |
+| 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) · detalhe da atividade | GPS do vendedor × geo do pin no momento do check-in. `NULL` **sem check-in**. **Persiste** — é prova de presença e não é recalculável depois (o vendedor já saiu de lá). ⚖️ **É ela que decide `tipo_checkin`** (§5): a distância deixou de ser só informação e passou a classificar a visita |
 | 18 | `atrasada` | boolean | — | **derivado** | **nenhuma superfície destaca** | §5 — não persiste. ⚠️ **saiu da Agenda em 28/07** e a Agenda também **não conta nem aponta** a dívida: o derivado continua existindo no modelo, mas nenhuma tela o exibe como marca. Na tabela da gerencial a tarefa vencida aparece só por ser planejada de data passada |
 | 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
-| 20 | `tipo_checkin` | enum (2) | — | **derivado** | **visão gerencial** (tabela) | `presencial` se `checkin_em` existe, `remoto` se a tarefa foi concluída sem ele (§5). **Não é campo** — não há o que digitar |
+| 20 | `tipo_checkin` | enum (2) + `NULL` | — | **derivado de `distancia_km`** | **visão gerencial** (tabela) · detalhe da atividade | `presencial` perto do pin, `remoto` longe dele, **`NULL` sem check-in** (§5). **Não é campo** — não há o que digitar. ⚠️ **Corrigido em 28/07:** derivava de *ter ou não* check-in, o que fazia "remoto" significar "não fui" |
 | 21 | ~~`nome_rota`~~ | — | — | — | — | ⛔ **Deixou de existir (28/07).** Era rótulo derivado (`Rota (dd/mm/aaaa)`); agora o nome vem do **objeto [[rota]]** via `rota_id`, e a tabela da gerencial mostra `rota.nome` ou **`Avulsa`** |
 | 22 | `rota_id` | fk → [[rota]] | Não | `campo` | **Agenda** (agrupa as paradas) · **visão gerencial** (coluna Nome Rota) | a rota de que esta tarefa é **parada**. **`NULL` = avulsa** — o vendedor marcou este compromisso solto. ⚠️ [[rota]] é **rascunho**, não objeto fechado |
 
@@ -117,7 +118,8 @@ CREATE TABLE tarefa (
 
 ## 5. Campos derivados / calculados
 
-- **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada` (caminho normal, presencial). Concluir **sem check-in** também é válido — atividade remota, ex. follow-up por telefone: registra-se `resultado` e a tarefa vira `realizada` com `checkin_em`/`checkout_em` nulos. `cancelada` só por ação explícita (**não há deletar** — §8).
+- **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada`. **`checkin_em` é pré-requisito:** sem presença registrada não há conclusão, e a tarefa fica **não realizada** (segue `planejada`, e a tabela da gerencial mostra `Realizado = Não`). `cancelada` só por ação explícita (**não há deletar** — §8).
+  > ⚠️ **Isto mudou em 28/07, e reverte a regra anterior.** O doc dizia que *"concluir sem check-in é válido — atividade remota, ex. follow-up por telefone"*. **Não é:** `remoto` não é a ausência de check-in, é o check-in feito **longe** do pin (§5, `tipo_checkin`). Sem check-in nenhum, `tipo_checkin` é **NULL** e não há o que concluir. Decisão Tatiana: *"sem check-in a tarefa não fica nem remota nem presencial, isso ficaria nulo — mas a tarefa ficaria como não realizada"*.
   > ⚖️ **A tarefa pode nascer do próprio check-in** (28/07, CAP-6 revisada): não é preciso planejar para visitar. Se o pin não tem planejada de hoje/atrasada, o check-in **cria** a tarefa datada de hoje e já a abre. Planejada futura **não é reescrita** — a visita de hoje é fato novo, e mexer na data do plano seria decidir pelo vendedor que aquele compromisso morreu. Ver [[spec-07-atividades]] §2.3.
 - **`data`, ao fazer check-in numa tarefa ATRASADA, vem para hoje.** Em planejada a data é quando se pretende ir; em realizada é **quando aconteceu** — e é dela que saem a tabela e os gráficos por dia. Manter a data velha poria a visita no dia errado, com `checkin_em` de hoje na coluna ao lado.
 - **`responsavel_id`** — herda `vendedor_responsavel_id` do [[estabelecimento]]; se nulo, é o **criador** da atividade. Sem auth por usuário até a Fase 4, "criador" é a identidade única da sessão. **Nunca digitado.**
@@ -148,14 +150,24 @@ CREATE TABLE tarefa (
 - **Visão gerencial (CAP-13)** — **não é objeto novo**: é agregação pura sobre esta mesma coleção. Agrupamentos: `tipo`, `responsavel_id`, `resultado`, `data`. Cada contagem abre a **lista detalhada** das tarefas por trás dela.
   - O recorte **não é só `realizada`**: a gerencial põe o **plano ao lado da execução**, então `status = planejada` também entra (KPIs de planejadas/atrasadas, gráfico por dia e a tabela detalhada). Ver [[spec-07-atividades]] §5.
   - **"Planejadas do dia" = TODAS as tarefas com aquela data**, não só as que continuam `planejada`. Planejada e realizada são o mesmo objeto: o que foi feito hoje estava no plano de hoje. É o que faz o par de gráficos ler como *"planejei X, executei Y"* — a diferença entre as duas barras é o não-realizado.
-- **`tipo_checkin` (presencial × remoto)** — derivado de `checkin_em`, não é campo. Concluir sem check-in é válido (atividade remota, §5): o check-in prova presença, não cria o registro. ⚠️ Desde 28/07 **não há mais botão para isso em lugar nenhum**: saiu do sheet do pin ([[spec-07-atividades]] §2) e depois saiu do card da Agenda, quando a Agenda deixou de ter ações de execução (§8). A regra do modelo e o dado semeado continuam; o caminho de UI, não.
+- **`tipo_checkin` (presencial × remoto × nulo)** — derivado de **`distancia_km`**, não de ter ou não check-in:
+
+| Situação no check-in | `tipo_checkin` |
+|---|---|
+| distância **≤ raio** | `presencial` |
+| distância **> raio** | `remoto` — registrou a visita de fora (ligou, falou no portão, passou de longe) |
+| **sem check-in** | `NULL` — e a tarefa não é realizada |
+
+  O **raio é parâmetro de negócio**, não constante de código: `RAIO_PRESENCIAL_KM = 0,3` no protótipo, porque 300m dão folga ao erro de GPS de celular em rua fechada (~20–50m) sem deixar passar quem está a duas quadras. **Quem define de verdade é a supervisão, no Admin da Fase 4** — e mexer nele reclassifica o histórico, o que é justamente por que ele precisa ser explícito e não escondido.
+
+  ⚖️ **Por que a distância e não a ausência.** Uma tarefa sem check-in não é uma visita de outro tipo — é uma visita que **não aconteceu**. Derivar `remoto` da ausência confundia as duas coisas e produzia o efeito colateral de a gerencial contar como *realizada remota* algo que ninguém tinha feito. Com a distância no comando, `remoto` passa a descrever um fato observado (ele estava a 1,2 km) e `NULL` a descrever a falta de fato.
 - **`distancia_km`** — calculada **uma vez**, no check-in, e persistida. Não é recalculável depois (o vendedor já saiu de lá), e é o que dá lastro ao check-in presencial. Enquanto não houver GPS (Fase 3/4), o protótipo **semeia valor fictício**.
 
 ## 6. O que NUNCA fica aqui
 
 - **Estado do estabelecimento** (`status`, `ultima_visita`, `geo_verificado`, `origem_confianca`) — vive no [[estabelecimento]]. A tarefa **empurra**, não guarda.
 - **Nota do ponto** (`nota_estabelecimento`) — é do estabelecimento e sempre visível no pin. `tarefa.notas` é da **atividade**, e morre com o contexto dela.
-- **Fotos, raio de proximidade, GPS de validação** — Fase 3/4 (check-in completo). ⚠️ **Exceção aberta em 28/07:** `distancia_km` (§4) entrou antes, porque a tabela da visão gerencial precisa da coluna. O **campo** existe e persiste; quem o **preenche de verdade** (o GPS) segue na Fase 3/4 — no protótipo o valor é fictício.
+- **Fotos e o GPS que mede de verdade** — Fase 3/4 (check-in completo). ⚠️ **Exceção aberta em 28/07:** `distancia_km` (§4) entrou antes, porque a tabela da gerencial precisa da coluna — e desde 28/07 ela faz mais que informar: **classifica** a visita (§5). O **campo** e o **raio** existem e valem; quem preenche a distância de verdade (o GPS) segue na Fase 3/4, e no protótipo o valor é fictício. **Admin do raio** também é Fase 4.
 - **SLA / tempo em etapa** — é métrica do **funil** (estado do estabelecimento), não da tarefa. Fase 4.
 - **Sequenciamento de paradas, otimização de trajeto, deslocamento, ETA, rota recorrente** — seguem sendo Fase 4, agora dentro de [[rota]] §6.
   > ⚠️ **Esta regra mudou em 28/07, e a mudança é declarada.** Até então dizia *"Rota é objeto próprio da Fase 4; uma tarefa não é uma parada"*, e a coluna "Nome Rota" da gerencial era só um **rótulo derivado** (`responsavel_id` + `data`). Com a Agenda em calendário mostrando **rotas** (decisão Tatiana, 28/07), a tarefa **passou a ser a parada**: ganhou `rota_id` (§4) e o rótulo derivado morreu. O que entrou é o [[rota]] **rascunho** — identidade, nome, dia e dono. **Uma tarefa continua não sendo uma sequência**: nenhuma ordem é guardada, e é isso que mantém o objeto de verdade na Fase 4.
@@ -186,13 +198,13 @@ CREATE TABLE tarefa (
 
 - **Check-in não exige plano** (28/07, CAP-6 revisada). Todo pin oferece check-in; sem planejada, ele **cria** a tarefa de hoje. Consequência: **agendar deixou de ser a única porta de entrada no funil** — o check-in também põe o pin em `visita_planejada` (a tarefa nasce `planejada` e é imediatamente aberta), e só o `resultado` do check-out move a etapa dali. Ver [[spec-07-atividades]] §2.3.
 - **Tarefa `planejada` é editável no `tipo`; realizada, em nada.** O **check-out é o último instante** dessa janela: o sheet de conclusão grava o tipo confirmado no mesmo ato em que fecha a atividade. Depois disso a tarefa é **registro** — nenhum campo se edita, e corrigir desfecho exige concluir uma nova atividade (§5).
-- **Check-in/out é a Tarefa** — sinônimos. Não há objeto `Visita`, e não há caminho alternativo pra registrar uma atividade de campo. Responde a pergunta aberta do Notion (Fase 3, item 4 — *"vale fazer outro tipo de atividade sem ser check-in?"*): **sim, mas é a mesma Tarefa** — atividade remota conclui sem `checkin_em` (§5). O check-in é o que prova presença, não o que cria o registro.
+- **Check-in/out é a Tarefa** — sinônimos. Não há objeto `Visita`, e não há caminho alternativo pra registrar uma atividade de campo. ⚠️ **A resposta à pergunta aberta do Notion mudou** (Fase 3, item 4 — *"vale fazer outro tipo de atividade sem ser check-in?"*): era *"sim, é a mesma Tarefa concluída sem `checkin_em`"*; desde 28/07 é **não** — sem check-in a atividade fica **não realizada** (§5). O que existe é visita **remota**, que tem check-in e é feita de longe.
 - **Uma coleção só** pra planejado e realizado; `status` distingue.
 - **O `resultado` move as etapas de campo do funil**, monotonicamente na escada. **Não move `csc`/`aquisicao`** — esses são derivados do ERP e prevalecem ([[estabelecimento]] §5). O invariante do `status` deixa de ser "muda só por fluxo" e passa a ser **"nunca é digitado"**: ou vem de tarefa concluída, ou vem do ERP.
 - **Motivo é obrigatório nos dois desfechos negativos**, de **vocabulário fechado** + `outro` com texto: `motivo_perda` quando `resultado = perdido`, `motivo_desqualificacao` quando `resultado = desqualificado`. Ambos movem o pin para a saída lateral correspondente.
 - **`perdido` e `desqualificado` são estados revisáveis, nunca exclusão** — o pin **segue visível no mapa** e o filtro apenas oculta. Só acontecem **por tarefa concluída** (constatação de campo tem autor e data), nunca por toque solto no pin; e **voltar de lá também exige tarefa** (§5). A diferença entre os dois vive no **motivo**, não na mecânica: `perdido` = a negociação morreu, o ponto segue oportunidade; `desqualificado` = o ponto não é oportunidade.
 - **Tarefa não se deleta — cancela-se** (`status = cancelada`). Espelha *"o pin nunca some"*. Cancelar a **rota** cancela todas as paradas dela ([[rota]] §2.3) — é o mesmo cancelamento, N vezes, e só quem perdeu o **último** plano sai do board.
-- **Concluir é sempre no pin, nunca na Agenda** (28/07). A Agenda é o **plano**: mostra horário, anotação do agendamento e cancelar, e nada mais. Check-in/check-out e conclusão vivem no sheet do pin. ⚠️ **Consequência aceita:** a **atividade remota** (`tipo_checkin = remoto`, §5) perdeu a última porta de UI que tinha — a regra do modelo continua e o dado semeado continua tendo remotas, mas **ninguém cria uma** no protótipo. Ver [[spec-07-atividades]] §4.2.
+- **Concluir é sempre no pin, nunca na Agenda** (28/07). A Agenda é o **plano**: mostra horário, anotação do agendamento e cancelar, e nada mais. Check-in/check-out e conclusão vivem no sheet do pin. ✅ **A ponta solta da atividade remota fechou junto:** ela deixou de ser "concluir sem check-in" (que não tinha porta de UI) e passou a ser "check-in feito longe do pin" (§5) — que **qualquer** check-in produz, sem tela nova, quando a distância passa do raio. Ver [[spec-07-atividades]] §4.2.
 - **Classificação nunca é digitada:** `status`, `responsavel_id`, `atrasada`, `duracao_min` são derivados.
 - **Recorrência não gera nada** na Fase 2 (decisão Tatiana): é só um valor de `tipo`.
 - **Tudo em memória/sessão** — sem banco, sem persistência entre aberturas do app.

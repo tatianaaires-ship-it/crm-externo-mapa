@@ -50,7 +50,7 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 > ⚖️ **Por que 3 e não todas.** Um ponto de recorrência acumula dezenas de atividades; a lista inteira empurrava as **notas** — que a CAP-3 obriga a manter sempre visíveis — para fora da tela. O bloco vira um resumo, e a lista completa ganha tela própria.
 
-> **`Concluir sem check-in` saiu do pin** (28/07). Duas ações primárias competindo, e o caminho de campo é o check-in. ⚠️ **A conclusão remota continua existindo** no modelo (`tipo_checkin = remoto`, [[tarefa]] §4) e no dado semeado, **mas não tem mais porta de UI nenhuma**: o botão do card da Agenda, que era a última, saiu junto com as ações de execução da Agenda (§4.2). O filtro de check-in também deixou de existir lá — sobrou só na Gerencial, servindo ao dado histórico (§4.1).
+> **`Concluir sem check-in` saiu do pin** (28/07) — e depois **deixou de existir**. ⚠️ **A atividade remota não é "concluir sem check-in"**: é o check-in feito **longe do pin** ([[tarefa]] §5). Sem check-in nenhum a atividade fica **não realizada**, e `tipo_checkin` é nulo. Então não há botão faltando: qualquer check-in produz `remoto` quando a distância passa do raio, sem tela nova.
 
 ### 2.2 Lista e detalhe: as outras duas telas do sheet
 
@@ -131,7 +131,7 @@ O momento em que a atividade **vira dado** e o funil se move. Quatro campos, nes
 
 - **Trocar o resultado zera o motivo.** O vocabulário de `perdido` não é o de `desqualificado` ([[tarefa]] §4) — manter a escolha anterior guardaria um motivo do enum errado.
 - **`outro` mostra o texto no pin, não a palavra "Outro".** O `motivo_status` do estabelecimento passa a exibir o que o vendedor escreveu — "Outro" não informa nada a quem abre o pin depois.
-- **Sem check-in, o sheet avisa** que a atividade vai ser registrada como **remota** (faixa âmbar), em vez de deixar o vendedor descobrir na coluna `Tipo de check-in` da gerencial. *(Hoje isso só acontece por dado semeado — §2.)*
+- **O sheet só abre com check-in aberto.** Sem presença registrada não há o que concluir ([[tarefa]] §5), então não existe estado "concluir sem check-in" nesta tela. Quando o check-in foi feito **longe do pin**, a faixa do topo diz `remoto (1,2 km do pin)` — o vendedor fica sabendo como a visita vai ser classificada **antes** de fechar, não depois, na coluna da gerencial.
 - **A saída lateral se explica aqui**, não só no pin: se o ponto está `perdido`/`desqualificado`, o sheet diz para onde ele volta ao concluir (§3.1). É neste instante que a decisão é tomada.
 - **Interação delegada, não por elemento.** A tela se re-renderiza a cada toque (o campo de motivo depende do resultado), então listener anexado a chip é listener em nó que morre no próximo render — um `click`/`input` só, no sheet, e o `data-*` diz qual campo mudou. Texto e data **não** re-renderizam: refazer o HTML a cada tecla tiraria o foco do campo.
 
@@ -170,12 +170,12 @@ Logo abaixo do segmented control, **um estado de filtro só — com dois alcance
 | **Vendedor** | os **dois** recortes | `responsavel_id` **da tarefa**, não `vendedor_responsavel_id` do pin. `<select>` com `Todos os vendedores` (default); o da sessão vem marcado `(eu)` |
 | **Buscar** | os **dois** recortes | o **estabelecimento**: nome fantasia · razão social · CNPJ (§4.1.1) |
 | **Tipo de visita** | só a **Gerencial** | `tipo` da tarefa |
-| **Tipo de check-in** | só a **Gerencial** | `presencial`/`remoto` (derivado de `checkin_em`) |
+| **Tipo de check-in** | só a **Gerencial** | `presencial`/`remoto` — derivado da **distância** no check-in ([[tarefa]] §5), não de ter ou não check-in |
 | **Período** | só a **Gerencial** | chips `Hoje · Ontem · Esta semana · Semana passada · Este mês · Mês passado · 📅 Período`. Default **Este mês**; semana começa na **segunda**. `📅 Período` revela `de`/`até` com o **date picker nativo** (sem build, sem componente novo pra manter) |
 
 > ⚖️ **Os três da Gerencial não ficam escondidos na Agenda — eles não existem lá.** O controle é ocultado **e o filtro não é aplicado**. Ocultar aplicando seria exatamente o **filtro invisível** que esta barra combate (foi por isso que a gaveta `Mais` caiu). Só o que age aparece; só o que aparece age.
 >
-> **O que isso resolveu de graça:** (1) a Agenda deixou de ter recorte de período, então **o plano inteiro de hoje em diante aparece** — morre o efeito colateral de `Este mês` no dia 27 esconder o plano do mês seguinte; (2) o **filtro de check-in não esvazia mais a Agenda**, porque não está lá — a esquisitice documentada ("`tipo_checkin` só existe em realizada, então a Agenda fica vazia") deixou de existir em vez de virar aviso; (3) a barra da Agenda caiu de três linhas para **uma**, e a altura foi para o calendário.
+> **O que isso resolveu de graça:** (1) a Agenda deixou de ter recorte de período, então **o plano inteiro de hoje em diante aparece** — morre o efeito colateral de `Este mês` no dia 27 esconder o plano do mês seguinte; (2) o **filtro de check-in não esvazia mais a Agenda**, porque não está lá — a esquisitice documentada ("`tipo_checkin` só existe onde houve check-in, então a Agenda fica vazia") deixou de existir em vez de virar aviso; (3) a barra da Agenda caiu de três linhas para **uma**, e a altura foi para o calendário.
 >
 > **Preço:** trocar de recorte muda o conjunto sem o usuário mexer em controle nenhum — a Gerencial recorta por período e a Agenda não. É consistente com "cada recorte responde a pergunta dele", e o *hint* de cada um diz o recorte em vigor (`este mês …` × `todo o plano, de hoje em diante`).
 
@@ -216,7 +216,7 @@ Antes era uma pilha de cards de atividade agrupada por dia, com `Atrasadas` no t
 
 > ⚖️ **A Agenda perdeu `Check-in` e `Concluir`.** Ela é o **plano**; a execução é no sheet do pin, que já tem o botão contextual (§2). Duas ações de execução num card de agenda competiam com o gesto principal (abrir o pin) e espalhavam o fluxo de conclusão por duas telas.
 >
-> **Preço aceito, e é o maior desta mudança:** a **atividade remota** (`tipo_checkin = remoto`) ficou **sem nenhuma porta de UI**. O §2 tirou `Concluir sem check-in` do pin em 28/07 e disse que o botão do card da Agenda era a última porta — agora ela fechou também. O modelo mantém o caso ([[tarefa]] §5) e o seed mantém ~14% de realizadas sem check-in, então o filtro `Tipo de check-in → Remoto` continua devolvendo linhas; o que não existe é como **criar** uma. Resolve a ponta solta da fatia com um "sim, some" — e é reversível pelo detalhe da atividade (§2.2), que já é o lugar das ações.
+> **O preço que isto parecia cobrar não existe mais.** Por algumas horas de 28/07 a leitura foi: *"a atividade remota ficou sem porta de UI, porque era 'concluir sem check-in' e esse botão acabou"*. A premissa estava errada — **remoto é check-in feito longe do pin**, não check-in ausente ([[tarefa]] §5). Qualquer check-in produz `remoto` quando a distância passa do raio, então a ponta solta fechou sem nenhuma tela nova. O que a Agenda perdeu foi só a execução, que é do pin.
 
 > ⚖️ **A Agenda não mostra atrasadas, e não fala delas.** Era bloco fixo no topo e exceção ao filtro de período. Saiu porque a Agenda passou a ser *"o que vem por aí"*, e dívida vencida no topo de um calendário empurra o dia de hoje para fora da tela.
 >
@@ -302,12 +302,14 @@ As 4 cores de `resultado` são as **mesmas do funil** — e isso é correto, nã
 - **Vazio vai sempre para o fim**, nas duas direções: se `—` subisse ao topo ao inverter, ordenar esconderia o dado em vez de revelá-lo.
 - **Teto de 150 linhas por ordenação, dito na tela.** Sem teto, cada toque custava ~250ms para reconstruir 300+ linhas × 10 células. O rodapé informa quantas ficaram fora — corte silencioso lê como "cobri tudo" quando não cobriu.
 - **`nome da rota` deixou de ser rótulo derivado** (28/07): vem do **objeto [[rota]]** via `tarefa.rota_id`, e mostra **`Avulsa`** para tarefa fora de rota. No seed, ~4 em cada 5 linhas têm rota de verdade (com nome de bairro); as `Avulsa` são as visitas-âncora e as agendadas soltas. *(Era `Rota (dd/mm/aaaa)` a partir de `responsavel_id` + `data` — o rótulo existia justamente para não antecipar o objeto, e o objeto rascunho o substituiu.)*
-- **Duas colunas continuam não sendo campos:** `tipo de check-in` deriva de `checkin_em` e `realizado` deriva de `status`. Ver [[tarefa]] §4 e §6.
+- **Duas colunas continuam não sendo campos:** `tipo de check-in` deriva da **`distancia_km`** e `realizado` deriva de `status`. Ver [[tarefa]] §4 e §5. ⚠️ **A coluna e o filtro não repetem `realizado`:** entre as realizadas há presencial **e** remoto (no seed, ~17% remoto), e as não realizadas mostram `—` porque sem check-in o campo é nulo.
 - **`distancia_km` é campo novo** ([[tarefa]] §4), derivado no check-in e persistido. Exceção consciente ao não-escopo de GPS: o campo entrou, o motor que o preenche não. No protótipo o valor é **fictício**.
 
 ### 5.5 O seed precisou crescer
 
 Com uma tarefa por pin, os gráficos por dia davam **pico de 4** e a tela parecia de brinquedo. O seed foi adensado para ritmo de campo: **63 → 538 tarefas**, 9–16 visitas por dia útil, **nenhuma em fim de semana**, e **hoje como dia em andamento** (parte do plano já realizada, o resto de pé).
+
+> ⚖️ **O seed tinha uma mentira e ela saiu (28/07).** Ele gerava ~14% de realizadas **sem check-in** para popular a coluna `Remoto` da gerencial — o que, com a regra corrigida ([[tarefa]] §5), seria contar como *visita realizada* algo que ninguém fez. Agora: **12% das paradas de rota passada ficam `planejada` em data vencida** (não realizadas), e o `remoto` vem de onde deve vir — **distância acima do raio no check-in** (~17% das realizadas). Dois ganhos de leitura: o par de gráficos L7D passou a ter **diferença de verdade** entre planejado e executado (era quase colado), e a taxa de execução caiu de 84% para **77%**, que é o número honesto.
 
 > ⚖️ **Depois (28/07) o seed passou a nascer em ROTAS, inclusive no passado** — um caminho de código só (`rotaDoDia`) para o dia que já rodou e para o dia que vem: **522 tarefas em 117 rotas**, 3 vendedores × 3–5 paradas por dia útil, paradas espaçadas de 45min. **As paradas de cada rota saem por proximidade** (vizinhos mais próximos de uma âncora que gira), porque foi isso que fez o nome da rota ser verdade: uma janela qualquer dava *"Rota Boa Viagem"* com parada em Casa Forte, que é enfeite. **O passado tinha que virar rota também** — sem isso a coluna `Nome Rota` da tabela diria `Avulsa` em ~460 de 522 linhas, o oposto do que a tela passou a afirmar. **O funil não se moveu:** mesmas 7 colunas e mesmas contagens (verificado — `resultado` de cada parada continua vindo da âncora do pin).
 
@@ -370,8 +372,8 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **O tipo é confirmado no fim, não no começo** (§2.3 + §3). Ele esteve em chips no pin, acima do botão de check-in, por uma hora em 28/07: quem entra na porta do cliente não para para classificar a visita — e no check-in ainda não sabe o que ela vai ser. Foi para o sheet de conclusão, onde a informação existe. Alternativa recusada: um passo de confirmação **antes** do check-in (sheet ou prompt) — um toque a mais na ação mais frequente do app.
 - **O sheet de conclusão nasceu de um campo, não de um refactor** (§3). A pendência dos três `window.prompt` era conhecida havia dois dias; o que a resolveu foi precisar de um lugar para o `tipo`. Fica registrado porque é o padrão útil: pendência de apresentação sai junto com o próximo requisito que a encoste.
 - **O sheet é a 4ª tela do pin-sheet, não um sheet sobre o sheet** (§2.2). Empilhar dois bottom sheets exigiria segundo backdrop e nova camada de z-index para uma tela que sempre pertence a **um** ponto.
-- **Sem check-in, o sheet avisa que a atividade vira remota** (§3) — o único aviso de procedência dentro do fluxo, e ele existe porque a coluna `Tipo de check-in` da gerencial é longe do momento da decisão.
-- **Concluir sem check-in é válido** (atividade remota) — o check-in prova presença, não cria o registro. **Mas não tem botão em lugar nenhum** desde 28/07: saiu do pin (§2) e depois da Agenda (§4.2). A regra do modelo não mudou; o caminho de UI acabou.
+- **Presencial × remoto é DISTÂNCIA, não presença de check-in** ([[tarefa]] §5, corrigido em 28/07). Sem check-in a atividade fica **não realizada** e `tipo_checkin` é nulo; com check-in, o raio (`0,3 km` no protótipo) separa quem estava na porta de quem registrou de longe. A versão anterior — `remoto` = concluída sem check-in — fazia a gerencial contar como *realizada remota* uma visita que ninguém tinha feito.
+- **Não se conclui sem check-in** (§3). Consequência no seed: as ~60 "remotas sem check-in" viraram **planejadas em data passada** (§5.5), e a taxa de execução caiu de 84% para 77% — que é o número honesto.
 - **`proxima_acao_data` não tem mais superfície na Agenda** (§4.2) — segue no modelo e na tabela da gerencial. Sugestão dentro de um calendário lê como compromisso.
 - **O sheet do pin virou três telas** (§2.2), não uma tela longa. Empilhar lista completa + detalhe dentro do sheet mantém o vendedor no contexto do ponto; abrir tela cheia por atividade perderia o pin de vista.
 - **Atividade realizada não tem ação** — é registro. Corrigir um desfecho errado exige concluir uma **nova** atividade, que é o mesmo caminho da requalificação (§3.1). Não há edição retroativa.

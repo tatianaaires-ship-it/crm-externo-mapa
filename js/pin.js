@@ -154,6 +154,7 @@
     // Sob o rótulo "Rota", o nome canônico ("Rota Boa Vista") repetiria a
     // palavra — aqui vai só o bairro; o nome cheio fica na Agenda e na tabela.
     const rota = r0 ? r0.nome.replace(/^Rota\s+/, '') : 'Avulsa (fora de rota)';
+    const ciTipo = D.deriveTipoCheckin(t);   // presencial | remoto | null
 
     sheetEl.querySelector('.sheet__scroll').innerHTML =
       subHead(tp.emoji + ' ' + tp.label, p.name, 'lista') +
@@ -165,7 +166,9 @@
             (t.data < new Date().toISOString().slice(0, 10) ? 'Atrasada' : 'Planejada') + '</span>') +
         infoRow('Responsável', esc(vend)) +
         infoRow('Rota', esc(rota)) +
-        (feita ? infoRow('Tipo de check-in', t.checkinEm
+        // Presencial × remoto vem da DISTÂNCIA no check-in; sem check-in, nem
+        // uma nem outra — a linha simplesmente não existe.
+        (ciTipo ? infoRow('Tipo de check-in', ciTipo === 'presencial'
           ? '<span class="pill" style="--c:#0ea5e9">Presencial</span>'
           : '<span class="pill" style="--c:#64748b">Remoto</span>') : '') +
         (t.checkinEm ? infoRow('Check-in', fmtDate(t.data) + ' às ' + fmtTime(t.checkinEm)) : '') +
@@ -173,7 +176,9 @@
           ' <small class="info__desc">' + durationMin(t.checkinEm, t.checkoutEm) + ' min em campo</small>') : '') +
         (t.distanciaKm != null ? infoRow('Distância no check-in',
           String(t.distanciaKm.toFixed(2)).replace('.', ',') + ' km' +
-          '<small class="info__desc">entre o vendedor e o pin</small>') : '') +
+          '<small class="info__desc">' + (ciTipo === 'remoto'
+            ? 'acima de ' + String(D.RAIO_PRESENCIAL_KM).replace('.', ',') + ' km — registrada como remota'
+            : 'entre o vendedor e o pin') + '</small>') : '') +
         (r ? infoRow('Resultado', '<span class="pill" style="--c:' + r.color + '">' + esc(r.label) + '</span>') : '') +
         (mot ? infoRow('Motivo', esc(mot)) : '') +
         (t.proximaAcao ? infoRow('Próxima ação', esc(t.proximaAcao) +
@@ -212,7 +217,8 @@
     const p = S.getById(currentId);
     const t = S.getTarefa(tarefaAberta);
     if (!p) return closeSheet();
-    if (!t || t.status !== 'planejada') return irPara('pin');
+    // Sem check-in não há o que concluir: a atividade fica NÃO REALIZADA.
+    if (!t || t.status !== 'planejada' || !t.checkinEm) return irPara('pin');
 
     // O rascunho começa no tipo que a tarefa já tem (do plano ou da sugestão).
     if (form.tarefaId !== t.id) form = { tarefaId: t.id, tipo: t.tipo, resultado: null,
@@ -248,10 +254,13 @@
     sheetEl.querySelector('.sheet__scroll').innerHTML =
       subHead('Concluir atividade', p.name, 'pin') +
       lateral +
-      (t.checkinEm
-        ? '<p class="ativ-tipo-atual">📍 Check-in às ' + fmtTime(t.checkinEm) +
-          ' · ' + durationMin(t.checkinEm, new Date().toISOString()) + ' min em campo</p>'
-        : '<p class="conc-remota">Sem check-in — esta atividade será registrada como <strong>remota</strong>.</p>') +
+      // Só se chega aqui com check-in aberto (sem presença não há conclusão —
+      // tarefa.md §5), então a faixa é sempre a do check-in em curso.
+      '<p class="ativ-tipo-atual">📍 Check-in às ' + fmtTime(t.checkinEm) +
+        ' · ' + durationMin(t.checkinEm, new Date().toISOString()) + ' min em campo' +
+        (D.deriveTipoCheckin(t) === 'remoto'
+          ? ' · <strong>remoto</strong> (' + String(t.distanciaKm).replace('.', ',') + ' km do pin)'
+          : '') + '</p>' +
 
       '<div class="conc-campo">' +
         '<span class="conc-lbl">Tipo da visita</span>' +
