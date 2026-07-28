@@ -637,6 +637,295 @@ body.view-intel .placing-banner { display: none !important; }
 .intel-empty__emoji { font-size: 34px; margin-bottom: 6px; }
 .intel-empty__msg { margin: 0 0 12px; color: var(--ink-2); font-size: 14px; font-weight: 600; }
 
+/* Bloco de atividades dentro do pin sheet (SPEC 07 §2) */
+.ativ-res { font-weight: 800; color: var(--c, var(--ink)); }
+/* Sub-telas do sheet do pin (SPEC 07 §2.2): lista e detalhe de atividade. */
+.sheet__head--sub { align-items: center; }
+.sheet__back {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 24px; line-height: 1;
+  color: var(--ink); background: var(--surface-2); border: 1px solid var(--line);
+  cursor: pointer; padding-bottom: 3px;
+}
+.ativ-lista { display: flex; flex-direction: column; gap: 6px; }
+.ativ-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 8px 10px; cursor: pointer;
+}
+.ativ-item:active { transform: scale(.99); }
+.ativ-item__ico { flex: 0 0 auto; font-size: 15px; }
+.ativ-item__txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ativ-item__l1 { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.ativ-item__l2 { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ativ-item__seta { flex: 0 0 auto; font-size: 18px; color: var(--line-2); }
+.ativ-vertodas { margin-top: 8px; }
+.note-card {
+  margin: 0; font-size: 12.5px; color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line); border-left: 3px solid var(--brand);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 9px 11px;
+}
+.ativ-lateral {
+  margin: 0 0 8px; font-size: 12.5px; color: var(--ink-2);
+  background: #f8fafc; border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm); padding: 8px 10px;
+}
+
+/* ---- Aba Atividades (SPEC 07) — agenda · realizadas · gerencial ---- */
+.ativ-view {
+  position: absolute; inset: 0; z-index: 25; display: none;
+  flex-direction: column; background: var(--bg);
+}
+body.view-ativ .ativ-view { display: flex; }
+body.view-ativ .fab, body.view-ativ .fab-locate,
+body.view-ativ .placing-banner { display: none !important; }
+
+/* A quickbar é o filtro DO MAPA. No Funil e nas Atividades ela não é útil e
+   custa ~50px de altura — some, e o espaço volta pro conteúdo. O filtro segue
+   valendo (essas abas leem o conjunto filtrado); quando houver algum ativo, o
+   head da aba avisa — ver SPEC 06 §5 / SPEC 07 §6. */
+body.view-funil .quickbar, body.view-ativ .quickbar { display: none; }
+.head-filtro {
+  flex: 0 0 auto; font-size: 11px; font-weight: 800; color: var(--brand);
+  background: var(--brand-050); border: 1px solid var(--brand);
+  border-radius: var(--r-pill); padding: 2px 9px; cursor: pointer;
+}
+
+.seg {
+  flex: 0 0 auto; display: flex; gap: 4px; padding: 8px 12px 0;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.seg__btn {
+  flex: 1 1 0; padding: 8px 6px; font-size: 12.5px; font-weight: 700;
+  color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.seg__btn.is-active { color: var(--brand); border-bottom-color: var(--brand); }
+
+/* Barra de filtros da aba (SPEC 07 §6) — vendedor + período, valem para os
+   TRÊS recortes. É filtro de TAREFA: não entra na quickbar e não mexe nos pins. */
+.ativ-filtros {
+  flex: 0 0 auto; display: flex; flex-direction: column; gap: 7px;
+  padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+/* Os quatro filtros em grade de 2 colunas: em 375px cada célula fica com
+   ~172px, o que comporta rótulo + controle sem cortar. */
+.ativ-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.ativ-sel { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ativ-sel__inp.is-on { border-color: var(--brand); color: var(--brand); font-weight: 700; }
+.ativ-sel__lbl, .ativ-custom label {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); flex: 0 0 auto;
+}
+.ativ-sel__inp, .ativ-custom input {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line-2);
+  border-radius: var(--r-sm); padding: 6px 8px;
+}
+.ativ-chips {
+  display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; margin: 0 -12px; padding: 1px 12px;
+}
+.ativ-chips::-webkit-scrollbar { display: none; }
+.ativ-chips .chip { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; padding: 6px 12px; }
+.ativ-custom { display: flex; gap: 8px; }
+.ativ-custom[hidden] { display: none; }   /* [hidden] perde pro display:flex sem isto */
+.ativ-custom label { display: flex; align-items: center; gap: 6px; flex: 1 1 0; min-width: 0; }
+
+.ativ-body {
+  flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 10px 12px calc(16px + var(--sab)); display: flex; flex-direction: column; gap: 8px;
+}
+.ativ-group {
+  margin: 8px 0 0; font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted);
+}
+/* Atrasadas: bloco fixo no topo da agenda — ignora o filtro de período. */
+.ativ-group--late { color: #9f1239; }
+.ativ-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 10px 11px; display: flex; flex-direction: column; gap: 5px;
+}
+.ativ-card.is-late { border-left: 3px solid #9f1239; }
+.ativ-card__top { display: flex; align-items: center; gap: 7px; }
+.ativ-card__tipo { font-size: 15px; flex: 0 0 auto; }
+.ativ-card__name {
+  flex: 1 1 auto; min-width: 0; text-align: left; font-size: 13.5px; font-weight: 700;
+  color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ativ-badge {
+  flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 2px 8px;
+  border-radius: var(--r-pill); color: #fff; background: var(--c, var(--muted));
+}
+.ativ-badge--late { background: #9f1239; }
+.ativ-card__sub { display: flex; flex-wrap: wrap; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.ativ-card__mot { font-weight: 700; color: var(--ink-2); }
+.ativ-card__next { margin: 2px 0 0; font-size: 12px; color: var(--ink-2); }
+.ativ-card__acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ativ-sug {
+  font-size: 12px; color: var(--ink-2); background: var(--surface-2);
+  border: 1px dashed var(--line-2); border-radius: var(--r-sm); padding: 7px 9px;
+}
+.ativ-vazio { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 0; }
+.ativ-back { align-self: flex-start; }
+
+/* Gerencial: manchete → KPIs → quebras (SPEC 07 §5). Hierarquia em três níveis;
+   o seletor de período mora na barra de filtros da aba, não aqui.
+   ⚖️ Invariante: toda marca é uma PORTA — todo número abre a lista por trás. */
+.ger-hero { margin: 6px 0 2px; display: flex; align-items: baseline; gap: 8px; }
+/* Número-manchete: ≥48px e figuras proporcionais (tabular-nums afrouxa dígito
+   grande). Mesma sans do resto — serifa/display aqui lê como enfeite. */
+.ger-hero strong { font-size: 48px; font-weight: 800; color: var(--ink); line-height: .95; }
+.ger-hero span { font-size: 12.5px; color: var(--muted); }
+
+/* KPI row: os três números de apoio. Planejadas e Atrasadas vêm de tarefa
+   PLANEJADA — a gerencial mostra o plano ao lado da execução. */
+.ger-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 2px; }
+.ger-kpi {
+  display: flex; flex-direction: column; gap: 1px; text-align: left;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 8px 9px; cursor: pointer;
+}
+.ger-kpi__n { font-size: 21px; font-weight: 800; color: var(--ink); line-height: 1.05; }
+.ger-kpi__l { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+/* A 3ª linha é o denominador: cada número é % do ANTERIOR, não do total. */
+.ger-kpi__s { font-size: 10px; color: var(--ink-2); line-height: 1.25; }
+.ger-kpi--late { border-color: #9f1239; }
+.ger-kpi--late .ger-kpi__n { color: #9f1239; }
+
+/* Parte-do-todo = barra empilhada 100% (não donut: mais precisa e mais compacta
+   em 375px). Ordem FIXA do enum, nunca por ranking. O respiro de 2px é a própria
+   superfície aparecendo — não é borda. */
+.ger-stack { display: flex; gap: 2px; height: 14px; margin: 4px 0 7px; }
+.ger-stack__seg { min-width: 4px; background: var(--c, var(--muted)); border: 0; padding: 0; cursor: help; }
+.ger-stack__seg:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.ger-stack__seg:first-child { border-radius: 4px 0 0 4px; }
+.ger-stack__seg:last-child  { border-radius: 0 4px 4px 0; }
+/* Legenda obrigatória: duas cores de `resultado` ficam abaixo de 3:1 no branco,
+   então rótulo + número sempre visíveis. Cor nunca carrega o sentido sozinha. */
+.ger-legenda { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.ger-legenda button {
+  display: flex; align-items: center; gap: 6px; background: none; border: 0;
+  padding: 5px 0; cursor: pointer; font-size: 12px; min-height: 24px;   /* alvo de toque */
+}
+.ger-legenda__dot { width: 9px; height: 9px; border-radius: 3px; background: var(--c, var(--muted)); flex: 0 0 auto; }
+.ger-legenda__lbl { color: var(--ink-2); }
+.ger-legenda__n { font-weight: 800; color: var(--ink); }
+
+/* Tipo tem 3 valores e pouca decisão pendurada — rebaixado de bloco a chips. */
+.ger-tipos { display: flex; flex-wrap: wrap; gap: 6px; }
+.ger-tipo {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line-2);
+  border-radius: var(--r-pill); padding: 5px 10px; cursor: pointer;
+}
+.ger-tipo b { color: var(--ink); font-weight: 800; }
+
+/* Chip do drill ativo: fica no título da tabela, diz por que a lista encolheu
+   e é a porta de volta. Tabela filtrada sem chip parece dado que sumiu. */
+.ger-drill {
+  margin-left: 8px; font-size: 10.5px; font-weight: 800; text-transform: none;
+  letter-spacing: 0; color: #fff; background: var(--brand); border: 0;
+  border-radius: var(--r-pill); padding: 3px 9px; cursor: pointer;
+}
+.ger-dot { width: 8px; height: 8px; border-radius: 3px; background: var(--c, var(--muted)); display: inline-block; margin-right: 6px; }
+.ger-nota { margin: 0 0 6px; font-size: 11.5px; color: var(--muted); }
+
+/* Pivô vendedor × tipo. Números alinham à direita e usam tabular-nums — aqui
+   dígito de largura fixa AJUDA (coluna de números), ao contrário do manchete. */
+.ger-pivo-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.ger-pivo {
+  border-collapse: collapse; width: 100%; font-size: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.ger-pivo th, .ger-pivo td { border-bottom: 1px solid var(--line); padding: 0; text-align: right; }
+.ger-pivo thead th {
+  font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .03em; padding: 7px 8px; white-space: nowrap; background: var(--surface-2);
+}
+.ger-pivo__rh { text-align: left !important; padding: 7px 9px !important; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.ger-pivo td button {
+  width: 100%; padding: 8px 9px; background: none; border: 0; cursor: pointer;
+  font: inherit; font-variant-numeric: tabular-nums; font-weight: 700;
+  color: var(--ink); text-align: right;
+}
+.ger-pivo td.is-zero { padding: 8px 9px; color: var(--line-2); }
+.ger-pivo__tot { background: var(--surface-2); font-weight: 800; }
+.ger-pivo__foot th, .ger-pivo__foot td { background: var(--surface-2); border-bottom: 0; }
+
+/* Barras por dia, empilhadas por vendedor. Janela FIXA de 7 dias (L7D), então
+   as colunas dividem a largura em vez de rolar — 7 colunas largas leem melhor
+   que 31 finas, que era o problema do recorte por período. */
+.ger-barras {
+  display: flex; align-items: flex-end; gap: 4px; height: 124px; padding-bottom: 2px;
+}
+.ger-col {
+  flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column;
+  align-items: center; cursor: default; border-radius: var(--r-sm);
+}
+.ger-col:hover, .ger-col:focus-visible { background: var(--surface-2); outline: none; }
+.ger-l7d {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; color: var(--brand);
+  background: var(--brand-050); border-radius: var(--r-pill); padding: 1px 6px; margin-left: 4px;
+}
+
+/* Detalhamento da coluna (hover no desktop, toque no Android, foco no teclado) */
+.ger-tip {
+  position: fixed; z-index: 60; min-width: 178px; max-width: 250px;
+  background: #1e293b; color: #fff; border-radius: var(--r-sm);
+  padding: 9px 11px; box-shadow: var(--shadow-lg); pointer-events: none;
+  font-size: 11.5px;
+}
+.ger-tip[hidden] { display: none; }
+.ger-tip__d { font-weight: 800; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
+.ger-tip__r { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+.ger-tip__nome { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+.ger-tip__n { flex: 0 0 auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ger-tip__p { flex: 0 0 46px; text-align: right; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.ger-tip__r--tot { border-top: 1px solid #334155; margin-top: 4px; padding-top: 5px; }
+.ger-tip__vazio { color: #94a3b8; }
+.ger-col__n { flex: 0 0 auto; height: 13px; font-size: 9.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ger-col__pilha {
+  flex: 1 1 auto; width: 100%; display: flex; flex-direction: column-reverse;
+  justify-content: flex-start; gap: 2px;   /* respiro = superfície, não borda */
+}
+.ger-col__pilha i { display: block; width: 100%; background: var(--c, var(--muted)); border-radius: 2px; min-height: 2px; }
+.ger-col__d { flex: 0 0 auto; height: 14px; font-size: 9px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ger-legenda--vend { margin-bottom: 2px; }
+
+/* Tabela detalhada: 10 colunas não cabem em 375px — rola na horizontal, com o
+   cabeçalho grudado no topo. Cada cabeçalho ordena. */
+.ger-tab-wrap {
+  overflow: auto; -webkit-overflow-scrolling: touch; max-height: 60vh;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+}
+.ger-tab { border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
+.ger-tab thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); padding: 0; }
+.ger-th {
+  width: 100%; padding: 8px 9px; background: none; border: 0; border-bottom: 1px solid var(--line);
+  font: inherit; font-size: 10.5px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .03em; text-align: left; cursor: pointer; white-space: nowrap;
+}
+.ger-th.is-on { color: var(--brand); }
+.ger-tab td { padding: 7px 9px; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+.ger-tab tbody tr:last-child td { border-bottom: 0; }
+.ger-td--num { font-variant-numeric: tabular-nums; text-align: right; }
+.ger-td__pin { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.ger-td--nota, .ger-td--end { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.ger-sim { font-weight: 700; color: var(--muted); }
+.ger-sim.is-sim { color: #10b981; }
+.ger-bloco { display: flex; flex-direction: column; gap: 4px; }
+.ger-linha {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 7px 9px; cursor: pointer;
+}
+.ger-linha__lbl { flex: 0 0 34%; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.ger-linha__bar { flex: 1 1 auto; height: 7px; background: var(--bg); border-radius: var(--r-pill); overflow: hidden; }
+.ger-linha__bar i { display: block; height: 100%; background: var(--brand); border-radius: var(--r-pill); }
+.ger-linha__n { flex: 0 0 auto; font-size: 12.5px; font-weight: 800; color: var(--ink); min-width: 22px; text-align: right; }
+
 /* ---- Aba Funil (Kanban por status) ---- */
 .funil-view {
   position: absolute; inset: 0; z-index: 25; display: none;
@@ -657,6 +946,15 @@ body.view-funil .placing-banner { display: none !important; }
   border-top: 3px solid var(--sc, var(--line-2)); overflow: hidden;
 }
 .funil-col.is-drop { background: var(--brand-050); border-color: var(--brand); }
+/* Saídas laterais (Perdido/Desqualificado) são um bloco à parte, não degraus da
+   escada. Divisor antes da PRIMEIRA delas (classe posta pelo funil.js), senão o
+   board sugere que Desqualificado vem depois de Aquisição (spec-06 §2). */
+.funil-col--lateral { background: var(--bg); }
+.funil-col--lateral-first { margin-left: 15px; }
+.funil-col--lateral-first::before {
+  content: ''; position: absolute; margin-left: -8px; width: 1px;
+  align-self: stretch; background: var(--line-2);
+}
 .funil-col__head {
   flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
   padding: 9px 11px; border-bottom: 1px solid var(--line); background: var(--surface);

@@ -108,6 +108,8 @@
     catch (e) { console.error('[filtros] falha ao atualizar Inteligência:', e); }
     try { if (window.CRM_FUNIL) window.CRM_FUNIL.refresh(list); }
     catch (e) { console.error('[filtros] falha ao atualizar Funil:', e); }
+    try { if (window.CRM_ATIV) window.CRM_ATIV.refresh(list); }
+    catch (e) { console.error('[filtros] falha ao atualizar Atividades:', e); }
   }
 
   /* ---- Sincroniza estado visual dos chips (painel + atalhos) ---- */

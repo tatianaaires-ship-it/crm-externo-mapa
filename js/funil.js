@@ -1,9 +1,13 @@
 /* =====================================================================
    funil.js — Aba "Funil" (Kanban por status).
-   - Colunas = os 4 status do lead (CRM_DATA.STATUS), na ordem do funil.
-   - Recebe o MESMO conjunto filtrado do mapa (CRM_FILTERS.reapply → refresh).
-   - Arrastar card entre colunas move o status EM MEMÓRIA (casca — ver
-     nota de domínio em state.js: no produto real o status anda por fluxo).
+   - Colunas = CRM_DATA.STATUS_BOARD (7). `sem_plano` fica FORA do board: o
+     funil é o PIPELINE DE TRABALHO, não a base (estabelecimento.md §5).
+     Logo a contagem daqui DIVERGE da do mapa — é o comportamento correto.
+   - Recebe o mesmo conjunto filtrado do mapa (CRM_FILTERS.reapply → refresh),
+     menos os `sem_plano`.
+   - Arrastar card move o status EM MEMÓRIA (casca), com TRÊS RECUSAS: as
+     saídas laterais exigem motivo (só por tarefa concluída) e csc/aquisicao
+     vêm do ERP. Quem escreve status é state.js/applyStatus.
    - Tocar (sem arrastar) num card foca o pin no mapa.
    - Drag por Pointer Events → funciona em touch (Android) e mouse.
    ===================================================================== */
@@ -13,12 +17,13 @@
   const D = window.CRM_DATA;
   const S = window.CRM_STATE;
 
-  let boardEl, countEl, emptyEl;
+  let boardEl, countEl, emptyEl, hintEl;
   let lastList = [];
   let showMap = function () {};
 
-  // Ordem do funil = ordem de inserção em CRM_DATA.STATUS.
-  const ORDER = Object.keys(D.STATUS);
+  // Colunas do board = STATUS_BOARD (7) — `sem_plano` fica FORA: o funil é o
+  // pipeline de trabalho, não a base (estabelecimento.md §5).
+  const ORDER = D.STATUS_BOARD;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -51,18 +56,45 @@
 
   function render() {
     if (!boardEl) return;
+    // Só quem está NO pipeline entra no board. Os `sem_plano` seguem no mapa e
+    // na Inteligência — por isso a contagem daqui divergir da do mapa é o
+    // comportamento correto, não bug (spec-06-funil.md §5).
+    const noBoard = lastList.filter(function (p) {
+      const st = D.STATUS[p.status];
+      return st && st.board;
+    });
+    const foraDoBoard = lastList.length - noBoard.length;
+
     const byStatus = {};
     ORDER.forEach(function (k) { byStatus[k] = []; });
-    lastList.forEach(function (p) { (byStatus[p.status] || (byStatus[p.status] = [])).push(p); });
+    noBoard.forEach(function (p) { (byStatus[p.status] || (byStatus[p.status] = [])).push(p); });
 
-    if (countEl) countEl.textContent = lastList.length + (lastList.length === 1 ? ' lead' : ' leads');
-    if (emptyEl) emptyEl.classList.toggle('is-visible', lastList.length === 0);
+    if (countEl) {
+      countEl.textContent = noBoard.length + (noBoard.length === 1 ? ' no pipeline' : ' no pipeline') +
+        (foraDoBoard ? ' · ' + foraDoBoard + ' sem plano' : '');
+    }
+    // A quickbar não aparece nesta aba — se houver filtro do mapa ativo, o head
+    // avisa e leva de volta ao Mapa, onde se mexe nele. Filtro nunca é invisível.
+    if (hintEl) {
+      const nf = window.CRM_FILTERS ? window.CRM_FILTERS.activeCount() : 0;
+      hintEl.innerHTML = 'arraste entre colunas' + (nf
+        ? ' <button class="head-filtro" data-filtro>' + nf +
+          (nf === 1 ? ' filtro' : ' filtros') + ' do mapa</button>' : '');
+    }
+    if (emptyEl) emptyEl.classList.toggle('is-visible', noBoard.length === 0);
 
-    boardEl.innerHTML = ORDER.map(function (k) {
+    // Índice da 1ª saída lateral: ganha o divisor que separa o bloco da escada.
+    const primeiraLateral = ORDER.findIndex(function (k) { return D.STATUS[k].family === 'lateral'; });
+
+    boardEl.innerHTML = ORDER.map(function (k, idx) {
       const st = D.STATUS[k];
       const items = byStatus[k] || [];
+      // As saídas laterais formam um bloco à parte, depois da escada.
+      const lateral = st.family === 'lateral'
+        ? ' funil-col--lateral' + (idx === primeiraLateral ? ' funil-col--lateral-first' : '')
+        : '';
       return (
-        '<section class="funil-col" data-status="' + k + '" style="--sc:' + st.color + '">' +
+        '<section class="funil-col' + lateral + '" data-status="' + k + '" style="--sc:' + st.color + '">' +
           '<div class="funil-col__head">' +
             '<span class="funil-col__dot"></span>' +
             '<span class="funil-col__title">' + esc(st.label) + '</span>' +
@@ -151,7 +183,18 @@
     if (drag.moved) {
       const col = colUnder(e.clientX, e.clientY);
       if (col && col.dataset.status !== drag.from) {
-        S.setStatus(drag.id, col.dataset.status);   // reapply re-renderiza o board
+        const alvo = col.dataset.status;
+        // TRÊS RECUSAS (spec-06-funil.md §4): as laterais exigem motivo — só por
+        // tarefa concluída — e csc/aquisicao vêm do ERP. setStatus devolve null.
+        if (!S.setStatus(drag.id, alvo)) {
+          const fam = (D.STATUS[alvo] || {}).family;
+          const msg = fam === 'lateral'
+            ? 'Perdido e Desqualificado exigem motivo — conclua uma atividade no pin.'
+            : (fam === 'comercial'
+                ? 'CSC e Aquisição vêm do cadastro/pedido (ERP), não do arraste.'
+                : 'O funil não regride — só avança.');
+          if (window.CRM_TOAST) window.CRM_TOAST(msg);
+        }
       }
     } else {
       openLead(drag.id);                             // toque simples = abre o pin
@@ -172,9 +215,13 @@
     boardEl = document.getElementById('funil-board');
     countEl = document.getElementById('funil-count');
     emptyEl = document.getElementById('funil-empty');
+    hintEl = document.getElementById('funil-hint');
     showMap = (opts && opts.showMap) || showMap;
 
     if (boardEl) boardEl.addEventListener('pointerdown', onDown);
+    if (hintEl) hintEl.addEventListener('click', function (e) {
+      if (e.target.closest('[data-filtro]')) showMap();
+    });
     const clr = document.getElementById('btn-funil-clear');
     if (clr) clr.addEventListener('click', function () {
       if (window.CRM_FILTERS) window.CRM_FILTERS.clearAll();

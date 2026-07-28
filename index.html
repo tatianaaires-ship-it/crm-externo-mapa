@@ -79,13 +79,67 @@
       <section id="funil-view" class="funil-view" aria-label="Funil de leads">
         <div class="intel-head">
           <span id="funil-count" class="intel-count">—</span>
-          <span class="intel-head__hint">arraste entre colunas · mesmos filtros</span>
+          <span id="funil-hint" class="intel-head__hint">arraste entre colunas</span>
         </div>
         <div id="funil-board" class="funil-board"></div>
         <div id="funil-empty" class="intel-empty">
           <div class="intel-empty__emoji" aria-hidden="true">🗂️</div>
           <p class="intel-empty__msg">Nenhum lead com esses filtros.</p>
           <button id="btn-funil-clear" class="btn btn--ghost btn--sm">Limpar filtros</button>
+        </div>
+      </section>
+
+      <!-- Aba Atividades (SPEC 07) — gerencial · agenda · realizadas.
+           Três recortes da MESMA coleção de tarefas. Cobre o mapa quando ativa.
+           Abre na Gerencial (spec-07 §4). -->
+      <section id="ativ-view" class="ativ-view" aria-label="Atividades">
+        <div class="seg" role="tablist" aria-label="Recorte das atividades">
+          <!-- Dois recortes: o retrato (Gerencial, com a tabela detalhada dentro)
+               e o que está por fazer (Agenda). "Realizadas" era uma terceira aba
+               que repetia a tabela da Gerencial — ver spec-07 §4. -->
+          <button id="seg-ger" class="seg__btn is-active" role="tab" aria-selected="true">Gerencial</button>
+          <button id="seg-agenda" class="seg__btn" role="tab" aria-selected="false">Agenda</button>
+        </div>
+        <!-- Barra de filtros da ABA (spec-07 §6): vendedor + período valem para
+             os TRÊS recortes e NÃO entram na quickbar do mapa — filtro de tarefa
+             não mexe nos pins. Os chips são montados por js/atividades.js. -->
+        <div class="ativ-filtros">
+          <!-- Os quatro sempre visíveis. Ficaram recolhidos atrás de um botão
+               "Mais" por um tempo, para poupar altura; filtro que ninguém acha
+               não é filtro. Grade de 2 colunas para caber em 375px. -->
+          <div class="ativ-grid">
+            <label class="ativ-sel">
+              <span class="ativ-sel__lbl">Vendedor</span>
+              <select id="ativ-vend" class="ativ-sel__inp"></select>
+            </label>
+            <label class="ativ-sel">
+              <span class="ativ-sel__lbl">Tipo</span>
+              <select id="ativ-tipo" class="ativ-sel__inp"></select>
+            </label>
+            <label class="ativ-sel">
+              <span class="ativ-sel__lbl">Check-in</span>
+              <select id="ativ-ci" class="ativ-sel__inp"></select>
+            </label>
+            <label class="ativ-sel">
+              <span class="ativ-sel__lbl">CNPJ</span>
+              <input id="ativ-cnpj" class="ativ-sel__inp" type="search"
+                     inputmode="numeric" placeholder="dígitos" autocomplete="off" />
+            </label>
+          </div>
+          <div id="ativ-periodo" class="ativ-chips" role="group" aria-label="Período"></div>
+          <div id="ativ-custom" class="ativ-custom" hidden>
+            <label>De <input id="ativ-de" type="date" /></label>
+            <label>Até <input id="ativ-ate" type="date" /></label>
+          </div>
+        </div>
+        <div class="intel-head">
+          <span id="ativ-count" class="intel-count">—</span>
+          <span id="ativ-hint" class="intel-head__hint">atividades dos pins visíveis</span>
+        </div>
+        <div id="ativ-body" class="ativ-body"></div>
+        <div id="ativ-empty" class="intel-empty">
+          <div class="intel-empty__emoji" aria-hidden="true">🗓️</div>
+          <p id="ativ-empty-msg" class="intel-empty__msg">Nenhuma atividade planejada.</p>
         </div>
       </section>
 
@@ -109,19 +163,25 @@
       </section>
     </main>
 
-    <!-- Bottom nav: alterna Mapa / Inteligência (filtros são compartilhados) -->
+    <!-- Bottom nav — ordem: base (Mapa · Intel.) e depois trabalho (Funil · Atividades).
+         Mapa e Intel. são o MESMO conjunto filtrado em duas formas; Funil e
+         Atividades são o pipeline. A quickbar do mapa some nessas duas (SPEC 00 §5.1). -->
     <nav class="bottomnav" role="tablist" aria-label="Seções">
       <button id="tab-map" class="bottomnav__tab is-active" role="tab" aria-selected="true">
         <span class="bottomnav__ico" aria-hidden="true">🗺️</span>
         <span class="bottomnav__lbl">Mapa</span>
       </button>
+      <button id="tab-intel" class="bottomnav__tab" role="tab" aria-selected="false">
+        <span class="bottomnav__ico" aria-hidden="true">📋</span>
+        <span class="bottomnav__lbl">Intel.</span>
+      </button>
       <button id="tab-funil" class="bottomnav__tab" role="tab" aria-selected="false">
         <span class="bottomnav__ico" aria-hidden="true">📊</span>
         <span class="bottomnav__lbl">Funil</span>
       </button>
-      <button id="tab-intel" class="bottomnav__tab" role="tab" aria-selected="false">
-        <span class="bottomnav__ico" aria-hidden="true">📋</span>
-        <span class="bottomnav__lbl">Inteligência</span>
+      <button id="tab-ativ" class="bottomnav__tab" role="tab" aria-selected="false">
+        <span class="bottomnav__ico" aria-hidden="true">🗓️</span>
+        <span class="bottomnav__lbl">Atividades</span>
       </button>
     </nav>
 
@@ -216,6 +276,7 @@
   <script src="js/create.js"></script>
   <script src="js/intel.js"></script>
   <script src="js/funil.js"></script>
+  <script src="js/atividades.js"></script>
   <script src="js/app.js"></script>
   <!-- Porteiro (login Google → dado real). Inerte sem config. -->
   <script src="js/auth.js"></script>

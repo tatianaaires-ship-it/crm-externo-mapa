@@ -30,13 +30,16 @@ originou fica em `sources:` (rastreabilidade), não no corpo.
 | Objeto | Doc | Tipo | Status |
 |---|---|---|---|
 | **Estabelecimento** — o ponto no mapa: cliente cadastrado **ou** não (o pin) | [objetos/estabelecimento.md](objetos/estabelecimento.md) | domínio | 🟡 em revisão |
+| **Tarefa** — a atividade datada no pin; **check-in/out é a própria tarefa** | [objetos/tarefa.md](objetos/tarefa.md) | domínio | 🟡 em revisão |
 | **Vendedor / Usuário** — quem opera, e alvo de RLS | `objetos/vendedor.md` | domínio | ⬜ a fazer |
-| **Visita** — check-in/out; auditoria de correção de pin | `objetos/visita.md` | domínio | ⬜ a fazer |
+| ~~**Visita**~~ — absorvida por [Tarefa](objetos/tarefa.md) (27/07): check-in/out **é** a tarefa | ~~`objetos/visita.md`~~ | — | ⛔ não existe |
 | **cnae_tier** — CNAE → tier; deriva `qualidade` (editável no Admin) | `objetos/cnae_tier.md` | referência | ⬜ a fazer |
 | **Zona** — território de atuação (`zona_2_c`) | `objetos/zona.md` | referência | ⬜ a fazer |
 
 > **Decisão 23/07 — Lead + Conta são um só objeto, chamado `Estabelecimento`.** Um ponto pode ser cliente cadastrado ou não; o campo derivado `cadastrado` distingue, e os campos comerciais (cadastro, 1ª/última compra, limite de crédito, saldo devedor, ticket médio, frequência, inadimplência, ciclo de vida) vivem no mesmo registro. **Não há objeto Conta separado.** (O código do protótipo em `js/` ainda usa "lead" — alinhar o naming é tarefa parkada.)
 > `nota_estabelecimento` (notas do pin, 1:N) também vive dentro de [Estabelecimento](objetos/estabelecimento.md), não é doc próprio.
+
+> **Decisão 27/07 — Check-in/out É a Tarefa, são sinônimos.** Não existe objeto `Visita`: a atividade datada, o check-in, o check-out e o desfecho vivem num só registro ([Tarefa](objetos/tarefa.md)). O `resultado` da tarefa concluída é o **único** caminho automático que move o `status` do Estabelecimento no funil.
 
 ## Design & Telas
 
@@ -51,8 +54,9 @@ O **SPEC 00** é o alicerce visual (tokens, componentes, shell) que toda spec de
 | **SPEC 04 — Criar pin** | `telas/spec-04-criar.md` | ⬜ a fazer |
 | **SPEC 05 — Inteligência** (lista de leads) | `telas/spec-05-intel.md` | ⬜ a fazer |
 | **SPEC 06 — Funil** (Kanban por status, arrastar card) | [telas/spec-06-funil.md](telas/spec-06-funil.md) | 🟡 em revisão |
+| **SPEC 07 — Atividades** (bloco no pin, agenda, visão gerencial com gráficos, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
 
-> Superfícies do protótipo: **mapa** · **sheet do pin** · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Inteligência**. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
+> Superfícies do protótipo: **mapa** · **sheet do pin** (com sub-telas de atividade) · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Atividades (gerencial + agenda)** · **aba Inteligência**. Nav de 4 abas, nesta ordem: 🗺️ Mapa · 📋 Intel. · 📊 Funil · 🗓️ Atividades. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
 
 ## Contratos e fontes de verdade (rastreabilidade)
 
