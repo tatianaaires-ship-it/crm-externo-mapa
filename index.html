@@ -110,26 +110,29 @@
         <p class="sim-banner" role="status">⚠️ <strong>Dado real com atividades simuladas.</strong>
           Nenhuma visita, check-in ou distância abaixo aconteceu de verdade.</p>
         <div class="ativ-filtros">
-          <!-- Os quatro sempre visíveis. Ficaram recolhidos atrás de um botão
-               "Mais" por um tempo, para poupar altura; filtro que ninguém acha
-               não é filtro. Grade de 2 colunas para caber em 375px. -->
+          <!-- Nenhum filtro fica escondido atrás de botão (uma gaveta "Mais"
+               existiu e foi revertida): o que a AGENDA não usa, ela não mostra
+               E não aplica — filtro invisível seria pior que filtro nenhum.
+               Vendedor e Busca valem nos dois recortes; Tipo, Check-in e
+               Período são só da Gerencial (js/atividades.js os oculta).
+               Grade de 2 colunas para caber em 375px. -->
           <div class="ativ-grid">
             <label class="ativ-sel">
               <span class="ativ-sel__lbl">Vendedor</span>
               <select id="ativ-vend" class="ativ-sel__inp"></select>
             </label>
-            <label class="ativ-sel">
+            <label class="ativ-sel" id="ativ-cel-busca">
+              <span class="ativ-sel__lbl">Buscar</span>
+              <input id="ativ-busca" class="ativ-sel__inp" type="search"
+                     placeholder="nome, razão social ou CNPJ" autocomplete="off" />
+            </label>
+            <label class="ativ-sel" id="ativ-cel-tipo">
               <span class="ativ-sel__lbl">Tipo</span>
               <select id="ativ-tipo" class="ativ-sel__inp"></select>
             </label>
-            <label class="ativ-sel">
+            <label class="ativ-sel" id="ativ-cel-ci">
               <span class="ativ-sel__lbl">Check-in</span>
               <select id="ativ-ci" class="ativ-sel__inp"></select>
-            </label>
-            <label class="ativ-sel">
-              <span class="ativ-sel__lbl">CNPJ</span>
-              <input id="ativ-cnpj" class="ativ-sel__inp" type="search"
-                     inputmode="numeric" placeholder="dígitos" autocomplete="off" />
             </label>
           </div>
           <div id="ativ-periodo" class="ativ-chips" role="group" aria-label="Período"></div>

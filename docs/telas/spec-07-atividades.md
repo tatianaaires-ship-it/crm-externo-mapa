@@ -52,7 +52,7 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 > ⚖️ **Por que 3 e não todas.** Um ponto de recorrência acumula dezenas de atividades; a lista inteira empurrava as **notas** — que a CAP-3 obriga a manter sempre visíveis — para fora da tela. O bloco vira um resumo, e a lista completa ganha tela própria.
 
-> **`Concluir sem check-in` saiu do pin** (28/07). Duas ações primárias competindo, e o caminho de campo é o check-in. ⚠️ **A conclusão remota continua existindo** no modelo (`tipo_checkin = remoto`, [[tarefa]] §4) e no dado semeado — e segue acionável pelo botão `Concluir` do **card da Agenda** (§4). Se a intenção for eliminar a atividade remota do produto, é preciso tirar de lá também e rever o filtro de check-in (§4.1); enquanto os dois existirem, o pin só perdeu o atalho.
+> **`Concluir sem check-in` saiu do pin** (28/07). Duas ações primárias competindo, e o caminho de campo é o check-in. ⚠️ **A conclusão remota continua existindo** no modelo (`tipo_checkin = remoto`, [[tarefa]] §4) e no dado semeado, **mas não tem mais porta de UI nenhuma**: o botão do card da Agenda, que era a última, saiu junto com as ações de execução da Agenda (§4.2). O filtro de check-in também deixou de existir lá — sobrou só na Gerencial, servindo ao dado histórico (§4.1).
 
 ### 2.2 Lista e detalhe: as outras duas telas do sheet
 
@@ -122,22 +122,38 @@ Aba full-screen que **cobre o mapa** (z 25 — mesma camada de Funil e Inteligê
 
 ### 4.1 Barra de filtros da aba
 
-Logo abaixo do segmented control, **um único estado de filtro compartilhado pelos três recortes** — trocar de recorte não perde a seleção. Dois controles:
+Logo abaixo do segmented control, **um estado de filtro só — com dois alcances** (28/07). Trocar de recorte não perde a seleção.
 
-- **Vendedor** — `<select>` com `Todos os vendedores` (default) + os vendedores; o da sessão vem marcado `(eu)`. Filtra por `responsavel_id` **da tarefa**, não por `vendedor_responsavel_id` do pin.
-- **Período** — chips: `Hoje · Ontem · Esta semana · Semana passada · Este mês · Mês passado · 📅 Período`. Default **Este mês**. `📅 Período` revela dois campos `de`/`até` com o **date picker nativo** do sistema (sem calendário próprio: sem build, sem componente novo pra manter). A semana começa na **segunda**; `Esta semana`/`Este mês` vão até o **fim** do período, o que os torna úteis também na Agenda.
+| Controle | Onde aparece | O que filtra |
+|---|---|---|
+| **Vendedor** | os **dois** recortes | `responsavel_id` **da tarefa**, não `vendedor_responsavel_id` do pin. `<select>` com `Todos os vendedores` (default); o da sessão vem marcado `(eu)` |
+| **Buscar** | os **dois** recortes | o **estabelecimento**: nome fantasia · razão social · CNPJ (§4.1.1) |
+| **Tipo de visita** | só a **Gerencial** | `tipo` da tarefa |
+| **Tipo de check-in** | só a **Gerencial** | `presencial`/`remoto` (derivado de `checkin_em`) |
+| **Período** | só a **Gerencial** | chips `Hoje · Ontem · Esta semana · Semana passada · Este mês · Mês passado · 📅 Período`. Default **Este mês**; semana começa na **segunda**. `📅 Período` revela `de`/`até` com o **date picker nativo** (sem build, sem componente novo pra manter) |
 
-Onde cada recorte aplica o período: **Gerencial** em `data` (de planejada e de realizada — §5.1); **Agenda** em `data` da planejada, com o piso extra de **hoje** (§4.2).
+> ⚖️ **Os três da Gerencial não ficam escondidos na Agenda — eles não existem lá.** O controle é ocultado **e o filtro não é aplicado**. Ocultar aplicando seria exatamente o **filtro invisível** que esta barra combate (foi por isso que a gaveta `Mais` caiu). Só o que age aparece; só o que aparece age.
+>
+> **O que isso resolveu de graça:** (1) a Agenda deixou de ter recorte de período, então **o plano inteiro de hoje em diante aparece** — morre o efeito colateral de `Este mês` no dia 27 esconder o plano do mês seguinte; (2) o **filtro de check-in não esvazia mais a Agenda**, porque não está lá — a esquisitice documentada ("`tipo_checkin` só existe em realizada, então a Agenda fica vazia") deixou de existir em vez de virar aviso; (3) a barra da Agenda caiu de três linhas para **uma**, e a altura foi para o calendário.
+>
+> **Preço:** trocar de recorte muda o conjunto sem o usuário mexer em controle nenhum — a Gerencial recorta por período e a Agenda não. É consistente com "cada recorte responde a pergunta dele", e o *hint* de cada um diz o recorte em vigor (`este mês …` × `todo o plano, de hoje em diante`).
 
-**Uma exceção ao período, rotulada na tela** (exceção que não se anuncia é bug): os **gráficos por dia `L7D`** (§5.4). *(Havia duas — o bloco `Atrasadas` da Agenda era a outra, e ele saiu em 28/07: §4.2.)*
+Onde a Gerencial aplica o período: em `data`, de planejada **e** de realizada (§5.1). A **Agenda** não aplica período — só o piso de **hoje** (§4.2).
 
-**Quatro filtros, todos visíveis**, em grade de 2 colunas (~172px por célula em 375px): **Vendedor** · **Tipo de visita** · **Tipo de check-in** (`Presencial` · `Remoto`) · **CNPJ** (busca por dígitos, com *debounce* — não re-renderiza por tecla). Controle com valor diferente de `Todos` fica **marcado em `--brand`**: com quatro lado a lado, é preciso ver de relance quais estão agindo.
+#### 4.1.1 A busca é por estabelecimento, e é a mesma da Inteligência
 
-> **Ficaram um tempo recolhidos atrás de um botão `Mais`** com badge de contagem, para poupar altura (a barra ia de 88px para 127px). Revertido em 28/07: **filtro que não se acha não é filtro**, e a economia de 39px não paga o custo de o usuário não saber que o controle existe. A marcação em `--brand` substitui o badge no papel de mostrar o que está ativo.
+`CRM_DATA.matchBusca(pin, query)` — **uma função para as duas superfícies que buscam pin**: busca que se comporta diferente em duas telas do mesmo app é bug de produto, não variação. Casa com **nome fantasia**, **razão social** ou **CNPJ**:
 
-> **O filtro de check-in esvazia a Agenda de propósito.** `tipo_checkin` só existe em tarefa realizada; com `Presencial` ou `Remoto` ativo, o recorte Agenda fica vazio — não é bug, é a resposta correta ("nenhuma planejada tem check-in ainda").
+- **acento-insensível** nos nomes (`mare` acha `Maré Alta`);
+- no CNPJ compara **só dígitos**, então `14066` acha `14.066.645/0001-46` sem digitar pontuação.
 
-> ⚠️ **Efeito colateral do filtro único:** com `Este mês` no dia 27, a Agenda esconde o que está marcado para o mês seguinte. É o preço de um estado compartilhado — o vendedor troca para `📅 Período` ou para um preset mais largo. Se incomodar no uso, a saída é dar à Agenda um default próprio (`sem recorte`), não quebrar o compartilhamento.
+> **Era só CNPJ por dígitos, com o rótulo `CNPJ` e placeholder `dígitos`.** Buscar o ponto pelo nome é o gesto natural de quem está em campo, e o CNPJ é o que menos se sabe de cabeça. **Efeito colateral bem-vindo:** a Inteligência, que já buscava os três campos, herdou o casamento por dígitos — antes ela só achava CNPJ se o usuário digitasse a pontuação.
+
+**Uma exceção ao período, rotulada na tela** (exceção que não se anuncia é bug): os **gráficos por dia `L7D`** (§5.4) — e ela vive **dentro da Gerencial**, o único recorte que tem período. *(Havia duas: o bloco `Atrasadas` da Agenda era a outra, e saiu em 28/07 — §4.2. A Agenda inteira deixou de ter período, então não há o que excetuar lá.)*
+
+**Nada fica atrás de botão.** Grade de 2 colunas (~172px por célula em 375px): a Gerencial ocupa duas linhas + a trilha de chips; a **Agenda usa uma linha só**. Controle com valor diferente de `Todos` (ou com texto na busca) fica **marcado em `--brand`** — lado a lado, é preciso ver de relance quais estão agindo. A busca usa *debounce*, nunca re-render por tecla.
+
+> **Filtros ficaram um tempo recolhidos atrás de um botão `Mais`** com badge de contagem, para poupar altura (a barra ia de 88px para 127px). Revertido em 28/07: **filtro que não se acha não é filtro**, e a economia de 39px não paga o custo de o usuário não saber que o controle existe. A marcação em `--brand` substitui o badge no papel de mostrar o que está ativo. ⚖️ **A redução por recorte (28/07) não contradiz isso:** esconder um controle **que não age** é o oposto de esconder um que age.
 
 O filtro **não persiste** entre sessões (nada de `localStorage` até a Fase 4).
 
@@ -175,7 +191,7 @@ Antes era uma pilha de cards de atividade agrupada por dia, com `Atrasadas` no t
 
 Sub-visão, **não aba própria**: é o mesmo dado com outro recorte ([[tarefa]] §5 — agregação pura), e uma 5ª aba para a única tela de liderança não se paga.
 
-- **Seletor de período** — **não vive mais aqui**: subiu para a barra da aba (§4.1) e passou a valer nos três recortes. O vocabulário `7 · 30 · 90 dias` foi substituído por presets de calendário, e o intervalo custom **saiu do parking**.
+- **Seletor de período** — mora na barra da aba (§4.1), não aqui dentro. O vocabulário `7 · 30 · 90 dias` foi substituído por presets de calendário, e o intervalo custom **saiu do parking**. ⚖️ **Ele subiu para a barra para valer nos dois recortes e, em 28/07, voltou a ser exclusivo desta sub-visão** — a Agenda não recorta por período (§4.1). O controle segue na barra (é lá que moram os filtros da aba), mas só aparece quando a Gerencial está na tela.
 
 ### 5.1 Hierarquia em três níveis
 
@@ -191,7 +207,7 @@ O problema que esta estrutura resolve não era falta de gráfico — era **falta
 
 > ⚖️ **"Planejadas" é o PLANO DO PERÍODO** — todas as tarefas com data no recorte, **realizadas incluídas**. Tinha que ser: se contasse só quem continua `planejada`, os dois conjuntos seriam **disjuntos** (o plano vive no futuro, o feito no passado) e "16 de 38" não significaria coisa alguma. É a mesma leitura dos gráficos L7D (§5.4), e é o que faz a taxa de execução existir.
 
-> **`Atrasadas hoje` saiu da KPI row** (28/07) — os três tiles agora contam **uma** história encadeada, e a dívida vencida era um quarto assunto no meio dela. Continua no topo da **Agenda**, em bloco fixo e fora do filtro de período (§4.1), que é onde se age sobre ela.
+> **`Atrasadas hoje` saiu da KPI row** (28/07) — os três tiles agora contam **uma** história encadeada, e a dívida vencida era um quarto assunto no meio dela. ⚠️ **Na mesma semana a dívida perdeu o resto das superfícies:** o bloco fixo da Agenda saiu e a Agenda deixou de contá-la (§4.2). Hoje a tarefa vencida só existe **como linha da tabela** do §5.4, sem marca. É intencional.
 2. **Quebras**, cada uma com a forma que o trabalho pede (§5.2).
 3. **Detalhe** — gráficos por dia e a tabela de atividades (§5.4).
 
@@ -199,7 +215,7 @@ O problema que esta estrutura resolve não era falta de gráfico — era **falta
 
 > ⚖️ **A gerencial mostra o plano ao lado da execução.** Deixou de ser recorte só de `realizada`: `Planejadas` e `Atrasadas hoje` vêm de `status = planejada`. É a pergunta real da supervisão — *"está rodando conforme o combinado?"* — que o total de realizadas sozinho não responde.
 
-> ⚖️ **`Atrasadas hoje` ignora o filtro de período**, mesma regra da Agenda (§4.1). Por isso a palavra **"hoje"** está no rótulo: sem ela, em `Mês passado` o número leria como "2 atrasadas no mês passado" quando são as vencidas de agora. O tile leva ao recorte Agenda.
+> ⛔ **O tile `Atrasadas hoje` não existe mais** (removido em 28/07, acima). Ficava fora do filtro de período e por isso levava **"hoje"** no rótulo — sem a palavra, em `Mês passado` o número leria como "2 atrasadas no mês passado" quando eram as vencidas de agora. Registrado porque a regra vale para qualquer número que um dia volte a ignorar o período: **o rótulo tem que dizer o recorte real**.
 
 ### 5.2 As formas, por trabalho
 
@@ -300,7 +316,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Bottom nav de 3 → 4 abas** altera o [[spec-00-design-system]] §5/§5.2. Com 4 abas os rótulos encurtam (`Intel.`); abaixo de 360px o rótulo pode ceder ao ícone. A ordem final agrupa por natureza — base (Mapa · Intel.) e depois pipeline (Funil · Atividades).
 - **A quickbar some no Funil e nas Atividades**, não na Inteligência. Intel. é a *mesma base* do mapa em forma de lista, onde o filtro de pin é a ferramenta principal; Funil e Atividades são recortes de trabalho, onde ele é ruído. Consequência aceita: o filtro do mapa fica menos evidente nessas duas — mitigado pelo pill do head (§6), não eliminado.
 - **Visão gerencial é sub-visão**, não aba (§5) — **e é a que abre por padrão** (§4). As duas coisas convivem: continua não valendo uma 5ª aba, mas é ela que dá o contexto de entrada.
-- **Um filtro só para os três recortes** (§4.1), não um por sub-aba. Trocar de recorte mantém a pergunta ("este vendedor, neste período") e muda só a lente. O custo é o efeito colateral do §4.1.
+- **Um estado de filtro só, com dois alcances** (§4.1). `vendedor` e `busca` valem nos dois recortes e sobrevivem à troca — é a pergunta ("este vendedor, este ponto") que se mantém. `tipo`, `check-in` e `período` são da Gerencial: **o controle desaparece e o filtro deixa de agir**, nunca um sem o outro. Alternativa recusada: manter os cinco visíveis nos dois — era o que havia, e punha na Agenda um recorte de período que escondia plano futuro e um filtro de check-in que a esvaziava.
 - **A Agenda é calendário de rotas, de hoje em diante** (§4.2) — sem atrasadas, sem sugestões, sem check-in e sem concluir. A alternativa (manter tudo e só reagrupar por dia) devolvia a pilha que não deixava ver de qual dia era cada coisa.
 - **Atraso não é assunto da Agenda, nem por referência** (§4.2). Decisão de produto de 28/07: nem bloco, nem badge, nem contagem, nem atalho. É a única "omissão não anunciada" aceita na aba — e é aceita porque anunciar já seria dar o destaque que se quis remover.
 - **[[rota]] entrou como RASCUNHO declarado**, contra o que a [[tarefa]] §6 dizia (Rota é Fase 4, tarefa não é parada). O que entrou é identidade + nome + dia + dono; **sequenciamento continua fora**, e é ele que faz o objeto da Fase 4. Alternativa recusada: agrupar por `(vendedor, dia)` derivado — não distinguia rota de avulsa, e era justamente a distinção pedida.

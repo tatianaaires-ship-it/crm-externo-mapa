@@ -217,6 +217,8 @@ Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e 
 ### 6.9 Card de lead (aba Inteligência)
 Linha com dot de origem (mesmas pistas do pin), nome, sub, CNPJ e badge de qualidade. Toque foca o pin correspondente no mapa.
 
+> **Busca de estabelecimento — uma só para o produto** (`CRM_DATA.matchBusca`, 28/07): **nome fantasia · razão social · CNPJ**, acento-insensível nos nomes e **por dígitos** no CNPJ (`14066` acha `14.066.645/0001-46`). Usada pela Inteligência **e** pela barra de filtros da aba Atividades (§6.12) — busca que se comporta diferente em duas telas do mesmo app é bug de produto, não variação. Rótulo `Buscar`, placeholder que **nomeia os três campos**: campo de busca que não diz o que aceita faz o usuário testar.
+
 ### 6.10 Segmented control (`.seg`)
 Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (Gerencial · Agenda — [[spec-07-atividades]] §4).
 
@@ -226,7 +228,9 @@ Pill pequeno `--brand` sobre `--brand-050`, no *head* das abas que escondem a qu
 ### 6.12 Barra de filtros de aba (`.ativ-filtros`)
 Faixa `--surface-2` logo abaixo do segmented control, separada por `--line`. Peças: **grade de 2 colunas** (`.ativ-grid`) de **`<select>`/`<input>`** rotulados (`.ativ-sel`) · **trilha de chips rolável na horizontal** (`.ativ-chips` — reusa o chip do §6.2, ativo `is-on`; a trilha sangra o padding lateral com `margin: 0 -12px` para o chip não parecer cortado, e esconde a barra de rolagem) · **par de `input[type="date"]`** (`.ativ-custom`, revelado só no preset personalizado — precisa de `[hidden]{display:none}` explícito porque `display:flex` vence o `[hidden]` do UA).
 
-> **Filtro não se esconde.** Uma gaveta "Mais" chegou a existir aqui e foi removida: economizava 39px de altura ao custo de o usuário não descobrir os controles. Em vez de esconder, **marcar** — controle com valor diferente de `Todos` ganha `.is-on` e vira `--brand`, para dar de relance a leitura do que está agindo. Mesmo princípio do pill de filtro herdado (§6.11). Busca em campo de texto usa *debounce*, nunca re-render por tecla.
+> **Filtro não se esconde — mas filtro que não age não aparece.** Uma gaveta "Mais" chegou a existir aqui e foi removida: economizava 39px de altura ao custo de o usuário não descobrir os controles. Em vez de esconder, **marcar** — controle com valor diferente de `Todos` ganha `.is-on` e vira `--brand`, para dar de relance a leitura do que está agindo. Mesmo princípio do pill de filtro herdado (§6.11). Busca em campo de texto usa *debounce*, nunca re-render por tecla.
+>
+> ⚖️ **A barra pode variar por recorte** (28/07): na aba Atividades, três dos cinco controles existem só na Gerencial e a Agenda mostra dois. A regra que continua valendo é o **par indissociável** — o controle desaparece **e** o filtro deixa de ser aplicado. Esconder um controle que continua filtrando é o filtro invisível que esta barra existe para evitar; esconder um que não filtra é só não mentir sobre o que a tela faz. Cada célula oculta usa `[hidden]` + a regra explícita `.ativ-sel[hidden]{display:none}` (`[hidden]` perde para `display:flex`).
 
 > Filtro de **conteúdo da aba**, não do mapa: nunca escreve na quickbar. O `input[type=date]` é **nativo de propósito** (sem build, date picker do sistema no Android) e é o único controle do app fora dos tokens.
 

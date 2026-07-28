@@ -20,10 +20,7 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  // normaliza p/ busca acento-insensível
-  function norm(s) {
-    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  }
+  // (a normalização acento-insensível mora em CRM_DATA.matchBusca)
   function cityOf(p) {
     const meta = D.ZONE_META[p.zone];
     return meta ? meta.city + '/' + meta.uf : '';
@@ -33,14 +30,13 @@
     return i < 0 ? 99 : i; // Ouro(0) < Prata(1) < Bronze(2)
   }
 
+  // Nome fantasia · razão social · CNPJ — a MESMA função da barra da aba
+  // Atividades (CRM_DATA.matchBusca): busca igual nas duas telas que buscam pin.
+  // Ganho para esta tela: o CNPJ passou a casar por dígitos, então "14066"
+  // acha "14.066.645/0001-46" — antes exigia digitar a pontuação.
   function applySearch(list) {
     if (!query) return list;
-    const q = norm(query);
-    return list.filter(function (p) {
-      return norm(p.name).indexOf(q) >= 0 ||
-             norm(p.razaoSocial).indexOf(q) >= 0 ||
-             norm(p.cnpj).indexOf(q) >= 0;
-    });
+    return list.filter(function (p) { return D.matchBusca(p, query); });
   }
 
   function sortLeads(list) {

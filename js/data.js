@@ -588,6 +588,28 @@
   /* Minutos desde a meia-noite → "HH:MM" (hora é opcional na tarefa — §4). */
   function hhmm(min) { return pad2(Math.floor(min / 60)) + ':' + pad2(min % 60); }
 
+  /* ---- Busca de estabelecimento: nome fantasia · razão social · CNPJ ----
+     UMA função para as duas superfícies que buscam pin (Inteligência e a
+     barra da aba Atividades) — busca que se comporta diferente em duas telas
+     do mesmo app é bug de produto, não variação.
+     Acento-insensível nos nomes; no CNPJ compara **só dígitos**, para que
+     "14066" ache "14.066.645/0001-46" sem o usuário digitar a pontuação. */
+  function norm(s) {
+    return String(s == null ? '' : s).normalize('NFD')
+      .replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+
+  function matchBusca(p, query) {
+    const q = norm(query).trim();
+    if (!q) return true;
+    if (!p) return false;
+    if (norm(p.name).indexOf(q) >= 0) return true;
+    if (norm(p.razaoSocial).indexOf(q) >= 0) return true;
+    const d = soDigitos(q);
+    return !!d && soDigitos(p.cnpj).indexOf(d) >= 0;
+  }
+
   function buildTarefas(pins, opts) {
     const out = [];
     const rotas = [];          // ⚠️ RASCUNHO do objeto Rota (docs/objetos/rota.md)
@@ -955,6 +977,7 @@
     statusAvanca: statusAvanca,
     deriveOrigemConfianca: deriveOrigemConfianca,
     isoPlus: isoPlus,
+    matchBusca: matchBusca,
     buildSeed: buildSeed,
     buildTarefas: buildTarefas,
     reconcileStatus: reconcileStatus

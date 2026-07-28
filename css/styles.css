@@ -724,6 +724,9 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
    ~172px, o que comporta rótulo + controle sem cortar. */
 .ativ-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .ativ-sel { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* A Agenda oculta Tipo, Check-in e Período (só a Gerencial os usa). `[hidden]`
+   perde para `display:flex/grid`, então cada um precisa da regra explícita. */
+.ativ-sel[hidden], .ativ-chips[hidden] { display: none; }
 .ativ-sel__inp.is-on { border-color: var(--brand); color: var(--brand); font-weight: 700; }
 .ativ-sel__lbl, .ativ-custom label {
   font-size: 10.5px; font-weight: 800; text-transform: uppercase;

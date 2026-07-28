@@ -22,16 +22,21 @@
 
   let bodyEl, countEl, hintEl, emptyEl, emptyMsgEl;
   let vendEl, periodoEl, customEl, deEl, ateEl, tipEl;
-  let tipoEl, ciEl, cnpjEl;
+  let tipoEl, ciEl, buscaEl, celTipoEl, celCiEl;
   let showMap = function () {};
   let recorte = 'gerencial';     // gerencial | agenda
   let drill = null;              // {campos:[], valores:[]} — lista detalhada da gerencial
   let ordem = { col: 'data', dir: 'desc' };   // ordenação da tabela detalhada
   let idsVisiveis = null;        // Set dos pins que passaram no filtro do mapa
 
-  /* Filtro da aba — UM só estado, compartilhado pelos três recortes.
+  /* Filtro da aba — UM só estado, mas com DOIS alcances (28/07):
+       · `vendedor` e `busca` valem nos dois recortes;
+       · `tipo`, `checkin` e `periodo` são SÓ da Gerencial — na Agenda os
+         controles são ocultados **e** o filtro não é aplicado. Ocultar
+         aplicando criaria filtro invisível, que é o pecado que esta barra
+         combate (spec-07 §4.1).
      Não persiste (mock de sessão; nada de localStorage até a Fase 4). */
-  const filtro = { vendedor: 'todos', tipo: 'todos', checkin: 'todos', cnpj: '',
+  const filtro = { vendedor: 'todos', tipo: 'todos', checkin: 'todos', busca: '',
                    periodo: 'este_mes', de: null, ate: null };
   const CHECKIN = { presencial: 'Presencial', remoto: 'Remoto' };
 
@@ -113,25 +118,29 @@
     return fmtDia(r.de) + ' a ' + fmtDia(r.ate);
   }
 
-  /* Tarefas dos pins do conjunto filtrado do mapa, já recortadas por vendedor.
-     O período NÃO entra aqui: cada recorte aplica no campo de data que é dele
-     (e a Agenda isenta as atrasadas). */
-  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
-
-  function tarefasVisiveis() {
-    const cnpj = soDigitos(filtro.cnpj);
+  /* Nível 1 — o que vale nos DOIS recortes: conjunto filtrado do mapa +
+     vendedor + busca (nome fantasia · razão social · CNPJ, via
+     CRM_DATA.matchBusca, a mesma da Inteligência). O período não entra aqui:
+     cada recorte decide o que faz com data. */
+  function tarefasBase() {
+    const q = String(filtro.busca || '').trim();
     return S.getTarefas().filter(function (t) {
       if (idsVisiveis && !idsVisiveis.has(t.estabelecimentoId)) return false;
       if (filtro.vendedor !== 'todos' && t.responsavelId !== filtro.vendedor) return false;
+      if (q && !D.matchBusca(S.getById(t.estabelecimentoId), q)) return false;
+      return true;
+    });
+  }
+
+  /* Nível 2 — só a GERENCIAL: soma `tipo` e `tipo de check-in`, cujos controles
+     não aparecem na Agenda. */
+  function tarefasVisiveis() {
+    return tarefasBase().filter(function (t) {
       if (filtro.tipo !== 'todos' && t.tipo !== filtro.tipo) return false;
-      // Check-in é DERIVADO: planejada ainda não tem, então some com este filtro.
+      // Check-in é DERIVADO: planejada ainda não tem, então nunca casa.
       if (filtro.checkin !== 'todos') {
         const ci = t.status === 'realizada' ? (t.checkinEm ? 'presencial' : 'remoto') : null;
         if (ci !== filtro.checkin) return false;
-      }
-      if (cnpj) {
-        const p = S.getById(t.estabelecimentoId);
-        if (!p || soDigitos(p.cnpj).indexOf(cnpj) < 0) return false;
       }
       return true;
     });
@@ -246,10 +255,11 @@
   }
 
   function renderAgenda() {
-    // De hoje em diante: a Agenda é o plano, e nada mais. O que venceu não é
-    // destacado, contado nem apontado aqui — decisão de produto (spec-07 §4.2).
-    const base = tarefasVisiveis().filter(function (t) {
-      return t.status === 'planejada' && t.data >= hoje() && noPeriodo(t.data);
+    // De hoje em diante, o plano INTEIRO: a Agenda não tem recorte de período
+    // (o chip é só da Gerencial — §4.1), então nada de plano futuro fica de
+    // fora. O que venceu não é destacado, contado nem apontado aqui.
+    const base = tarefasBase().filter(function (t) {
+      return t.status === 'planejada' && t.data >= hoje();
     });
 
     // Agrupa por dia e, dentro do dia, por rota (`rotaId`) ou avulsa.
@@ -270,7 +280,7 @@
     countEl.textContent = nRotas
       ? plural(nRotas, 'rota', 'rotas') + ' · ' + plural(base.length, 'atividade', 'atividades')
       : plural(base.length, 'atividade', 'atividades');
-    setHint(rotuloPeriodo() + ' · de hoje em diante');
+    setHint('todo o plano, de hoje em diante');
     emptyMsgEl.textContent = 'Nada planejado neste recorte.';
     emptyEl.classList.toggle('is-visible', base.length === 0);
     if (!base.length) return (bodyEl.innerHTML = '');
@@ -850,9 +860,21 @@
     if (alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  /* Tipo, Check-in e Período são filtros da Gerencial. Na Agenda eles não
+     aparecem — e `tarefasBase()` também não os aplica, então esconder não
+     cria filtro invisível. Só os DOIS que valem nos dois recortes ficam. */
+  function pintaEscopo() {
+    const soGerencial = recorte === 'gerencial';
+    [celTipoEl, celCiEl, periodoEl].forEach(function (el) {
+      if (el) el.hidden = !soGerencial;
+    });
+    if (customEl) customEl.hidden = !soGerencial || filtro.periodo !== 'personalizado';
+  }
+
   function setRecorte(r) {
     recorte = r;
     if (r !== 'gerencial') drill = null;
+    pintaEscopo();
     SEG.forEach(function (pair) {
       const el = document.getElementById(pair[0]);
       if (!el) return;
@@ -869,13 +891,15 @@
     Array.prototype.forEach.call(periodoEl.children, function (el) {
       el.classList.toggle('is-on', el.dataset.p === filtro.periodo);
     });
-    if (customEl) customEl.hidden = filtro.periodo !== 'personalizado';
+    if (customEl) {
+      customEl.hidden = recorte !== 'gerencial' || filtro.periodo !== 'personalizado';
+    }
   }
-  // Controle com valor diferente de "Todos" fica marcado em --brand: quatro
-  // filtros lado a lado precisam dizer, de relance, quais estão agindo.
+  // Controle com valor diferente de "Todos" fica marcado em --brand: filtros
+  // lado a lado precisam dizer, de relance, quais estão agindo.
   function pintaAtivos() {
     [[vendEl, filtro.vendedor !== 'todos'], [tipoEl, filtro.tipo !== 'todos'],
-     [ciEl, filtro.checkin !== 'todos'], [cnpjEl, !!soDigitos(filtro.cnpj)]]
+     [ciEl, filtro.checkin !== 'todos'], [buscaEl, !!String(filtro.busca || '').trim()]]
       .forEach(function (p) { if (p[0]) p[0].classList.toggle('is-on', p[1]); });
   }
   function montaFiltros() {
@@ -912,12 +936,12 @@
         filtro.checkin = ciEl.value; drill = null; pintaAtivos(); render();
       });
     }
-    if (cnpjEl) {
+    if (buscaEl) {
       let deb;
-      cnpjEl.addEventListener('input', function () {
+      buscaEl.addEventListener('input', function () {
         clearTimeout(deb);
         deb = setTimeout(function () {         // não re-renderiza a cada tecla
-          filtro.cnpj = cnpjEl.value; drill = null; pintaAtivos(); render();
+          filtro.busca = buscaEl.value; drill = null; pintaAtivos(); render();
         }, 220);
       });
     }
@@ -950,6 +974,7 @@
     });
     pintaChips();
     pintaAtivos();
+    pintaEscopo();
   }
 
   function init(opts) {
@@ -965,7 +990,9 @@
     ateEl = document.getElementById('ativ-ate');
     tipoEl = document.getElementById('ativ-tipo');
     ciEl = document.getElementById('ativ-ci');
-    cnpjEl = document.getElementById('ativ-cnpj');
+    buscaEl = document.getElementById('ativ-busca');
+    celTipoEl = document.getElementById('ativ-cel-tipo');
+    celCiEl = document.getElementById('ativ-cel-ci');
     showMap = (opts && opts.showMap) || showMap;
 
     // Tooltip dos gráficos por dia. Vive fora do body (que rola) e é
