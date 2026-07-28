@@ -67,7 +67,13 @@ CREATE TABLE tarefa (
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
   CHECK (resultado <> 'perdido' OR motivo_perda IS NOT NULL),
-  CHECK (resultado <> 'desqualificado' OR motivo_desqualificacao IS NOT NULL)
+  CHECK (resultado <> 'desqualificado' OR motivo_desqualificacao IS NOT NULL),
+  -- REALIZADA exige os DOIS extremos: sem check-in nao houve presenca, sem
+  -- check-out a visita nao fechou. E vale ao contrario: quem tem check-out
+  -- esta realizada. Ver §5.
+  CHECK (status <> 'realizada' OR (checkin_em IS NOT NULL AND checkout_em IS NOT NULL)),
+  CHECK (checkout_em IS NULL OR status = 'realizada'),
+  CHECK (checkout_em IS NULL OR checkin_em IS NOT NULL)
 );
 ```
 
@@ -118,7 +124,16 @@ CREATE TABLE tarefa (
 
 ## 5. Campos derivados / calculados
 
-- **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada`. **`checkin_em` é pré-requisito:** sem presença registrada não há conclusão, e a tarefa fica **não realizada** (segue `planejada`, e a tabela da gerencial mostra `Realizado = Não`). `cancelada` só por ação explícita (**não há deletar** — §8).
+- **`status`** — nasce `planejada`. **`realizada` ⟺ tem `checkin_em` E `checkout_em`** — a equivalência vale nos dois sentidos, e está cravada em três `CHECK` do §3:
+
+| Estado da tarefa | `checkin_em` | `checkout_em` | `status` |
+|---|---|---|---|
+| ainda não fui | — | — | `planejada` (**não realizada**) |
+| **visita em andamento** | ✓ | — | `planejada` — ainda não realizada |
+| visita fechada | ✓ | ✓ | **`realizada`** |
+| cancelada | — | — | `cancelada` (ação explícita; **não há deletar** — §8) |
+
+  Sem check-in não houve presença; sem check-out a visita **não fechou** — e é o check-out que carrega o `resultado`, sem o qual o funil não tem como se mover. Nos dois casos a tarefa fica **não realizada**, e a tabela da gerencial mostra `Realizado = Não`. `cancelada` só por ação explícita.
   > ⚠️ **Isto mudou em 28/07, e reverte a regra anterior.** O doc dizia que *"concluir sem check-in é válido — atividade remota, ex. follow-up por telefone"*. **Não é:** `remoto` não é a ausência de check-in, é o check-in feito **longe** do pin (§5, `tipo_checkin`). Sem check-in nenhum, `tipo_checkin` é **NULL** e não há o que concluir. Decisão Tatiana: *"sem check-in a tarefa não fica nem remota nem presencial, isso ficaria nulo — mas a tarefa ficaria como não realizada"*.
   > ⚖️ **A tarefa pode nascer do próprio check-in** (28/07, CAP-6 revisada): não é preciso planejar para visitar. Se o pin não tem planejada de hoje/atrasada, o check-in **cria** a tarefa datada de hoje e já a abre. Planejada futura **não é reescrita** — a visita de hoje é fato novo, e mexer na data do plano seria decidir pelo vendedor que aquele compromisso morreu. Ver [[spec-07-atividades]] §2.3.
 - **`data`, ao fazer check-in numa tarefa ATRASADA, vem para hoje.** Em planejada a data é quando se pretende ir; em realizada é **quando aconteceu** — e é dela que saem a tabela e os gráficos por dia. Manter a data velha poria a visita no dia errado, com `checkin_em` de hoje na coluna ao lado.
@@ -202,6 +217,7 @@ CREATE TABLE tarefa (
 - **Tarefa `planejada` é editável no `tipo`; realizada, em nada.** O **check-out é o último instante** dessa janela: o sheet de conclusão grava o tipo confirmado no mesmo ato em que fecha a atividade. Depois disso a tarefa é **registro** — nenhum campo se edita, e corrigir desfecho exige concluir uma nova atividade (§5).
 - **Check-in/out é a Tarefa** — sinônimos. Não há objeto `Visita`, e não há caminho alternativo pra registrar uma atividade de campo. ⚠️ **A resposta à pergunta aberta do Notion mudou** (Fase 3, item 4 — *"vale fazer outro tipo de atividade sem ser check-in?"*): era *"sim, é a mesma Tarefa concluída sem `checkin_em`"*; desde 28/07 é **não** — sem check-in a atividade fica **não realizada** (§5). O que existe é visita **remota**, que tem check-in e é feita de longe.
 - **Uma coleção só** pra planejado e realizado; `status` distingue.
+- **`realizada` ⟺ check-in E check-out** (§5). Não há realizada pela metade: sem presença não houve visita, sem fechamento não houve `resultado` — e sem `resultado` o funil não se move. **Visita em andamento** (check-in aberto) continua `planejada`, e é o único estado com um extremo só.
 - **O `resultado` move as etapas de campo do funil**, monotonicamente na escada. **Não move `csc`/`aquisicao`** — esses são derivados do ERP e prevalecem ([[estabelecimento]] §5). O invariante do `status` deixa de ser "muda só por fluxo" e passa a ser **"nunca é digitado"**: ou vem de tarefa concluída, ou vem do ERP.
 - **Motivo é obrigatório nos dois desfechos negativos**, de **vocabulário fechado** + `outro` com texto: `motivo_perda` quando `resultado = perdido`, `motivo_desqualificacao` quando `resultado = desqualificado`. Ambos movem o pin para a saída lateral correspondente.
 - **`perdido` e `desqualificado` são estados revisáveis, nunca exclusão** — o pin **segue visível no mapa** e o filtro apenas oculta. Só acontecem **por tarefa concluída** (constatação de campo tem autor e data), nunca por toque solto no pin; e **voltar de lá também exige tarefa** (§5). A diferença entre os dois vive no **motivo**, não na mecânica: `perdido` = a negociação morreu, o ponto segue oportunidade; `desqualificado` = o ponto não é oportunidade.
