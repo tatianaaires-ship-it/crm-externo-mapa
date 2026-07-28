@@ -158,7 +158,9 @@ CREATE TABLE tarefa (
 | distância **> raio** | `remoto` — registrou a visita de fora (ligou, falou no portão, passou de longe) |
 | **sem check-in** | `NULL` — e a tarefa não é realizada |
 
-  O **raio é parâmetro de negócio**, não constante de código: `RAIO_PRESENCIAL_KM = 0,3` no protótipo, porque 300m dão folga ao erro de GPS de celular em rua fechada (~20–50m) sem deixar passar quem está a duas quadras. **Quem define de verdade é a supervisão, no Admin da Fase 4** — e mexer nele reclassifica o histórico, o que é justamente por que ele precisa ser explícito e não escondido.
+  O **raio é parâmetro de negócio**, não constante de código: `RAIO_PRESENCIAL_KM = 0,5`. E o valor **não é palpite de protótipo** — **500m é o critério que a operação da Praso já usa hoje** (Tatiana, 28/07), então o app nasce classificando igual ao que o time já pratica. De brinde, 500m dão folga larga ao erro de GPS de celular em rua fechada (~20–50m).
+
+  ⚖️ **Por que fica nomeado e num lugar só:** mexer no raio **reclassifica o histórico** — a mesma visita de 400m era remota com 0,3 e é presencial com 0,5. Isso faz dele regra de supervisão (Admin, Fase 4), não número escondido no meio de uma função.
 
   ⚖️ **Por que a distância e não a ausência.** Uma tarefa sem check-in não é uma visita de outro tipo — é uma visita que **não aconteceu**. Derivar `remoto` da ausência confundia as duas coisas e produzia o efeito colateral de a gerencial contar como *realizada remota* algo que ninguém tinha feito. Com a distância no comando, `remoto` passa a descrever um fato observado (ele estava a 1,2 km) e `NULL` a descrever a falta de fato.
 - **`distancia_km`** — calculada **uma vez**, no check-in, e persistida. Não é recalculável depois (o vendedor já saiu de lá), e é o que dá lastro ao check-in presencial. Enquanto não houver GPS (Fase 3/4), o protótipo **semeia valor fictício**.

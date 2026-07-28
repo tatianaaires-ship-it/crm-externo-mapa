@@ -607,10 +607,13 @@
      de carro). Sem check-in nenhum, o campo é **NULL** e a tarefa não é
      realizada: sem presença registrada não há o que classificar.
 
-     ⚠️ O raio é PARÂMETRO DE NEGÓCIO provisório. 300m dá folga ao erro de GPS
-     de celular em rua fechada (~20–50m) sem deixar passar quem está a duas
-     quadras. Quem define de verdade é a supervisão, no Admin da Fase 4. */
-  const RAIO_PRESENCIAL_KM = 0.3;
+     ⚠️ O raio é PARÂMETRO DE NEGÓCIO, e este valor não é palpite: **500m é o
+     critério que a operação da Praso já usa hoje** (Tatiana, 28/07). Fica
+     nomeado e num lugar só porque mexer nele RECLASSIFICA o histórico — não é
+     constante de código, é regra que a supervisão vai querer ajustar (Admin,
+     Fase 4). De brinde, 500m dão folga larga ao erro de GPS de celular em rua
+     fechada (~20–50m). */
+  const RAIO_PRESENCIAL_KM = 0.5;
 
   function deriveTipoCheckin(t) {
     if (!t || !t.checkinEm) return null;               // sem check-in: nulo
@@ -664,9 +667,11 @@
       /* `distancia_km` existe SEMPRE que houve check-in — é ela que decide
          presencial × remoto (deriveTipoCheckin). Sem check-in não há medição
          nem classificação: os dois campos ficam nulos.
-         A distribuição: 85% das visitas acontecem na porta (0–250m) e 15% de
-         algum lugar mais longe (0,35–4 km) — é o que faz a coluna `Remoto` da
-         gerencial existir com a razão certa, em vez de vir de tarefa sem
+         A distribuição: 85% das visitas acontecem na porta (0–300m) e 15% de
+         algum lugar mais longe (0,55–4 km) — as duas faixas ficam **fora da
+         zona de dúvida** do raio de 500m, para que ajustar o parâmetro não
+         reclassifique meio dataset de uma vez. É o que faz a coluna `Remoto`
+         da gerencial existir com a razão certa, em vez de vir de tarefa sem
          check-in. Derivada no check-in (GPS × geo do pin), nunca digitada. */
       const temCheckin = !!t.checkinEm;
       out.push({
@@ -680,8 +685,8 @@
         checkoutEm: t.checkoutEm || null,
         distanciaKm: !temCheckin ? null
           : (t.distanciaKm != null ? t.distanciaKm
-            : (rnd() < 0.85 ? Math.round(rnd() * 25) / 100          // até 250m: presencial
-                            : Math.round(35 + rnd() * 365) / 100)), // 0,35–4 km: remoto
+            : (rnd() < 0.85 ? Math.round(rnd() * 30) / 100           // até 300m: presencial
+                            : Math.round(55 + rnd() * 345) / 100)),  // 0,55–4 km: remoto
         // Hora MARCADA (opcional) e a rota a que a parada pertence (null = avulsa).
         hora: t.hora || null,
         rotaId: t.rotaId || null,
