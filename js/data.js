@@ -574,7 +574,7 @@
     'Comprou do concorrente esta semana.'
   ];
 
-  function buildTarefas(pins) {
+  function buildTarefas(pins, opts) {
     const out = [];
     let seq = 0;
 
@@ -746,6 +746,23 @@
                    notas: rnd() < 0.2 ? umDe(NOTAS_CAMPO) : null });
         }
       });
+    }
+
+    /* Promoção opcional a TD encontrado — só o DADO REAL usa (`opts.promoverTd`).
+       A régua do snapshot só conhece Cadastrado / visitado / não visitado, então
+       sem isto a coluna "TD encontrado" nasce vazia no board mesmo com tarefas
+       simuladas. Roda por último e data de HOJE: o `reconcileStatus` é last-wins,
+       então esta tarefa é a que manda no pin. No fictício, `opts` vem vazio e
+       nada aqui executa — o board fictício não se mexe. */
+    const nTd = (opts && opts.promoverTd) || 0;
+    if (nTd) {
+      const hj = diaUtil(isoLocal(new Date()), false);
+      pins.filter(function (p) { return p.status === 'visitado'; })
+          .slice(0, nTd)
+          .forEach(function (p) {
+            realizada(p, 'follow_up', hj, 'td_encontrado',
+              { notas: 'Falei com o dono; retomar proposta.' });
+          });
     }
 
     return out;

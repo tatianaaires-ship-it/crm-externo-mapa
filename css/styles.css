@@ -702,6 +702,18 @@ body.view-funil .quickbar, body.view-ativ .quickbar { display: none; }
 }
 .seg__btn.is-active { color: var(--brand); border-bottom-color: var(--brand); }
 
+/* Faixa de dado simulado: só existe em modo real (spec-07 §5.6). Âmbar, não
+   Danger — não é erro, é aviso de procedência. Fica FORA da área que rola,
+   para sobreviver a print recortado e a scroll. */
+.sim-banner { display: none; }
+body.real-mode .sim-banner {
+  display: block; flex: 0 0 auto; margin: 0;
+  font-size: 11.5px; line-height: 1.35; color: #7c2d12;
+  background: #fef3c7; border-bottom: 1px solid #f59e0b;
+  padding: 7px 12px;
+}
+body.real-mode .sim-banner strong { color: #7c2d12; }
+
 /* Barra de filtros da aba (SPEC 07 §6) — vendedor + período, valem para os
    TRÊS recortes. É filtro de TAREFA: não entra na quickbar e não mexe nos pins. */
 .ativ-filtros {

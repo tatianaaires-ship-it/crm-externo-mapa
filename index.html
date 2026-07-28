@@ -77,6 +77,10 @@
 
       <!-- Aba Funil (Kanban por status) — cobre o mapa quando ativa -->
       <section id="funil-view" class="funil-view" aria-label="Funil de leads">
+        <!-- Só aparece em modo real (body.real-mode): as colunas do board são
+             populadas por tarefas SIMULADAS sobre CNPJs verdadeiros. -->
+        <p class="sim-banner" role="status">⚠️ <strong>Dado real com atividades simuladas.</strong>
+          Nenhuma visita aconteceu — o pipeline abaixo é demonstração.</p>
         <div class="intel-head">
           <span id="funil-count" class="intel-count">—</span>
           <span id="funil-hint" class="intel-head__hint">arraste entre colunas</span>
@@ -103,6 +107,8 @@
         <!-- Barra de filtros da ABA (spec-07 §6): vendedor + período valem para
              os TRÊS recortes e NÃO entram na quickbar do mapa — filtro de tarefa
              não mexe nos pins. Os chips são montados por js/atividades.js. -->
+        <p class="sim-banner" role="status">⚠️ <strong>Dado real com atividades simuladas.</strong>
+          Nenhuma visita, check-in ou distância abaixo aconteceu de verdade.</p>
         <div class="ativ-filtros">
           <!-- Os quatro sempre visíveis. Ficaram recolhidos atrás de um botão
                "Mais" por um tempo, para poupar altura; filtro que ninguém acha

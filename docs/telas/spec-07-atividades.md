@@ -225,6 +225,20 @@ As 4 cores de `resultado` são as **mesmas do funil** — e isso é correto, nã
 
 > ⚠️ **O recorte "por vendedor" só demonstra algo se o dataset fictício semear `vendedor_responsavel_id`** nos estabelecimentos. Sem isso, tudo cai num bucket único. É a dependência crítica desta tela para o gate ([[tarefa]] §9).
 
+### 5.5 Dado real também recebe atividades simuladas
+
+O snapshot **não traz atividade nenhuma**. Sem simular, quem entra pelo porteiro vê a aba vazia e o board com quatro colunas desertas ([[spec-06-funil]] §7) — o oposto do que esta fatia existe para demonstrar. Desde 28/07, `useRealData()` roda o **mesmo** `buildTarefas` sobre os pins reais.
+
+- **O volume é função do TIME, não da base.** Três vendedores fazem ~12 visitas por dia útil tenham eles 61 ou 6.914 pins, e `buildTarefas` já contava assim — o total de tarefas sai da mesma ordem dos dois lados, sem explodir com o tamanho do snapshot. Medido: 2.000 pins reais → 1.122 tarefas em ~105ms.
+- **A régua do snapshot prevalece onde sabe mais.** `csc`/`aquisicao` vêm do ERP (o `Cadastrado` do snapshot **é** o sinal comercial) e são restaurados depois do reconcile; pin que não ganhou tarefa mantém o status da régua, em vez de cair para `sem_plano`.
+- **`TD encontrado` precisa de empurrão.** A régua só conhece Cadastrado / visitado / não visitado, então a coluna nasceria vazia mesmo com tarefas. `buildTarefas(pins, {promoverTd: n})` promove ~15% dos visitados (teto 30) com uma tarefa datada de **hoje** — como o reconcile é *last-wins*, ela manda. **No fictício `opts` vem vazio e nada disso executa**: o board fictício não se mexe (verificado — 538 tarefas e as mesmas 7 contagens).
+- **`Aquisição` continua vazia com dado real, e isso é correto** — exige saber se houve **pedido**, dado que o `salesforce.lead` não tem. Régua provisória mantida: todo convertido do snapshot cai em CSC.
+- **Nada persiste.** `persist()` já sai cedo em `realMode`, então as tarefas simuladas morrem no reload junto com os pins. Verificado: o `localStorage` contém só o dataset fictício, sem um nome ou CNPJ real.
+
+> ⚠️ **Faixa fixa de procedência, nas duas abas.** Isto é razão social, CNPJ e endereço **verdadeiros** com visitas, check-ins, distâncias e **motivos** que não aconteceram — inclusive as saídas laterais, com frases como *"não existe no endereço"* sobre um CNPJ real. Uma faixa âmbar (`.sim-banner`, só em `body.real-mode`) fica no topo da aba Atividades **e do Funil**, fora da área que rola, para sobreviver a print recortado: *"Dado real com atividades simuladas — nenhuma visita aconteceu."* O Funil entrou junto porque as colunas dele passaram a ser populadas pelas mesmas tarefas.
+
+> **O vendedor real é descartado de propósito.** O snapshot traz `vendedor_rota_lead_c` → nome de gente de verdade, e as tarefas são atribuídas aos **três vendedores fictícios** mesmo assim. Número de desempenho inventado não vai no nome de uma pessoa real, na frente da liderança dela. Efeito colateral bem-vindo: dispensa registro dinâmico de vendedor e resolve a paleta — ela tem 3 cores e o campo teria N.
+
 ## 6. Filtros — o que compartilha e o que não
 
 - **Compartilha:** a aba Atividades respeita o conjunto filtrado do mapa (só atividades de pins visíveis), como o Funil e a Inteligência. Filtro **oculta**, nunca deleta. Mas **a quickbar não aparece nesta aba** (SPEC 00 §5.2): o filtro do mapa não é útil aqui e custava 52px. Para ele não virar filtro invisível, o head mostra o pill `N filtros do mapa` (SPEC 00 §6.11) quando há algum ativo, e tocá-lo volta ao Mapa — o único lugar onde se mexe nele.
@@ -262,7 +276,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.
 - **`proxima_acao_data` aparece na agenda mas não é tarefa** — é sugestão. Vira tarefa só quando o vendedor agenda de fato.
 - **Uma atividade aberta por pin** (com check-in sem check-out). Tentar abrir outra oferece fechar a anterior.
-- **Sobre dado real:** o snapshot não traz atividades — a aba nasce **vazia** com dado real e cheia com dado fictício. Semear tarefas fictícias é o que faz a gerencial existir no gate.
+- **Sobre dado real:** o snapshot não traz atividades. Até 28/07 a aba nascia **vazia** com dado real; agora ela recebe as **mesmas tarefas simuladas** do fictício, com faixa fixa de procedência (§5.5). A alternativa era demonstrar a fatia só em dado fictício — o que tornaria o login no porteiro um caminho pior que o de demonstração.
 
 ## 10. Como o SPEC 07 usa o SPEC 00
 

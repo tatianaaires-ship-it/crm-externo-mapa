@@ -79,18 +79,65 @@
 
   function resetDemo() {
     realMode = false;       // volta ao fictício (e volta a persistir)
+    document.body.classList.remove('real-mode');
     seedFicticio();
     emit();
   }
 
-  // Troca o dataset para o snapshot real vindo do porteiro (auth.js).
-  // Não persiste (privacidade). O snapshot NÃO traz tarefas — logo a aba
-  // Atividades nasce vazia e o board mostra só Visitado/CSC (spec-06 §8).
+  /* Troca o dataset para o snapshot real vindo do porteiro (auth.js).
+     Não persiste (privacidade) — e as tarefas simuladas abaixo também não,
+     porque `persist()` já sai cedo em `realMode`: morrem no reload.
+
+     ⚠️ O snapshot NÃO traz atividade nenhuma. Sem simular, a aba Atividades
+     nasce vazia e o board mostra só Visitado/CSC — quatro das sete colunas
+     ficam desertas (spec-06 §7). Então geramos as MESMAS tarefas fictícias do
+     seed sobre os pins reais.
+
+     Duas travas para isso não corromper a leitura do dado real:
+       1. O volume é função do TIME, não da base: 3 vendedores fazem ~12 visitas
+          por dia útil, tenham eles 61 ou 6.914 pins. `buildTarefas` já limita
+          assim, então o número de tarefas é o mesmo dos dois lados.
+       2. A régua do snapshot PREVALECE onde ela sabe mais que a tarefa
+          inventada — `csc`/`aquisicao` vêm do ERP, e pin sem tarefa mantém o
+          status que o snapshot deu. Ver spec-07 §5.6.
+
+     A honestidade fica com a faixa fixa nas abas (`body.real-mode`): estes são
+     CNPJs e endereços de verdade com visitas que não aconteceram. */
   function useRealData(realPins) {
     if (!Array.isArray(realPins) || !realPins.length) return false;
     realMode = true;
     pins = realPins.map(migrateStatus);
-    tarefas = [];
+
+    // O snapshot traz o NOME do vendedor, não um id da nossa tabela. Como a
+    // decisão foi atribuir aos 3 fictícios, o nome real é descartado de
+    // propósito: número de desempenho inventado não vai no nome de gente real.
+    pins.forEach(function (p, i) {
+      p.vendedorId = D.VENDEDOR_ORDER[i % D.VENDEDOR_ORDER.length];
+      p.vendedor = D.VENDEDORES[p.vendedorId].nome;
+    });
+
+    const daRegua = {};
+    let nVisitado = 0;
+    pins.forEach(function (p) {
+      daRegua[p.id] = p.status;
+      if (p.status === 'visitado') nVisitado += 1;
+    });
+
+    // A régua do snapshot não conhece "TD encontrado" — sem promover alguns, a
+    // coluna nasce vazia no board (spec-06 §7).
+    tarefas = D.buildTarefas(pins, { promoverTd: Math.min(30, Math.round(nVisitado * 0.15)) });
+    D.reconcileStatus(pins, tarefas);
+
+    const comTarefa = {};
+    tarefas.forEach(function (t) { comTarefa[t.estabelecimentoId] = 1; });
+    pins.forEach(function (p) {
+      const antes = daRegua[p.id];
+      // ERP prevalece (o "Cadastrado" do snapshot É o sinal comercial), e quem
+      // não ganhou tarefa nenhuma não pode ser rebaixado a `sem_plano` por isso.
+      if (antes === 'csc' || antes === 'aquisicao' || !comTarefa[p.id]) p.status = antes;
+    });
+
+    document.body.classList.add('real-mode');
     emit();
     return true;
   }
