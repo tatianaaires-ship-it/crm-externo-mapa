@@ -88,11 +88,11 @@ CREATE TABLE tarefa (
 | 11 | `motivo_desqualificacao` | enum (6) | Cond. | `campo` | sheet do pin · **filtro gerencial** | obrigatório se `resultado = desqualificado`; **fechado** |
 | 12 | `motivo_texto` | text | Cond. | `campo` | sheet do pin | só quando o motivo escolhido for `outro` (serve aos dois enums) |
 | 13 | `proxima_acao` | text | Não | `campo` | sheet do pin · **card do Funil** | o que fazer depois, em uma linha |
-| 14 | `proxima_acao_data` | date | Não | `campo` | aba Atividades (agenda) | alimenta a agenda sem criar tarefa |
+| 14 | `proxima_acao_data` | date | Não | `campo` | **visão gerencial** (tabela) | ⚠️ **saiu da Agenda em 28/07** ([[spec-07-atividades]] §4.2): sugestão dentro de um calendário lê como compromisso marcado. Continua no modelo, sem virar tarefa |
 | 15 | `notas` | text | Não | `campo` | sheet do pin | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6) |
 | 16 | `criado_por` | fk → [[vendedor]] | Não | `auto` | — | fallback de `responsavel_id` |
 | 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) | GPS do vendedor × geo do pin no momento do check-in. `NULL` em atividade remota. **Persiste** — é prova de presença, não pode ser recalculada depois |
-| 18 | `atrasada` | boolean | — | **derivado** | aba Atividades (destaque) | §5 — não persiste |
+| 18 | `atrasada` | boolean | — | **derivado** | **visão gerencial** (tabela) | §5 — não persiste. ⚠️ **saiu da Agenda em 28/07**: a dívida vencida se vê pelas planejadas com `Realizado = Não` em data passada |
 | 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
 | 20 | `tipo_checkin` | enum (2) | — | **derivado** | **visão gerencial** (tabela) | `presencial` se `checkin_em` existe, `remoto` se a tarefa foi concluída sem ele (§5). **Não é campo** — não há o que digitar |
 | 21 | ~~`nome_rota`~~ | — | — | — | — | ⛔ **Deixou de existir (28/07).** Era rótulo derivado (`Rota (dd/mm/aaaa)`); agora o nome vem do **objeto [[rota]]** via `rota_id`, e a tabela da gerencial mostra `rota.nome` ou **`Avulsa`** |

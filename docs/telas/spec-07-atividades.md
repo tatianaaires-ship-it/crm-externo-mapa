@@ -42,7 +42,7 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 > ⚖️ **A atividade planejada não aparece no bloco** (28/07). O botão de check-in **é** ela — mesma tarefa, e mostrar as duas coisas dizia o mesmo duas vezes num bloco que já briga por altura com as notas. O bloco ficou com duas perguntas só: **o que fazer agora** (botão) e **o que já foi feito** (lista). A planejada segue com detalhe próprio, pela tela de todas as atividades (§2.2) — que passa a contá-la como escondida, e por isso o botão `Ver todas` aparece sempre que houver planejada.
 >
-> **Preço aceito:** o badge `Atrasada` sumiu do sheet do pin. A dívida vencida continua visível no bloco fixo do topo da **Agenda** (§4.1) e no detalhe da atividade, mas quem abre só o pin não vê mais que o compromisso venceu.
+> **Preço aceito:** o badge `Atrasada` sumiu do sheet do pin. A dívida vencida continua visível no **detalhe da atividade** (§2.2) e na **tabela da gerencial** (§5.4), mas quem abre só o pin não vê mais que o compromisso venceu. ⚠️ **O preço subiu em 28/07:** o bloco fixo da Agenda, que era a outra porta, também saiu (§4.2) — sobraram duas telas mais fundas.
 
 - **Botão primário, contextual — um só:**
   - sem atividade aberta → **`＋ Agendar atividade`** (abre §2.1)
@@ -92,7 +92,7 @@ O momento em que a atividade **vira dado** e o funil se move. Sheet de conclusã
 > ⚖️ **Não há "Convertido" no check-out.** Conversão não é fato de campo — o vendedor não decide que alguém virou cliente. **CSC** (cadastrado sem compra) e **Aquisição** são derivados do **ERP** (cadastro e pedido) e **prevalecem** sobre a tarefa: quem tem pedido está em Aquisição mesmo que a última atividade tenha dado `Perdido`. Ver [[estabelecimento]] §5.
 
 2. **Motivo** — aparece **só** para `Perdido` e `Desqualificar`, com o vocabulário fechado do respectivo enum ([[tarefa]] §4); `outro` revela o campo de texto. **Não dá pra concluir sem motivo** nesses dois casos.
-3. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. Alimenta a agenda **sem criar tarefa**.
+3. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. ⚠️ **Deixou de alimentar a Agenda em 28/07** (§4.2) — sugestão dentro de um calendário lê como compromisso marcado. Continua no registro da atividade e na tabela da gerencial, e **nunca virou tarefa**.
 
 Ao confirmar: `checkout_em`, `status = realizada`, o pin se move pela tabela acima, `ultima_visita` atualiza e `origem_confianca` sobe para `validado_campo`. O **mapa, o Funil e a Inteligência refletem na hora** (mesmo pipeline `emit → reapply → refresh` da SPEC 06 §4).
 
