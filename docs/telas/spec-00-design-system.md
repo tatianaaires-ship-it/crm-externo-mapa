@@ -211,6 +211,13 @@ Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada 
 
 > **Bloco longo dentro do sheet vira sub-tela, não rolagem.** O sheet tem `max-height: 86dvh` e conteúdo obrigatório embaixo (as notas, CAP-3): qualquer lista que cresça sem limite empurra o invariante para fora da tela. Regra: mostra as N primeiras + `Ver todas (N) ›`.
 
+### 6.7.1 Bloco de atividades do pin — conferir e agir (`.ativ-tipo`, `.check-actions`)
+Duas ações lado a lado: **primária** `📍 Check-in` (`flex: 1`) e **secundária** `＋ Agendar` (ghost, largura do conteúdo) — visitar agora e planejar depois são intenções diferentes, e a de campo é a primeira. Com visita em andamento a primária vira `⏱️ Check-out`.
+
+Acima delas, a **conferência de tipo** (`.ativ-tipo`): label 10.5px caixa-alta + **três chips** (reusa o §6.2) com um **já marcado**, e hint opcional em 11px. Chips, não `<select>`: são três valores, o dedo escolhe direto, e o default já é a resposta provável — na maioria das visitas ninguém toca ali. Com check-in aberto os chips dão lugar a `.ativ-tipo-atual`, faixa verde-clara com espinha `#10b981`: o tipo já é fato em curso, não escolha.
+
+> ⚖️ **Pré-selecionado não é o mesmo que travado.** O chip marcado é sugestão derivada do histórico; o toque manda. É o oposto do `status`, que nunca se digita — ver [[spec-07-atividades]] §2.3.
+
 ### 6.8 Modal de criação
 Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e o marcador roxo seguem arrastáveis por trás). Campo básico (nome) + "Mais detalhes" expansível (tipologia, CNPJ, telefone) + dica de qualidade derivada.
 

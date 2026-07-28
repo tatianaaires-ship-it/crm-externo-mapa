@@ -76,7 +76,7 @@ CREATE TABLE tarefa (
 |---|---|---|---|---|---|---|
 | 1 | `id` | uuid | Sim | auto | — | PK |
 | 2 | `estabelecimento_id` | fk → [[estabelecimento]] | **Sim** | auto | — | vem do pin de onde foi criada; **1 tarefa = 1 pin** |
-| 3 | `tipo` | enum (3) | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência |
+| 3 | `tipo` | enum (3) | **Sim** | `campo` (com **sugestão**) | sheet do pin · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência. Os chips do pin já vêm com a resposta provável marcada, derivada do histórico do ponto (§5): o vendedor **confere**, não classifica. **Sugestão ≠ derivação travada** — quem manda é o toque |
 | 4 | `data` | date | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | futuro = planejada; passado = realizada |
 | 4b | `hora` | time | Não | `campo` | **Agenda** (sarjeta de horário) · sheet do pin | horário **marcado**. **Opcional**: sem ela, a atividade é *dia inteiro* e vai no topo do dia ([[spec-07-atividades]] §4.2). ⚠️ **`atrasada` continua sendo por DIA** (§5), nunca por hora |
 | 5 | `status` | enum (3) | Sim | **derivado**/fluxo | sheet do pin · aba Atividades | §5 — nasce `planejada` |
@@ -118,7 +118,10 @@ CREATE TABLE tarefa (
 ## 5. Campos derivados / calculados
 
 - **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada` (caminho normal, presencial). Concluir **sem check-in** também é válido — atividade remota, ex. follow-up por telefone: registra-se `resultado` e a tarefa vira `realizada` com `checkin_em`/`checkout_em` nulos. `cancelada` só por ação explícita (**não há deletar** — §8).
+  > ⚖️ **A tarefa pode nascer do próprio check-in** (28/07, CAP-6 revisada): não é preciso planejar para visitar. Se o pin não tem planejada de hoje/atrasada, o check-in **cria** a tarefa datada de hoje e já a abre. Planejada futura **não é reescrita** — a visita de hoje é fato novo, e mexer na data do plano seria decidir pelo vendedor que aquele compromisso morreu. Ver [[spec-07-atividades]] §2.3.
+- **`data`, ao fazer check-in numa tarefa ATRASADA, vem para hoje.** Em planejada a data é quando se pretende ir; em realizada é **quando aconteceu** — e é dela que saem a tabela e os gráficos por dia. Manter a data velha poria a visita no dia errado, com `checkin_em` de hoje na coluna ao lado.
 - **`responsavel_id`** — herda `vendedor_responsavel_id` do [[estabelecimento]]; se nulo, é o **criador** da atividade. Sem auth por usuário até a Fase 4, "criador" é a identidade única da sessão. **Nunca digitado.**
+- **`tipo` sugerido** — não é campo derivado, é **o default dos chips** do pin: sem visita anterior → `primeira_visita`; pin cliente (`csc`/`aquisicao`) → `recorrencia`; visitado e ainda não cliente → `follow_up`. Existe porque quem chega para visitar não deveria ter que classificar a visita — o histórico já diz qual ela é.
 - **`atrasada`** — `status = planejada` **E** `data < hoje`. Só de exibição. ⚖️ **Por DIA, nunca por hora**, mesmo com `hora` preenchida: uma tarefa marcada para hoje às 15h não vira "atrasada" às 15h05. Numa demo isso significaria a tela mudando de estado no meio de uma reunião, e no campo significaria acusar atraso de quem está a caminho. ⚠️ Desde 28/07 a **Agenda não mostra atrasadas nem fala delas** — sem bloco, badge, contagem ou atalho ([[spec-07-atividades]] §4.2). O derivado segue no modelo; **nenhuma tela o exibe como marca**.
 - **`duracao_min`** — `checkout_em − checkin_em`. Insumo da visão gerencial; nulo se a tarefa não teve check-in/out.
 - **`resultado` → `status` do [[estabelecimento]]** — a tarefa move **só as etapas de campo**:
@@ -181,6 +184,8 @@ CREATE TABLE tarefa (
 
 ## 8. Regras de domínio / da fatia
 
+- **Check-in não exige plano** (28/07, CAP-6 revisada). Todo pin oferece check-in; sem planejada, ele **cria** a tarefa de hoje. Consequência: **agendar deixou de ser a única porta de entrada no funil** — o check-in também põe o pin em `visita_planejada` (a tarefa nasce `planejada` e é imediatamente aberta), e só o `resultado` do check-out move a etapa dali. Ver [[spec-07-atividades]] §2.3.
+- **Tarefa `planejada` é editável no `tipo`; realizada, em nada.** Corrigir o tipo antes de ir é conferência, não reescrita — é justamente o que os chips do pin pedem. Depois do check-out a tarefa é **registro**: nenhum campo se edita, e corrigir desfecho exige concluir uma nova atividade (§5).
 - **Check-in/out é a Tarefa** — sinônimos. Não há objeto `Visita`, e não há caminho alternativo pra registrar uma atividade de campo. Responde a pergunta aberta do Notion (Fase 3, item 4 — *"vale fazer outro tipo de atividade sem ser check-in?"*): **sim, mas é a mesma Tarefa** — atividade remota conclui sem `checkin_em` (§5). O check-in é o que prova presença, não o que cria o registro.
 - **Uma coleção só** pra planejado e realizado; `status` distingue.
 - **O `resultado` move as etapas de campo do funil**, monotonicamente na escada. **Não move `csc`/`aquisicao`** — esses são derivados do ERP e prevalecem ([[estabelecimento]] §5). O invariante do `status` deixa de ser "muda só por fluxo" e passa a ser **"nunca é digitado"**: ou vem de tarefa concluída, ou vem do ERP.

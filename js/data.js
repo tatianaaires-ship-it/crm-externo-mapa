@@ -600,6 +600,23 @@
   }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
 
+  /* ---- Tipo de visita SUGERIDO (não digitado, não travado) ----------------
+     O check-in existe em todo pin (spec-07 §2), e quem chega para visitar não
+     deveria ter que classificar a visita — o histórico já diz qual ela é. Esta
+     é a sugestão que o vendedor **confere** nos chips e corrige se quiser:
+       · nunca visitado          → 1ª visita
+       · cliente (csc/aquisicao) → recorrência (é o tipo que existe pra isso)
+       · visitado, não cliente   → follow-up
+     Sugestão ≠ derivação travada: `tipo` continua sendo campo digitado
+     (tarefa.md §4). Quem manda é o toque no chip. */
+  function sugereTipoVisita(pin, tarefasDoPin) {
+    if (!pin) return 'primeira_visita';
+    const feitas = (tarefasDoPin || []).filter(function (t) { return t.status === 'realizada'; });
+    if (!feitas.length) return 'primeira_visita';
+    if (pin.status === 'csc' || pin.status === 'aquisicao') return 'recorrencia';
+    return 'follow_up';
+  }
+
   function matchBusca(p, query) {
     const q = norm(query).trim();
     if (!q) return true;
@@ -978,6 +995,7 @@
     deriveOrigemConfianca: deriveOrigemConfianca,
     isoPlus: isoPlus,
     matchBusca: matchBusca,
+    sugereTipoVisita: sugereTipoVisita,
     buildSeed: buildSeed,
     buildTarefas: buildTarefas,
     reconcileStatus: reconcileStatus

@@ -12,6 +12,9 @@
   let currentId = null;
   let view = 'pin';          // pin | lista | detalhe — sub-telas do mesmo sheet
   let tarefaAberta = null;
+  // Tipo escolhido nos chips ANTES de existir tarefa (pin sem plano). Morre ao
+  // trocar de pin: é escolha daquela visita, não preferência do vendedor.
+  let tipoEscolhido = null;
   let sheetEl, backdropEl;
 
   // Ícone de pin padrão (sem emoji de tipologia) para o avatar do sheet.
@@ -217,7 +220,6 @@
     const doPin = S.getTarefasByPin(p.id);
     const planejadas = doPin.filter(function (t) { return t.status === 'planejada'; })
                             .sort(function (a, b) { return a.data < b.data ? -1 : 1; });
-    const proxima = planejadas[0] || null;
     const feitas = doPin.filter(function (t) { return t.status === 'realizada'; })
                         .sort(function (a, b) { return a.data > b.data ? -1 : 1; });
 
@@ -226,16 +228,47 @@
        O bloco ficou "o que fazer agora" (botão) + "o que já foi feito" (lista).
        A planejada segue acessível pela tela de todas as atividades (§2.2). */
 
-    // Um botão só, contextual. "Concluir sem check-in" saiu daqui em 28/07:
-    // a ação secundária competia com a primária e o caminho de campo é o
-    // check-in. Concluir sem presença segue possível pela Agenda.
-    let checkBtn;
-    if (!proxima) {
-      checkBtn = '<button type="button" id="btn-agendar" class="btn btn--checkin">＋ Agendar atividade</button>';
-    } else if (!proxima.checkinEm) {
-      checkBtn = '<button type="button" id="btn-checkin" class="btn btn--checkin">📍 Check-in</button>';
-    } else {
+    /* ---- Check-in em TODO pin (CAP-6 revisada) -------------------------
+       Não é preciso plano para visitar: o vendedor passou na porta, entrou.
+       `📍 Check-in` é sempre o primário; `＋ Agendar` é o secundário (planejar
+       para depois é outra intenção). Com visita em andamento, o primário vira
+       `⏱️ Check-out` — é assim que o sheet mostra que há check-in aberto.
+
+       Acima do botão, os TRÊS chips de tipo: o vendedor só **confere** se o
+       tipo está certo, porque o histórico já sabe qual visita é aquela
+       (D.sugereTipoVisita). Quando existe planejada para hoje ou atrasada, o
+       chip mostra o tipo DELA e trocar corrige a própria tarefa — conferir
+       não cria atividade nova. ---- */
+    const aberta = S.tarefaAberta(p.id);
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    // A planejada sobre a qual o check-in vai agir (hoje ou atrasada).
+    const alvo = planejadas.filter(function (t) {
+      return t.data <= hojeISO && !t.checkinEm;
+    })[0] || null;
+
+    let checkBtn, tipoHtml = '';
+    if (aberta) {
+      const tpA = tipoDe(aberta);
       checkBtn = '<button type="button" id="btn-checkout" class="btn btn--checkout">⏱️ Check-out</button>';
+      tipoHtml = '<p class="ativ-tipo-atual">' + tpA.emoji + ' <strong>' + esc(tpA.label) +
+        '</strong> em andamento · check-in às ' + fmtTime(aberta.checkinEm) + '</p>';
+    } else {
+      const sel = alvo ? alvo.tipo : D.sugereTipoVisita(p, doPin);
+      checkBtn = '<button type="button" id="btn-checkin" class="btn btn--checkin">📍 Check-in</button>' +
+        '<button type="button" id="btn-agendar" class="btn btn--ghost">＋ Agendar</button>';
+      tipoHtml = '<div class="ativ-tipo">' +
+        '<span class="ativ-tipo__lbl">Tipo da visita</span>' +
+        '<div class="ativ-tipo__chips" role="group" aria-label="Tipo da visita">' +
+          D.TAREFA_TIPO_ORDER.map(function (k) {
+            const tp = D.TAREFA_TIPO[k];
+            return '<button type="button" class="chip' + (k === sel ? ' is-on' : '') +
+              '" data-tipo="' + k + '" aria-pressed="' + (k === sel) + '">' +
+              tp.emoji + ' ' + esc(tp.label) + '</button>';
+          }).join('') +
+        '</div>' +
+        (alvo ? '<span class="ativ-tipo__hint">confere o plano de ' +
+            alvo.data.slice(8) + '/' + alvo.data.slice(5, 7) + '</span>' : '') +
+      '</div>';
     }
 
     /* Histórico: só as 3 últimas. Um ponto de recorrência acumula dezenas de
@@ -311,6 +344,7 @@
       '<section class="block">' +
         '<div class="block__title">Atividades</div>' +
         lateralHtml +
+        tipoHtml +
         '<div class="check-actions">' + checkBtn + '</div>' +
         historyHtml +
         verTodas +
@@ -336,18 +370,43 @@
     const ag = sheetEl.querySelector('#btn-agendar');
     if (ag) ag.addEventListener('click', function () { window.CRM_ATIV.agendar(currentId); });
 
-    function proximaPlanejada() {
+    /* Chips de tipo: só CONFEREM o tipo antes do check-in. Com planejada de
+       hoje/atrasada, corrigem a própria tarefa (nada de criar outra); sem
+       planejada, guardam a escolha até o check-in criar a atividade. */
+    Array.prototype.forEach.call(sheetEl.querySelectorAll('[data-tipo]'), function (el) {
+      el.addEventListener('click', function () {
+        tipoEscolhido = el.dataset.tipo;
+        const alvo = alvoDoCheckin();
+        if (alvo) return S.setTipoTarefa(alvo.id, tipoEscolhido);   // re-renderiza pelo emit
+        // Sem tarefa ainda: só pinta a escolha, sem re-render (nada mudou no estado).
+        Array.prototype.forEach.call(sheetEl.querySelectorAll('[data-tipo]'), function (c) {
+          const on = c === el;
+          c.classList.toggle('is-on', on);
+          c.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      });
+    });
+
+    // A planejada sobre a qual o check-in age: hoje ou atrasada, sem check-in.
+    function alvoDoCheckin() {
+      const hoje = new Date().toISOString().slice(0, 10);
       return S.planejadasDoPin(currentId)
+        .filter(function (t) { return t.data <= hoje && !t.checkinEm; })
         .sort(function (a, b) { return a.data < b.data ? -1 : 1; })[0] || null;
     }
     const ci = sheetEl.querySelector('#btn-checkin');
     if (ci) ci.addEventListener('click', function () {
-      const t = proximaPlanejada();
-      if (t) S.checkInTarefa(t.id);
+      // Check-in em QUALQUER pin: sem plano, o state cria a tarefa de hoje.
+      const t = S.checkInAgora(currentId, tipoEscolhido);
+      if (!t) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível fazer check-in.');
+      tipoEscolhido = null;
+      if (window.CRM_TOAST) {
+        window.CRM_TOAST('Check-in em ' + tipoDe(t).label.toLowerCase() + ' — feche com o check-out.');
+      }
     });
     const co = sheetEl.querySelector('#btn-checkout');
     if (co) co.addEventListener('click', function () {
-      const t = proximaPlanejada();
+      const t = S.tarefaAberta(currentId);
       if (t) window.CRM_ATIV.concluir(t);
     });
     // Navegação entre as três telas do sheet.
@@ -395,6 +454,7 @@
     currentId = id;
     view = 'pin';               // abrir um pin sempre começa no pin
     tarefaAberta = null;
+    tipoEscolhido = null;       // a escolha de tipo é daquela visita, não do vendedor
     render();
     sheetEl.classList.add('is-open');
     backdropEl.classList.add('is-open');

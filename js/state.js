@@ -367,15 +367,64 @@
     return t;
   }
 
-  // Check-in: marca presença na tarefa e promove a origem (monotônico).
+  /* Check-in: marca presença na tarefa e promove a origem (monotônico).
+     ⚖️ Se a tarefa estava ATRASADA, a `data` vem para hoje. Em planejada a
+     data é quando se pretende ir; em realizada é **quando aconteceu**, e é
+     dela que saem a tabela e os gráficos por dia. Fazer check-in hoje numa
+     tarefa de ontem e deixar a data velha poria a visita no dia errado, com
+     `checkin_em` de hoje ao lado — dado que se contradiz na mesma linha. */
   function checkInTarefa(id) {
     const t = getTarefa(id);
     if (!t || t.status !== 'planejada' || t.checkinEm) return null;
+    const hoje = todayISO();
+    if (t.data < hoje) t.data = hoje;
     t.checkinEm = nowISO();
     const p = getById(t.estabelecimentoId);
     if (p) { promoteToFieldValidated(p); p.geoVerificado = { lat: p.lat, lng: p.lng }; }
     emit();
     return t;
+  }
+
+  /* Corrigir o TIPO de uma tarefa — só enquanto ela é `planejada`.
+     É o que o botão de check-in pede ao vendedor: conferir se o tipo está
+     certo. Tarefa realizada é REGISTRO, não formulário (tarefa.md §8): nada
+     de edição retroativa, nem aqui nem em lugar nenhum. */
+  function setTipoTarefa(id, tipo) {
+    const t = getTarefa(id);
+    if (!t || t.status !== 'planejada' || !D.TAREFA_TIPO[tipo]) return null;
+    if (t.tipo === tipo) return t;
+    t.tipo = tipo;
+    emit();
+    return t;
+  }
+
+  /* ---- CHECK-IN EM QUALQUER PIN (CAP-6 revisada) ----------------------
+     O vendedor não precisa de plano para visitar: passou na porta, entrou.
+     Se existe planejada para HOJE ou ATRASADA, o check-in é nela — é a mesma
+     visita, e criar outra duplicaria o compromisso. Se a próxima planejada é
+     FUTURA, não se toca nela: nasce uma tarefa de hoje e o plano segue de pé
+     (reescrever a data do plano seria decidir pelo vendedor que aquele
+     compromisso morreu). Sem planejada nenhuma, também nasce uma de hoje.
+     Devolve a tarefa com check-in aberto. */
+  function checkInAgora(pinId, tipo) {
+    const p = getById(pinId);
+    if (!p) return null;
+    if (tarefaAberta(pinId)) return null;          // uma atividade aberta por pin
+    const hoje = todayISO();
+    const doDia = planejadasDoPin(pinId)
+      .filter(function (t) { return t.data <= hoje && !t.checkinEm; })
+      .sort(function (a, b) { return a.data < b.data ? -1 : 1; })[0] || null;
+
+    if (doDia) {
+      if (tipo && D.TAREFA_TIPO[tipo] && doDia.tipo !== tipo) doDia.tipo = tipo;
+      return checkInTarefa(doDia.id);              // emite lá dentro
+    }
+    const nova = agendarTarefa({
+      pinId: pinId,
+      tipo: (tipo && D.TAREFA_TIPO[tipo]) ? tipo : D.sugereTipoVisita(p, getTarefasByPin(pinId)),
+      data: hoje
+    });
+    return nova ? checkInTarefa(nova.id) : null;
   }
 
   // Concluir (check-out): é aqui que a atividade vira dado e o funil se move.
@@ -500,6 +549,8 @@
     paradasDaRota: paradasDaRota,
     cancelarRota: cancelarRota,
     checkInTarefa: checkInTarefa,
+    checkInAgora: checkInAgora,        // check-in em pin sem plano (CAP-6 revisada)
+    setTipoTarefa: setTipoTarefa,
     concluirTarefa: concluirTarefa,
     resetDemo: resetDemo,
     useRealData: useRealData,

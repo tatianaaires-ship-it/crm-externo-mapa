@@ -444,7 +444,32 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 .block { margin-bottom: 18px; }
 .block__title { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
 .block__hint { font-size: 10.5px; font-weight: 700; color: #059669; background: #d1fae5; padding: 2px 8px; border-radius: var(--r-pill); text-transform: uppercase; letter-spacing: .03em; }
-.check-actions { margin-bottom: 10px; }
+/* Duas ações no bloco de atividades: `📍 Check-in` primário e `＋ Agendar`
+   secundário (visitar agora × planejar depois são intenções diferentes). */
+.check-actions { margin-bottom: 10px; display: flex; gap: 7px; }
+.check-actions .btn { flex: 1 1 auto; }
+.check-actions .btn--ghost { flex: 0 0 auto; }
+
+/* Conferência do tipo antes do check-in (SPEC 07 §2). Chips, não select: são
+   três valores e o dedo escolhe direto — e o pré-selecionado já é a resposta
+   provável, então na maioria das visitas ninguém toca aqui. */
+.ativ-tipo { margin-bottom: 9px; }
+.ativ-tipo__lbl {
+  display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); margin-bottom: 5px;
+}
+.ativ-tipo__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ativ-tipo__chips .chip { font-size: 12px; padding: 6px 10px; }
+.ativ-tipo__hint {
+  display: block; margin-top: 5px; font-size: 11px; color: var(--muted);
+}
+/* Visita em andamento: o tipo já está decidido, então vira texto — trocar
+   chip no meio do check-in reescreveria um fato em curso. */
+.ativ-tipo-atual {
+  margin: 0 0 9px; font-size: 12.5px; color: var(--ink-2);
+  background: #ecfdf5; border: 1px solid #a7f3d0; border-left: 3px solid #10b981;
+  border-radius: var(--r-sm); padding: 8px 10px;
+}
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .checklist li { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 11px; font-variant-numeric: tabular-nums; }
 .checklist__dur { color: var(--muted); }
