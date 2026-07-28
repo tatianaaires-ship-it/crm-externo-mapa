@@ -92,7 +92,7 @@ CREATE TABLE tarefa (
 | 15 | `notas` | text | Não | `campo` | sheet do pin | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6) |
 | 16 | `criado_por` | fk → [[vendedor]] | Não | `auto` | — | fallback de `responsavel_id` |
 | 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) | GPS do vendedor × geo do pin no momento do check-in. `NULL` em atividade remota. **Persiste** — é prova de presença, não pode ser recalculada depois |
-| 18 | `atrasada` | boolean | — | **derivado** | **visão gerencial** (tabela) | §5 — não persiste. ⚠️ **saiu da Agenda em 28/07**: a dívida vencida se vê pelas planejadas com `Realizado = Não` em data passada |
+| 18 | `atrasada` | boolean | — | **derivado** | **nenhuma superfície destaca** | §5 — não persiste. ⚠️ **saiu da Agenda em 28/07** e a Agenda também **não conta nem aponta** a dívida: o derivado continua existindo no modelo, mas nenhuma tela o exibe como marca. Na tabela da gerencial a tarefa vencida aparece só por ser planejada de data passada |
 | 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
 | 20 | `tipo_checkin` | enum (2) | — | **derivado** | **visão gerencial** (tabela) | `presencial` se `checkin_em` existe, `remoto` se a tarefa foi concluída sem ele (§5). **Não é campo** — não há o que digitar |
 | 21 | ~~`nome_rota`~~ | — | — | — | — | ⛔ **Deixou de existir (28/07).** Era rótulo derivado (`Rota (dd/mm/aaaa)`); agora o nome vem do **objeto [[rota]]** via `rota_id`, e a tabela da gerencial mostra `rota.nome` ou **`Avulsa`** |
@@ -119,7 +119,7 @@ CREATE TABLE tarefa (
 
 - **`status`** — nasce `planejada`. `checkout_em` preenchido ⇒ `realizada` (caminho normal, presencial). Concluir **sem check-in** também é válido — atividade remota, ex. follow-up por telefone: registra-se `resultado` e a tarefa vira `realizada` com `checkin_em`/`checkout_em` nulos. `cancelada` só por ação explícita (**não há deletar** — §8).
 - **`responsavel_id`** — herda `vendedor_responsavel_id` do [[estabelecimento]]; se nulo, é o **criador** da atividade. Sem auth por usuário até a Fase 4, "criador" é a identidade única da sessão. **Nunca digitado.**
-- **`atrasada`** — `status = planejada` **E** `data < hoje`. Só de exibição. ⚖️ **Por DIA, nunca por hora**, mesmo com `hora` preenchida: uma tarefa marcada para hoje às 15h não vira "atrasada" às 15h05. Numa demo isso significaria a tela mudando de estado no meio de uma reunião, e no campo significaria acusar atraso de quem está a caminho. ⚠️ Desde 28/07 a **Agenda não mostra atrasadas** — quem as mostra é a tabela da gerencial ([[spec-07-atividades]] §4.2).
+- **`atrasada`** — `status = planejada` **E** `data < hoje`. Só de exibição. ⚖️ **Por DIA, nunca por hora**, mesmo com `hora` preenchida: uma tarefa marcada para hoje às 15h não vira "atrasada" às 15h05. Numa demo isso significaria a tela mudando de estado no meio de uma reunião, e no campo significaria acusar atraso de quem está a caminho. ⚠️ Desde 28/07 a **Agenda não mostra atrasadas nem fala delas** — sem bloco, badge, contagem ou atalho ([[spec-07-atividades]] §4.2). O derivado segue no modelo; **nenhuma tela o exibe como marca**.
 - **`duracao_min`** — `checkout_em − checkin_em`. Insumo da visão gerencial; nulo se a tarefa não teve check-in/out.
 - **`resultado` → `status` do [[estabelecimento]]** — a tarefa move **só as etapas de campo**:
 

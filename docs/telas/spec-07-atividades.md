@@ -161,7 +161,11 @@ Antes era uma pilha de cards de atividade agrupada por dia, com `Atrasadas` no t
 >
 > **Preço aceito, e é o maior desta mudança:** a **atividade remota** (`tipo_checkin = remoto`) ficou **sem nenhuma porta de UI**. O §2 tirou `Concluir sem check-in` do pin em 28/07 e disse que o botão do card da Agenda era a última porta — agora ela fechou também. O modelo mantém o caso ([[tarefa]] §5) e o seed mantém ~14% de realizadas sem check-in, então o filtro `Tipo de check-in → Remoto` continua devolvendo linhas; o que não existe é como **criar** uma. Resolve a ponta solta da fatia com um "sim, some" — e é reversível pelo detalhe da atividade (§2.2), que já é o lugar das ações.
 
-> ⚖️ **A Agenda não mostra mais atrasadas.** Era bloco fixo no topo e exceção ao filtro de período. Saiu porque a Agenda passou a ser *"o que vem por aí"*, e dívida vencida no topo de um calendário empurra o dia de hoje para fora da tela. **Onde a dívida vive agora:** na **tabela da gerencial** (§5.4), que lista planejadas com `Realizado = Não` em data passada. Para a omissão não ser silenciosa, o *hint* da Agenda mostra **`N atrasadas na Gerencial`** — e o botão troca de recorte. ⚠️ **Consequência a acompanhar:** a tabela **não tem** marca própria de `atrasada` nem coluna de atraso, e obedece ao filtro de período; com `Hoje` selecionado, a atrasada de ontem não aparece em lugar nenhum. Se isso incomodar no uso, o conserto é na Gerencial (badge na coluna `Realizado`), não trazer o bloco de volta.
+> ⚖️ **A Agenda não mostra atrasadas, e não fala delas.** Era bloco fixo no topo e exceção ao filtro de período. Saiu porque a Agenda passou a ser *"o que vem por aí"*, e dívida vencida no topo de um calendário empurra o dia de hoje para fora da tela.
+>
+> **Nem o ponteiro sobrou.** Houve, por algumas horas, um pill `N atrasadas na Gerencial` no *hint* — posto ali pela regra de que omissão não deve ser silenciosa. **Removido em 28/07 por decisão de produto:** *"não quero dar atenção às atrasadas"*. Contar a dívida e apontar para onde ela está **é** dar atenção a ela; a rigor, um contador no alto da tela chama mais atenção do que uma lista lá embaixo. Então a Agenda passou a não mencionar atraso em nenhuma forma — sem bloco, sem badge, sem contagem, sem atalho.
+>
+> ⚠️ **O que isto custa, explicitamente:** a tarefa planejada de data passada **só existe** na tabela da gerencial, e lá **sem marca própria** de atraso — ela aparece porque a tabela lista todas as planejadas do período, não porque a tela sinalize a dívida. A tabela obedece ao filtro de período, então com `Hoje` selecionado a atrasada de ontem não aparece em lugar nenhum do app. **Isso é o comportamento pedido, não uma lacuna a consertar** — e é a razão de estar escrito aqui: um leitor futuro que "descobrir" essa ausência precisa saber que ela é intencional antes de reintroduzir o bloco.
 
 > ⚖️ **As `Sugestões` (`proxima_acao_data`) saíram da Agenda.** Elas eram "não-tarefas" num calendário — exatamente o tipo de item que alguém lê como compromisso marcado. O campo continua no modelo e na tabela da gerencial; a Agenda ficou só com compromisso real.
 
@@ -281,7 +285,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 
 ## 8. Estados
 
-- **Agenda vazia:** "Nada planejado neste recorte." — e, se houver dívida vencida, a frase continua: *"Há N atividades atrasadas — veja na Gerencial."* (§4.2). Vazio sem explicação lê como bug.
+- **Agenda vazia:** "Nada planejado neste recorte." — e nada mais. A frase **não** menciona atraso (§4.2), mesmo havendo dívida vencida escondida.
 - **Rota sem parada planejada:** não é renderizada. Cancelar todas as paradas faz a rota sair da Agenda (o registro dela fica — nada se deleta).
 - **Gerencial sem realizadas:** os KPIs continuam (o plano existe), as quebras somem — não se renderiza barra vazia — e o texto diz quantas planejadas há no recorte. A **tabela ainda aparece**, com as planejadas.
 - **Tabela com drill que não casa nada:** o chip do critério continua visível, para o vazio ter explicação e ter saída.
@@ -298,6 +302,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Visão gerencial é sub-visão**, não aba (§5) — **e é a que abre por padrão** (§4). As duas coisas convivem: continua não valendo uma 5ª aba, mas é ela que dá o contexto de entrada.
 - **Um filtro só para os três recortes** (§4.1), não um por sub-aba. Trocar de recorte mantém a pergunta ("este vendedor, neste período") e muda só a lente. O custo é o efeito colateral do §4.1.
 - **A Agenda é calendário de rotas, de hoje em diante** (§4.2) — sem atrasadas, sem sugestões, sem check-in e sem concluir. A alternativa (manter tudo e só reagrupar por dia) devolvia a pilha que não deixava ver de qual dia era cada coisa.
+- **Atraso não é assunto da Agenda, nem por referência** (§4.2). Decisão de produto de 28/07: nem bloco, nem badge, nem contagem, nem atalho. É a única "omissão não anunciada" aceita na aba — e é aceita porque anunciar já seria dar o destaque que se quis remover.
 - **[[rota]] entrou como RASCUNHO declarado**, contra o que a [[tarefa]] §6 dizia (Rota é Fase 4, tarefa não é parada). O que entrou é identidade + nome + dia + dono; **sequenciamento continua fora**, e é ele que faz o objeto da Fase 4. Alternativa recusada: agrupar por `(vendedor, dia)` derivado — não distinguia rota de avulsa, e era justamente a distinção pedida.
 - **Cancelar rota é cancelamento em lote, não exclusão** — N paradas viram `cancelada` e a rota fica sem paradas. Espelha *"tarefa não se deleta"*.
 - **Calendário = `input type="date"` nativo**, não componente próprio. Sem build, sem 150 linhas novas para manter, e o Android já entrega o date picker do sistema. O preço é que esse controle não usa os tokens do [[spec-00-design-system]].

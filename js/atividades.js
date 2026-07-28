@@ -72,10 +72,10 @@
 
   /* A quickbar não aparece nesta aba — se houver filtro do mapa ativo, o hint
      avisa e leva de volta ao Mapa, onde se mexe nele. Filtro nunca é invisível. */
-  function setHint(txt, extra) {
+  function setHint(txt) {
     if (!hintEl) return;
     const nf = window.CRM_FILTERS ? window.CRM_FILTERS.activeCount() : 0;
-    hintEl.innerHTML = esc(txt) + (extra ? ' ' + extra : '') + (nf
+    hintEl.innerHTML = esc(txt) + (nf
       ? ' <button class="head-filtro" data-act="ir-mapa">' + nf +
         (nf === 1 ? ' filtro' : ' filtros') + ' do mapa</button>' : '');
   }
@@ -150,8 +150,8 @@
        · não tem Check-in nem Concluir — a Agenda é o plano, a execução é no
          sheet do pin. Cada item mostra só a anotação do agendamento, o horário
          marcado, Cancelar, e o nome que abre o pin no mapa.
-       · não mostra ATRASADAS nem SUGESTÕES — a dívida vencida e a
-         `proxima_acao_data` são vistas na tabela da Gerencial.
+       · não mostra ATRASADAS nem SUGESTÕES, e não as conta nem aponta para
+         onde elas estão: a Agenda é só o que vem por aí.
      ===================================================================== */
   const DOW = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
@@ -246,13 +246,11 @@
   }
 
   function renderAgenda() {
-    const planejadas = tarefasVisiveis().filter(function (t) { return t.status === 'planejada'; });
-    // De hoje em diante: a Agenda é o plano. O que venceu é assunto da
-    // Gerencial (o hint leva até lá quando há dívida escondida).
-    const base = planejadas.filter(function (t) {
-      return t.data >= hoje() && noPeriodo(t.data);
+    // De hoje em diante: a Agenda é o plano, e nada mais. O que venceu não é
+    // destacado, contado nem apontado aqui — decisão de produto (spec-07 §4.2).
+    const base = tarefasVisiveis().filter(function (t) {
+      return t.status === 'planejada' && t.data >= hoje() && noPeriodo(t.data);
     });
-    const nAtrasadas = planejadas.filter(function (t) { return t.data < hoje(); }).length;
 
     // Agrupa por dia e, dentro do dia, por rota (`rotaId`) ou avulsa.
     const dias = {};
@@ -272,12 +270,8 @@
     countEl.textContent = nRotas
       ? plural(nRotas, 'rota', 'rotas') + ' · ' + plural(base.length, 'atividade', 'atividades')
       : plural(base.length, 'atividade', 'atividades');
-    setHint(rotuloPeriodo() + ' · de hoje em diante', nAtrasadas
-      ? '<button class="head-filtro" data-act="ir-gerencial">' +
-        plural(nAtrasadas, 'atrasada', 'atrasadas') + ' na Gerencial</button>' : '');
-    emptyMsgEl.textContent = 'Nada planejado neste recorte.' +
-      (nAtrasadas ? ' Há ' + plural(nAtrasadas, 'atividade atrasada', 'atividades atrasadas') +
-        ' — veja na Gerencial.' : '');
+    setHint(rotuloPeriodo() + ' · de hoje em diante');
+    emptyMsgEl.textContent = 'Nada planejado neste recorte.';
     emptyEl.classList.toggle('is-visible', base.length === 0);
     if (!base.length) return (bodyEl.innerHTML = '');
 
@@ -775,7 +769,6 @@
       return;
     }
     if (act === 'ir-agenda') { setRecorte('agenda'); return; }
-    if (act === 'ir-gerencial') { setRecorte('gerencial'); return; }
     if (act === 'ir-tabela') { drill = null; render(); vaiPraTabela(); return; }
     if (act === 'ordenar') {
       const c = btn.dataset.col;
@@ -1002,8 +995,6 @@
     if (bodyEl) bodyEl.addEventListener('click', onClick);
     if (hintEl) hintEl.addEventListener('click', function (e) {
       if (e.target.closest('[data-act="ir-mapa"]')) showMap();
-      // A Agenda não mostra atrasadas: o atalho leva à tabela da Gerencial.
-      else if (e.target.closest('[data-act="ir-gerencial"]')) setRecorte('gerencial');
     });
     SEG.forEach(function (pair) {
       const el = document.getElementById(pair[0]);
