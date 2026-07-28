@@ -222,11 +222,17 @@ As 4 cores de `resultado` são as **mesmas do funil** — e isso é correto, nã
 - **Três colunas não são campos** e não viram campos: `nome da rota` é rótulo derivado (`responsavel_id` + `data`), `tipo de check-in` deriva de `checkin_em`, `realizado` deriva de `status`. Ver [[tarefa]] §4 e §6 — em especial por que a coluna de rota **não** antecipa o objeto Rota da Fase 4.
 - **`distancia_km` é campo novo** ([[tarefa]] §4), derivado no check-in e persistido. Exceção consciente ao não-escopo de GPS: o campo entrou, o motor que o preenche não. No protótipo o valor é **fictício**.
 
-> ✅ **Série temporal saiu do parking (28/07).** Ela tinha sido cortada por falta de dado; o `buildTarefas()` foi adensado para ritmo de campo real (9–16 visitas/dia útil, 3 vendedores) e os gráficos por dia passaram a ter forma. O adensamento **não move o funil**: cada tarefa de volume nasce com o mesmo `resultado` da tarefa-âncora do seu pin, então o status derivado sai idêntico — o board continua com as mesmas 7 colunas e as mesmas contagens de antes.
+### 5.5 O seed precisou crescer
 
-> ⚠️ **O recorte "por vendedor" só demonstra algo se o dataset fictício semear `vendedor_responsavel_id`** nos estabelecimentos. Sem isso, tudo cai num bucket único. É a dependência crítica desta tela para o gate ([[tarefa]] §9).
+Com uma tarefa por pin, os gráficos por dia davam **pico de 4** e a tela parecia de brinquedo. O seed foi adensado para ritmo de campo: **63 → 538 tarefas**, 9–16 visitas por dia útil, **nenhuma em fim de semana**, e **hoje como dia em andamento** (parte do plano já realizada, o resto de pé).
 
-### 5.5 Dado real também recebe atividades simuladas
+> ✅ **Série temporal saiu do parking (28/07).** Ela tinha sido cortada por falta de dado; com o adensamento, os gráficos por dia passaram a ter forma.
+
+> ⚖️ **O adensamento não move o funil.** `reconcileStatus` é *last-wins* (a última realizada manda), então cada tarefa de volume nasce com o **mesmo `resultado` da tarefa-âncora do seu pin** — o status derivado sai idêntico e o board mantém as mesmas 7 colunas e contagens.
+
+> ⚠️ **O recorte "por vendedor" só demonstra algo se o dataset fictício semear `vendedor_responsavel_id`** nos estabelecimentos. Sem isso, tudo cai num bucket único. Era a dependência crítica desta tela para o gate ([[tarefa]] §9) — ✅ semeado, 3 vendedores.
+
+### 5.6 Dado real também recebe atividades simuladas
 
 O snapshot **não traz atividade nenhuma**. Sem simular, quem entra pelo porteiro vê a aba vazia e o board com quatro colunas desertas ([[spec-06-funil]] §7) — o oposto do que esta fatia existe para demonstrar. Desde 28/07, `useRealData()` roda o **mesmo** `buildTarefas` sobre os pins reais.
 
@@ -277,7 +283,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.
 - **`proxima_acao_data` aparece na agenda mas não é tarefa** — é sugestão. Vira tarefa só quando o vendedor agenda de fato.
 - **Uma atividade aberta por pin** (com check-in sem check-out). Tentar abrir outra oferece fechar a anterior.
-- **Sobre dado real:** o snapshot não traz atividades. Até 28/07 a aba nascia **vazia** com dado real; agora ela recebe as **mesmas tarefas simuladas** do fictício, com faixa fixa de procedência (§5.5). A alternativa era demonstrar a fatia só em dado fictício — o que tornaria o login no porteiro um caminho pior que o de demonstração.
+- **Sobre dado real:** o snapshot não traz atividades. Até 28/07 a aba nascia **vazia** com dado real; agora ela recebe as **mesmas tarefas simuladas** do fictício, com faixa fixa de procedência (§5.6). A alternativa era demonstrar a fatia só em dado fictício — o que tornaria o login no porteiro um caminho pior que o de demonstração.
 
 ## 10. Como o SPEC 07 usa o SPEC 00
 
