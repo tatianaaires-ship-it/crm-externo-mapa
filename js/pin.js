@@ -16,8 +16,16 @@
      campo condicional (o motivo só aparece depois do resultado) e cada toque
      re-renderiza a tela. `tarefaId` amarra o rascunho à tarefa: trocar de
      atividade zera o formulário em vez de herdar escolha da anterior. */
-  let form = { tarefaId: null, tipo: null, resultado: null, motivo: null,
-               motivoTexto: '', prox: '', proxData: '' };
+  let form = novoForm(null, null);
+  /* O rascunho do check-out: quatro checkboxes + três motivos possíveis (só um
+     na tela por vez) + notas. `resultado` NÃO está aqui — é derivado dos
+     checkboxes na hora de gravar (D.deriveResultado). */
+  function novoForm(tarefaId, tipo) {
+    return { tarefaId: tarefaId, tipo: tipo,
+             tdEncontrado: false, vendaDeclarada: false, desqualificar: false, perda: false,
+             motivoNaoVenda: '', motivo: '', motivoTexto: '',
+             notas: '', prox: '', proxData: '', ajuda: null };
+  }
   /* Rascunho do sheet de AGENDAR (§2.1). Mesmo motivo de viver fora do render:
      cada toque de chip re-renderiza. `pinId` amarra o rascunho ao ponto. */
   let formAg = { pinId: null, tipo: null, data: '', hora: '', notas: '' };
@@ -148,8 +156,15 @@
 
     const tp = tipoDe(t);
     const r = t.resultado ? D.RESULTADO[t.resultado] : null;
-    const mot = t.motivoPerda ? D.MOTIVO_PERDA[t.motivoPerda]
-              : (t.motivoDesqualificacao ? D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] : null);
+    /* Um motivo por atividade, dos três vocabulários (spec-07 §3) — o rótulo
+       diz de qual, senão "Motivo: Preço" não distingue não venda de perda.
+       Em `outro`, o que aparece é o TEXTO que o vendedor escreveu. */
+    const motLbl = t.motivoPerda ? 'Motivo da perda'
+                 : (t.motivoDesqualificacao ? 'Motivo da desqualificação'
+                 : (t.motivoNaoVenda ? 'Motivo não venda' : null));
+    const mot = t.motivoTexto || (t.motivoPerda ? D.MOTIVO_PERDA[t.motivoPerda]
+              : (t.motivoDesqualificacao ? D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao]
+              : (t.motivoNaoVenda ? D.MOTIVO_NAO_VENDA[t.motivoNaoVenda] : null)));
     const vend = (D.VENDEDORES[t.responsavelId] || {}).nome || '—';
     const feita = t.status === 'realizada';
     // Rota vem do rascunho do objeto Rota (docs/objetos/rota.md) — quem não
@@ -184,12 +199,18 @@
             ? 'acima de ' + String(D.RAIO_PRESENCIAL_KM).replace('.', ',') + ' km — registrada como remota'
             : 'entre o vendedor e o pin') + '</small>') : '') +
         (r ? infoRow('Resultado', '<span class="pill" style="--c:' + r.color + '">' + esc(r.label) + '</span>') : '') +
-        (mot ? infoRow('Motivo', esc(mot)) : '') +
+        // O TD é fato guardado à parte do resultado: "perdido tendo falado com
+        // o dono" e "perdido sem achar ninguém" são coisas diferentes.
+        (feita ? infoRow('TD encontrado', t.tdEncontrado ? 'Sim' : 'Não') : '') +
+        (mot ? infoRow(motLbl, esc(mot)) : '') +
         (t.proximaAcao ? infoRow('Próxima ação', esc(t.proximaAcao) +
           (t.proximaAcaoData ? '<small class="info__desc">' + fmtDate(t.proximaAcaoData) + '</small>' : '')) : '') +
       '</section>' +
+      // A mesma `notas` tem dois significados conforme o momento: antes de ir é
+      // a anotação do agendamento; depois, o que o vendedor contou da visita.
       (t.notas
-        ? '<section class="block"><div class="block__title">Comentário</div>' +
+        ? '<section class="block"><div class="block__title">' +
+          (feita ? 'Notas da visita' : 'Anotação do agendamento') + '</div>' +
           '<p class="note-card">' + esc(t.notas) + '</p></section>'
         : '') +
       // Ações só existem em atividade aberta; realizada é registro, não formulário.
@@ -225,24 +246,62 @@
     if (!t || t.status !== 'planejada' || !t.checkinEm) return irPara('pin');
 
     // O rascunho começa no tipo que a tarefa já tem (do plano ou da sugestão).
-    if (form.tarefaId !== t.id) form = { tarefaId: t.id, tipo: t.tipo, resultado: null,
-                                         motivo: null, motivoTexto: '', prox: '', proxData: '' };
+    if (form.tarefaId !== t.id) form = novoForm(t.id, t.tipo);
 
-    const r = form.resultado ? D.RESULTADO[form.resultado] : null;
-    const tabelaMotivo = r && r.motivo
+    // O resultado é DERIVADO dos checkboxes — não há campo de resultado.
+    const r = D.RESULTADO[D.deriveResultado(form)];
+    const tabelaMotivo = r.motivo
       ? (r.motivo === 'perda' ? D.MOTIVO_PERDA : D.MOTIVO_DESQUALIFICACAO) : null;
+    // Motivo da não venda só existe sem lateral e sem venda: com Perda ou
+    // Desqualificar, vale o motivo da saída, e um campo de motivo por vez.
+    const pedeNaoVenda = !r.motivo && !form.vendaDeclarada;
+    const motEfetivo = tabelaMotivo ? form.motivo : (pedeNaoVenda ? form.motivoNaoVenda : '');
 
     // O que ainda falta — vira o rótulo do botão, não um erro depois do toque.
     let falta = null;
-    if (!form.resultado) falta = 'Escolha o resultado';
-    else if (tabelaMotivo && !form.motivo) falta = 'Escolha o motivo';
-    else if (form.motivo === 'outro' && !form.motivoTexto.trim()) falta = 'Descreva o motivo';
+    if (tabelaMotivo && !form.motivo) {
+      falta = r.motivo === 'perda' ? 'Escolha o motivo da perda' : 'Escolha o motivo da desqualificação';
+    } else if (pedeNaoVenda && !form.motivoNaoVenda) {
+      falta = 'Escolha o motivo da não venda';
+    } else if (motEfetivo === 'outro' && !form.motivoTexto.trim()) {
+      falta = 'Descreva o motivo';
+    }
 
     const chip = function (attr, val, sel, label, cor) {
       return '<button type="button" class="chip' + (cor ? ' chip--res' : '') +
         (sel ? ' is-on' : '') + '" ' + attr + '="' + val + '"' +
         (cor ? ' style="--c:' + cor + '"' : '') +
         ' aria-pressed="' + (sel ? 'true' : 'false') + '">' + label + '</button>';
+    };
+
+    /* Checkbox de verdade (quadrado marcável), não chip: `TD encontrado` e
+       `Vendeu` combinam entre si, e chip lê como escolha única. `travado` é o
+       TD quando a venda o implica — marcado e sem toque, porque desmarcá-lo
+       contradiria a venda que está logo acima (§3). */
+    const check = function (key, label, on, travado, ajuda) {
+      return '<div class="sform-check-row">' +
+        '<button type="button" class="sform-check' + (on ? ' is-on' : '') +
+          (travado ? ' is-locked' : '') + '" role="checkbox" data-cflag="' + key + '"' +
+          ' aria-checked="' + (on ? 'true' : 'false') + '"' + (travado ? ' aria-disabled="true"' : '') + '>' +
+          '<span class="sform-check__box" aria-hidden="true"></span>' +
+          '<span class="sform-check__lbl">' + esc(label) + '</span>' +
+        '</button>' +
+        (ajuda ? '<button type="button" class="sform-i" data-ajuda="' + key + '"' +
+                 ' aria-label="Quando usar ' + esc(label) + '"' +
+                 ' aria-expanded="' + (form.ajuda === key ? 'true' : 'false') + '">i</button>' : '') +
+        (form.ajuda === key ? '<p class="sform-ajuda">' + esc(ajuda) + '</p>' : '') +
+      '</div>';
+    };
+
+    // Select nativo: 14 opções em chips viram parede e empurram o botão de
+    // concluir para fora da tela. Nativo a 16px é a regra do padrão .sform-*.
+    const select = function (id, tabela, val, vazio) {
+      return '<select id="' + id + '" class="sform-sel">' +
+        '<option value=""' + (val ? '' : ' selected') + '>' + esc(vazio) + '</option>' +
+        Object.keys(tabela).map(function (k) {
+          return '<option value="' + k + '"' + (k === val ? ' selected' : '') + '>' +
+            esc(tabela[k]) + '</option>';
+        }).join('') + '</select>';
     };
 
     // Aviso da saída lateral: é AQUI que ele decide, então é aqui que precisa
@@ -274,28 +333,62 @@
         }).join('') + '</div>' +
       '</div>' +
 
+      /* O DESFECHO em quatro checkboxes (§3). `TD encontrado` é ortogonal;
+         Vendeu, Perda e Desqualificar são opostos e se desmarcam. O chip de
+         resultado morreu: o resultado agora se lê, não se escolhe. */
       '<div class="sform-campo">' +
-        '<span class="sform-lbl">Resultado <em>obrigatório</em></span>' +
-        '<div class="sform-chips">' + D.RESULTADO_ORDER.map(function (k) {
-          const res = D.RESULTADO[k];
-          return chip('data-cres', k, k === form.resultado, esc(res.acao || res.label), res.color);
-        }).join('') + '</div>' +
-        '<span class="sform-hint">CSC e Aquisição não entram aqui — conversão vem do cadastro/pedido, não do campo.</span>' +
+        '<span class="sform-lbl">O que aconteceu</span>' +
+        D.CHECKOUT_FLAGS.map(function (c) {
+          const travado = c.key === 'tdEncontrado' && form.vendaDeclarada;
+          return check(c.key, c.label, !!form[c.key], travado, c.ajuda);
+        }).join('') +
+        '<span class="sform-hint">Registra como <strong style="color:' + r.color + '">' +
+          esc(r.label) + '</strong>.' +
+          (form.vendaDeclarada
+            ? ' O pin vai para <strong>TD encontrado</strong> com a tag <strong>Venda realizada</strong> — Aquisição só com o pedido no sistema.'
+            : '') + '</span>' +
       '</div>' +
 
+      // Motivo: UM por vez. Com lateral marcada, o de não venda some — o da
+      // saída é mais específico e os vocabulários se sobreporiam.
       (tabelaMotivo
         ? '<div class="sform-campo">' +
             '<span class="sform-lbl">' + (r.motivo === 'perda' ? 'Motivo da perda' : 'Motivo da desqualificação') +
               ' <em>obrigatório</em></span>' +
-            '<div class="sform-chips">' + Object.keys(tabelaMotivo).map(function (k) {
-              return chip('data-cmot', k, k === form.motivo, esc(tabelaMotivo[k]));
-            }).join('') + '</div>' +
-            (form.motivo === 'outro'
-              ? '<input type="text" id="conc-mot-txt" class="sform-inp" maxlength="120" ' +
-                'placeholder="Qual motivo?" value="' + esc(form.motivoTexto) + '" />'
-              : '') +
+            select('conc-mot', tabelaMotivo, form.motivo, 'Selecione o motivo…') +
           '</div>'
         : '') +
+
+      (pedeNaoVenda
+        ? '<div class="sform-campo">' +
+            '<span class="sform-lbl">Motivo não venda <em>obrigatório</em>' +
+              '<button type="button" class="sform-i" data-ajuda="naoVenda"' +
+                ' aria-label="Quando usar motivo de não venda"' +
+                ' aria-expanded="' + (form.ajuda === 'naoVenda' ? 'true' : 'false') + '">i</button>' +
+            '</span>' +
+            (form.ajuda === 'naoVenda'
+              ? '<p class="sform-ajuda">Não venda é o desfecho desta VISITA: não saiu pedido hoje, mas a negociação segue viva. Se a negociação morreu, marque Perda; se o ponto não é oportunidade, marque Desqualificar.</p>'
+              : '') +
+            select('conc-nv', D.MOTIVO_NAO_VENDA, form.motivoNaoVenda, 'Por que não saiu pedido?') +
+          '</div>'
+        : '') +
+
+      (motEfetivo === 'outro'
+        ? '<div class="sform-campo">' +
+            '<span class="sform-lbl">Qual motivo <em>obrigatório</em></span>' +
+            '<input type="text" id="conc-mot-txt" class="sform-inp" maxlength="120" ' +
+              'placeholder="Descreva em uma linha" value="' + esc(form.motivoTexto) + '" />' +
+          '</div>'
+        : '') +
+
+      /* Notas da ATIVIDADE — o campo existia no modelo desde 27/07 e só o
+         agendar o escrevia. O check-out é o momento em que há o que contar. */
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Notas da visita <em>opcional</em></span>' +
+        '<textarea id="conc-notas" class="sform-txt" maxlength="500" rows="3" ' +
+          'placeholder="O que rolou na visita">' + esc(form.notas) + '</textarea>' +
+        '<span class="sform-hint">Fica no registro desta atividade — a nota do <strong>ponto</strong> é outra, e vive no pin.</span>' +
+      '</div>' +
 
       '<div class="sform-campo">' +
         '<span class="sform-lbl">Próxima ação <em>opcional</em></span>' +
@@ -641,15 +734,29 @@
     }
     if (view !== 'conclusao') return;
     if (e.target.closest('#btn-conc-ok')) return concluir();
-    const el = e.target.closest('[data-ctipo],[data-cres],[data-cmot]');
+    const el = e.target.closest('[data-ctipo],[data-cflag],[data-ajuda]');
     if (!el || !sheetEl.contains(el)) return;
-    if (el.dataset.ctipo) form.tipo = el.dataset.ctipo;
-    else if (el.dataset.cres) {
-      // Trocar de resultado invalida o motivo: o vocabulário é outro.
-      form.resultado = el.dataset.cres;
-      form.motivo = null;
-      form.motivoTexto = '';
-    } else if (el.dataset.cmot) form.motivo = el.dataset.cmot;
+
+    if (el.dataset.ajuda) {
+      // O (i) abre e fecha no mesmo toque — um por vez.
+      form.ajuda = (form.ajuda === el.dataset.ajuda) ? null : el.dataset.ajuda;
+    } else if (el.dataset.ctipo) {
+      form.tipo = el.dataset.ctipo;
+    } else if (el.dataset.cflag) {
+      const k = el.dataset.cflag;
+      // TD travado pela venda: não se desmarca o que a venda implica.
+      if (k === 'tdEncontrado' && form.vendaDeclarada) return;
+      form[k] = !form[k];
+      // As regras de combinação são as MESMAS que o store aplica (D.
+      // normalizeCheckout) — a tela não pode prometer o que a gravação desfaz.
+      const n = D.normalizeCheckout(form, form[k] ? k : null);
+      form.tdEncontrado   = n.tdEncontrado;
+      form.vendaDeclarada = n.vendaDeclarada;
+      form.desqualificar  = n.desqualificar;
+      form.perda          = n.perda;
+      // Trocar de desfecho invalida o motivo da lateral: o vocabulário é outro.
+      if (k !== 'tdEncontrado') { form.motivo = ''; form.motivoTexto = ''; }
+    }
     render();
   }
 
@@ -674,8 +781,22 @@
     }
     if (view !== 'conclusao') return;
     const el = e.target;
+    // Texto e textarea: rascunho sem re-render (o foco morreria a cada tecla).
     if (el.id === 'conc-prox') { form.prox = el.value; return; }
     if (el.id === 'conc-prox-data') { form.proxData = el.value; return; }
+    if (el.id === 'conc-notas') { form.notas = el.value; return; }
+
+    /* Os selects, ao contrário, PRECISAM re-renderizar: escolher `Outro` revela
+       o campo de texto. `input` e `change` chegam os dois aqui — o guard de
+       valor igual faz o segundo virar no-op em vez de um render a mais. */
+    if (el.id === 'conc-mot' || el.id === 'conc-nv') {
+      const campo = el.id === 'conc-mot' ? 'motivo' : 'motivoNaoVenda';
+      if (form[campo] === el.value) return;
+      form[campo] = el.value;
+      form.motivoTexto = '';
+      return render();
+    }
+
     if (el.id !== 'conc-mot-txt') return;
     form.motivoTexto = el.value;
     const ok = sheetEl.querySelector('#btn-conc-ok');
@@ -707,22 +828,32 @@
   function concluir() {
     const t = S.getTarefa(form.tarefaId);
     if (!t) return irPara('pin');
+    const vendeu = form.vendaDeclarada;
     const feito = S.concluirTarefa(t.id, {
       tipo: form.tipo,
-      resultado: form.resultado,
+      // O resultado não vai daqui: o store o deriva dos mesmos checkboxes.
+      tdEncontrado: form.tdEncontrado,
+      vendaDeclarada: form.vendaDeclarada,
+      desqualificar: form.desqualificar,
+      perda: form.perda,
+      motivoNaoVenda: form.motivoNaoVenda,
       motivo: form.motivo,
       motivoTexto: form.motivoTexto,
+      notas: form.notas,
       proximaAcao: form.prox,
       proximaAcaoData: form.proxData || null
     });
     if (!feito) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível concluir.');
     const pin = S.getById(currentId);
-    form = { tarefaId: null, tipo: null, resultado: null, motivo: null,
-             motivoTexto: '', prox: '', proxData: '' };
+    form = novoForm(null, null);
     irPara('pin');
     if (window.CRM_TOAST && pin) {
-      window.CRM_TOAST('Atividade concluída — ' + pin.name + ' → ' +
-        ((D.STATUS[pin.status] || {}).label || pin.status));
+      // Com venda declarada o toast diz o que FALTA (o pedido), não só para
+      // onde o pin foi — senão "→ TD encontrado" lê como se a venda sumisse.
+      window.CRM_TOAST(vendeu
+        ? 'Venda registrada — ' + pin.name + ' aguarda o pedido no sistema para ir a Aquisição.'
+        : 'Atividade concluída — ' + pin.name + ' → ' +
+          ((D.STATUS[pin.status] || {}).label || pin.status));
     }
   }
 

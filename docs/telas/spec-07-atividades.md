@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 3/4/5"
 status: em-revisao
-fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e as 5 telas do sheet: pin, lista, detalhe, conclusão, agendar) + js/data.js (seed em rotas) — implementado 27–28/07. ✅ Não há mais window.prompt em nenhum fluxo: o §3 (conclusão) e o §2.1 (agendar) viraram sheets em 28/07."
+fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e as 5 telas do sheet: pin, lista, detalhe, conclusão, agendar) + js/data.js (seed em rotas) — implementado 27–28/07. ✅ Não há mais window.prompt em nenhum fluxo: o §3 (conclusão) e o §2.1 (agendar) viraram sheets em 28/07. ⚠️ O §3 foi REFEITO no fim de 28/07: o chip de resultado saiu, o desfecho virou quatro checkboxes, entraram `Vendeu?`, o motivo de não venda e as notas da visita — e a chave de estado subiu para v7."
 sources:
   - "_bmad-output/specs/spec-crm-externo/SPEC.md — CAP-11 (atividade no pin) · CAP-12 (aba) · CAP-13 (visão gerencial) · CAP-14 (desqualificar) · CAP-6 revisada"
   - "docs/objetos/tarefa.md — campos, enums, tabela resultado→funil, requalificação"
@@ -127,33 +127,57 @@ Pede **só o que é digitado**, nesta ordem:
 
 > ✅ **É um sheet de verdade desde 28/07.** Eram três `window.prompt` em sequência — a mecânica estava certa, mas a apresentação não era a desta spec, e era a coisa mais feia do protótipo. Virou a **4ª tela do pin-sheet** (§2.2): mesmo bottom sheet, com voltar, sem tirar o vendedor do contexto do ponto. **O gatilho foi pedir o `tipo` aqui** — não havia formulário onde pôr o campo.
 
-O momento em que a atividade **vira dado** e o funil se move. Quatro campos, nesta ordem:
+> ⚖️ **E o formulário foi refeito no fim do dia 28/07 (Tatiana), na maior mudança que o check-out já teve.** O **chip de resultado saiu**: o vendedor não escolhe mais um rótulo de desfecho — ele responde **o que aconteceu**, em quatro caixas, e o `resultado` passa a ser **derivado** disso ([[tarefa]] §5). Entraram `Vendeu?`, o vocabulário de **não venda** e as **notas da visita**; os dois vocabulários de motivo foram trocados pelos da operação. O que motivou tudo: *"por que não saiu pedido?"* não tinha onde ser respondido, e é a pergunta que a supervisão mais faz.
+
+O momento em que a atividade **vira dado** e o funil se move. Cinco campos, nesta ordem:
 
 0. **Tipo da visita** — pré-marcado com o que a tarefa já tem (do plano ou da sugestão). É aqui que o vendedor confirma **o que a visita foi**, porque agora ele sabe (§2.3).
 
-1. **Resultado** — 4 opções, uma escolha obrigatória. O chip ativo **veste a cor do resultado** — a mesma que pinta o pin e o gráfico, porque a cor segue a entidade ([[spec-00-design-system]] §6.13):
+1. **O que aconteceu** — quatro **checkboxes**, e é deles que sai o `resultado`:
 
-| Opção | Efeito no pin |
-|---|---|
-| **Sem avanço** | → Visitado |
-| **TD (tomador de decisão) encontrado** | → TD encontrado |
-| **Perdido** | → Perdido (guarda a etapa de origem) |
-| **Desqualificar** | → Desqualificado (guarda a etapa de origem) |
+| Caixa | Combina com | Efeito no pin |
+|---|---|---|
+| ☐ **TD encontrado?** | qualquer uma — é a única ortogonal | → TD encontrado |
+| ☐ **Vendeu?** | marca **e trava** o TD | → TD encontrado **+ tag `Venda realizada`** |
+| ☐ **Desqualificar** (i) | desmarca Vendeu e Perda | → Desqualificado (guarda a etapa de origem) |
+| ☐ **Perda** (i) | desmarca Vendeu e Desqualificar | → Perdido (guarda a etapa de origem) |
+| *(nada marcado)* | — | → Visitado (`Sem avanço`) |
 
-> ⚖️ **Não há "Convertido" no check-out.** Conversão não é fato de campo — o vendedor não decide que alguém virou cliente. **CSC** (cadastrado sem compra) e **Aquisição** são derivados do **ERP** (cadastro e pedido) e **prevalecem** sobre a tarefa: quem tem pedido está em Aquisição mesmo que a última atividade tenha dado `Perdido`. Ver [[estabelecimento]] §5.
+> ⚖️ **Por que checkbox e não chip.** `TD encontrado` e `Vendeu` **combinam** — quem vendeu falou com o decisor —, e chip lê como escolha única. Já Vendeu, Perda e Desqualificar são **desfechos opostos**: marcar um **desmarca** os outros, com uma linha explicando. Eles ficam **habilitados**, nunca apagados: checkbox desabilitado no Android lê como tela travada, e a regra fica mais clara sendo *aplicada* do que sendo *proibida*.
+> ⚖️ **Vender exige tomador de decisão.** Marcar `Vendeu` marca o TD e o **trava** — deixar desmarcar contradiria a venda registrada na linha de cima. Por isso o KPI de TD conta o **campo**, não o rótulo do resultado (§5).
+> ⚖️ **O TD sobrevive à saída lateral.** Marcar Perda não apaga o TD: *perdi tendo falado com o dono* e *perdi sem achar ninguém* são fatos diferentes, e o `resultado` de valor único não cabe os dois. Por isso `td_encontrado` é campo próprio ([[tarefa]] §4).
+> ⚖️ **A linha abaixo do grupo diz o que vai ser gravado** — *"Registra como **TD encontrado**"* —, na cor do resultado. É o que substitui o chip que saiu: o resultado agora se **lê**, não se escolhe.
 
-2. **Motivo** — aparece **só** para `Perdido` e `Desqualificar`, com o vocabulário fechado do respectivo enum ([[tarefa]] §4); `outro` revela o campo de texto. **Não dá pra concluir sem motivo** nesses dois casos.
-3. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. ⚠️ **Deixou de alimentar a Agenda em 28/07** (§4.2) — sugestão dentro de um calendário lê como compromisso marcado. Continua no registro da atividade e na tabela da gerencial, e **nunca virou tarefa**.
+> ⚖️ **"Vendeu?" não é "Convertido", e a distinção é o coração da mudança.** **Venda declarada** é fato do **vendedor** (ele estava lá, fechou); **conversão** é fato do **ERP** (existe pedido). O check-out registra a primeira e **não move o pin para Aquisição** — ele vai para *TD encontrado* e carrega a tag **`Venda realizada`** no card do Funil ([[spec-06-funil]]), que **some sozinha quando o pedido chega**. Em **CSC a tag fica**: cadastrado sem compra com venda declarada é exatamente o furo. **CSC** e **Aquisição** seguem derivados do ERP e **prevalecem** sobre a tarefa. Ver [[estabelecimento]] §5.
 
-**O botão diz o que falta.** Enquanto o formulário está incompleto ele fica desabilitado e o rótulo é a instrução — `Escolha o resultado` → `Escolha o motivo` → `Descreva o motivo` → `✓ Concluir atividade`. Botão que recusa em silêncio faz o usuário achar que a tela travou; e validação que só aparece **depois** do toque obriga a errar primeiro.
+2. **Motivo** — **um por atividade**, em `select` nativo, e sempre obrigatório:
 
-- **Trocar o resultado zera o motivo.** O vocabulário de `perdido` não é o de `desqualificado` ([[tarefa]] §4) — manter a escolha anterior guardaria um motivo do enum errado.
+| Quando | Campo | Vocabulário |
+|---|---|---|
+| Perda marcada | Motivo da perda | 6 valores ([[tarefa]] §4) |
+| Desqualificar marcado | Motivo da desqualificação | 9 valores |
+| **nenhuma lateral e sem venda** | **Motivo não venda** (i) | 14 valores |
+| Vendeu marcado | *nenhum* | — |
+
+> ⚖️ **Todo check-out sem venda cobra motivo** — regra nova, e é ela que responde *"por que não saiu pedido?"*. A lista tem `Sem objeção específica` e `Outro`, então sempre há resposta.
+> ⚖️ **Com Perda ou Desqualificar, o motivo de não venda SOME.** Os vocabulários se sobrepõem de propósito (`preço` está em dois) — dois campos de motivo juntos obrigariam o vendedor a decidir qual dos dois responde a mesma coisa.
+> ⚖️ **`select` nativo, não chips.** 14 opções em chips viram uma parede que empurra o botão de concluir para fora da tela. Nativo a 16px é a regra do padrão `.sform-*` ([[spec-00-design-system]] §6.7.2).
+> ⚖️ **Três (i), não dois.** A confusão real não é só *desqualificar × perder* — é **não venda × perda**: uma é o desfecho desta **visita**, a outra é a **negociação** morrer. O (i) abre e fecha no toque, um por vez, inline (tooltip que depende de hover não existe no celular).
+
+3. **Notas da visita** (opcional) — textarea. O campo `notas` existia no modelo desde 27/07 e **só o sheet de agendar o escrevia**: não havia onde o vendedor contar o que rolou. A dica lembra que a nota **do ponto** é outra e vive no pin.
+4. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. ⚠️ **Deixou de alimentar a Agenda em 28/07** (§4.2) — sugestão dentro de um calendário lê como compromisso marcado. Continua no registro da atividade e na tabela da gerencial, e **nunca virou tarefa**.
+
+**O botão diz o que falta.** Enquanto o formulário está incompleto ele fica desabilitado e o rótulo é a instrução — `Escolha o motivo da não venda` / `Escolha o motivo da perda` / `Escolha o motivo da desqualificação` → `Descreva o motivo` → `✓ Concluir atividade`. Botão que recusa em silêncio faz o usuário achar que a tela travou; e validação que só aparece **depois** do toque obriga a errar primeiro.
+
+- **Trocar o desfecho zera o motivo.** O vocabulário de `perdido` não é o de `desqualificado` nem o de não venda ([[tarefa]] §4) — manter a escolha anterior guardaria um motivo do enum errado.
 - **`outro` mostra o texto no pin, não a palavra "Outro".** O `motivo_status` do estabelecimento passa a exibir o que o vendedor escreveu — "Outro" não informa nada a quem abre o pin depois.
 - **O sheet só abre com check-in aberto.** Sem presença registrada não há o que concluir ([[tarefa]] §5), então não existe estado "concluir sem check-in" nesta tela. Quando o check-in foi feito **longe do pin**, a faixa do topo diz `remoto (1,2 km do pin)` — o vendedor fica sabendo como a visita vai ser classificada **antes** de fechar, não depois, na coluna da gerencial.
 - **A saída lateral se explica aqui**, não só no pin: se o ponto está `perdido`/`desqualificado`, o sheet diz para onde ele volta ao concluir (§3.1). É neste instante que a decisão é tomada.
-- **Interação delegada, não por elemento.** A tela se re-renderiza a cada toque (o campo de motivo depende do resultado), então listener anexado a chip é listener em nó que morre no próximo render — um `click`/`input` só, no sheet, e o `data-*` diz qual campo mudou. Texto e data **não** re-renderizam: refazer o HTML a cada tecla tiraria o foco do campo.
+- **`Outro` mostra o texto, e vale nos três vocabulários.** O campo de texto aparece qualquer que seja o motivo escolhido, e no pin é o **texto** que fica gravado em `motivo_status` — "Outro" não informa nada a quem abre o pin depois. ⚠️ **Só a saída lateral vira `motivo_status`:** o motivo de não venda é do **evento**, não do estado do ponto, e "Sem objeção específica" colado no pin não diria nada.
+- **Interação delegada, não por elemento.** A tela se re-renderiza a cada toque (marcar uma caixa troca o campo de motivo), então listener anexado a checkbox é listener em nó que morre no próximo render — um `click`/`input`/`change` só, no sheet, e o `data-*` diz qual campo mudou. **Os checkboxes são `button[role=checkbox]`, não `input`**: com tudo delegado, o input nativo dispararia dois eventos no mesmo gesto. Texto e textarea **não** re-renderizam (refazer o HTML a cada tecla tiraria o foco); os **selects sim**, porque escolher `Outro` revela o campo de texto.
+- **A tela e o store aplicam a MESMA regra de combinação** (`CRM_DATA.normalizeCheckout`) — a tela não pode prometer um desfecho que a gravação desfaz.
 
-Ao confirmar: `checkout_em`, `status = realizada`, o pin se move pela tabela acima, `ultima_visita` atualiza e `origem_confianca` sobe para `validado_campo`. O **mapa, o Funil e a Inteligência refletem na hora** (mesmo pipeline `emit → reapply → refresh` da SPEC 06 §4).
+Ao confirmar: `checkout_em`, `status = realizada`, o pin se move pela tabela acima, `ultima_visita` atualiza e `origem_confianca` sobe para `validado_campo`. O **mapa, o Funil e a Inteligência refletem na hora** (mesmo pipeline `emit → reapply → refresh` da SPEC 06 §4). Com venda declarada, o toast diz o que **falta** — *"aguarda o pedido no sistema para ir a Aquisição"* — em vez de só para onde o pin foi: `→ TD encontrado` sozinho leria como se a venda tivesse sumido.
 
 ### 3.1 As duas saídas laterais: Perdido e Desqualificado (CAP-14)
 
@@ -256,13 +280,18 @@ Sub-visão, **não aba própria**: é o mesmo dado com outro recorte ([[tarefa]]
 
 O problema que esta estrutura resolve não era falta de gráfico — era **falta de hierarquia**: três blocos de barras idênticos davam o mesmo peso a tudo, e o olho não sabia onde pousar. Agora:
 
-1. **KPI row** — três tiles que formam um **funil de execução**, cada um em % do **anterior**, não do total:
+1. **KPI row** — **quatro** tiles que formam um **funil de execução**, cada um em % do **anterior** (os dois primeiros) ou das realizadas (os dois últimos), nunca do total:
 
 | Tile | Número | Terceira linha |
 |---|---|---|
 | **Planejadas** | tarefas com data no período | `no período` |
 | **Realizadas** | as concluídas | `y% das planejadas` — taxa de execução do plano |
-| **TD encontrado** | realizadas com `resultado = td_encontrado` | `w% das realizadas` — taxa de eficácia |
+| **TD encontrado** | realizadas com o **campo** `td_encontrado` | `w% das realizadas` — taxa de eficácia |
+| **Venda realizada** | realizadas com `venda_declarada` | `v% das realizadas` — taxa de fechamento |
+
+> ⚖️ **O 4º tile entrou em 28/07 com o `Vendeu?` do check-out** (§3), e em **2×2 no celular**: quatro colunas numa tela de 360px cortam o rótulo no meio. Em Z, a leitura continua sendo o funil — plano → feito → TD → venda. O número veste o **verde do `resultado = vendido`**, não o do funil: Aquisição é outra coisa, e a cor não pode sugerir que o pedido chegou. **A distância entre este tile e a coluna Aquisição do Funil é o furo** que a supervisão quer medir.
+
+> ⚖️ **"TD encontrado" conta o CAMPO, não o rótulo do resultado** (28/07). Como **vender implica ter falado com o decisor** — mas o contrário não vale —, contar `resultado = td_encontrado` faria a taxa **cair no dia em que o time vendesse mais**, que é o oposto do que a supervisão precisa ler. Consequência declarada: o tile (124) e a fatia "TD encontrado" do gráfico por resultado (90) **não batem de propósito** — a fatia é o rótulo, o tile é o fato, e a diferença são as vendas mais as perdas em que houve contato. **O drill de cada um filtra pelo que ele conta**, senão o número diria 124 e a lista abriria com 90.
 
 > ⚖️ **"Planejadas" é o PLANO DO PERÍODO** — todas as tarefas com data no recorte, **realizadas incluídas**. Tinha que ser: se contasse só quem continua `planejada`, os dois conjuntos seriam **disjuntos** (o plano vive no futuro, o feito no passado) e "16 de 38" não significaria coisa alguma. É a mesma leitura dos gráficos L7D (§5.4), e é o que faz a taxa de execução existir.
 
@@ -315,13 +344,15 @@ As 4 cores de `resultado` são as **mesmas do funil** — e isso é correto, nã
 
 > ⚖️ **"Planejadas do dia" = todas as tarefas daquela data**, não só as que continuam `planejada`. Planejada e realizada são o mesmo objeto ([[tarefa]] §2): o que foi feito hoje **estava** no plano de hoje. Contar só o resíduo faria o gráfico do passado ser sempre zero.
 
-**Tabela de atividades do período** — planejadas **e** realizadas, uma linha por atividade, **ordenável por qualquer coluna** (toque no cabeçalho; o mesmo cabeçalho inverte). Colunas: `vendedor` · `data` · `cliente` · **`cnpj`** · `nome da rota` · `tipo de visita` · `realizado` · `tipo de check-in` · `comentário` · `distância` · `endereço`. Rola nos dois eixos, com o cabeçalho fixo no topo. O nome do cliente abre o pin. **`cnpj` sai vazio (`—`) em lead cru** — nem todo ponto do mapa tem CNPJ, e isso é do modelo ([[estabelecimento]]), não falha de dado.
+**Tabela de atividades do período** — planejadas **e** realizadas, uma linha por atividade, **ordenável por qualquer coluna** (toque no cabeçalho; o mesmo cabeçalho inverte). Colunas: `vendedor` · `data` · `cliente` · **`cnpj`** · `nome da rota` · `tipo de visita` · `realizado` · **`resultado`** · **`motivo`** · `tipo de check-in` · `comentário` · `distância` · `endereço`. Rola nos dois eixos, com o cabeçalho fixo no topo. O nome do cliente abre o pin. **`cnpj` sai vazio (`—`) em lead cru** — nem todo ponto do mapa tem CNPJ, e isso é do modelo ([[estabelecimento]]), não falha de dado.
 
 - **Vazio vai sempre para o fim**, nas duas direções: se `—` subisse ao topo ao inverter, ordenar esconderia o dado em vez de revelá-lo.
 - **Teto de 150 linhas por ordenação, dito na tela.** Sem teto, cada toque custava ~250ms para reconstruir 300+ linhas × 10 células. O rodapé informa quantas ficaram fora — corte silencioso lê como "cobri tudo" quando não cobriu.
 - **`nome da rota` deixou de ser rótulo derivado** (28/07): vem do **objeto [[rota]]** via `tarefa.rota_id`, e mostra **`Avulsa`** para tarefa fora de rota. No seed, ~4 em cada 5 linhas têm rota de verdade (com nome de bairro); as `Avulsa` são as visitas-âncora e as agendadas soltas. *(Era `Rota (dd/mm/aaaa)` a partir de `responsavel_id` + `data` — o rótulo existia justamente para não antecipar o objeto, e o objeto rascunho o substituiu.)*
 - **Duas colunas continuam não sendo campos:** `tipo de check-in` deriva da **`distancia_km`** e `realizado` deriva de `status`. Ver [[tarefa]] §4 e §5. ⚠️ **A coluna e o filtro não repetem `realizado`:** entre as realizadas há presencial **e** remoto (no seed, ~17% remoto), e as não realizadas mostram `—` porque sem check-in o campo é nulo.
 - **`distancia_km` é campo novo** ([[tarefa]] §4), derivado no check-in e persistido. Exceção consciente ao não-escopo de GPS: o campo entrou, o motor que o preenche não. No protótipo o valor é **fictício**.
+- **`resultado` e `motivo` entraram em 28/07** com o check-out novo (§3) — é aqui que *"por que não saiu pedido?"* finalmente tem resposta consultável. **`motivo` é uma coluna só para os três vocabulários** (não venda · perda · desqualificação), porque eles são mutuamente exclusivos: com Perda ou Desqualificar marcado, o de não venda nem aparece na tela. Em `Outro`, a célula mostra o **texto** que o vendedor escreveu. Planejada mostra `—` nas duas, como no resto da linha.
+  > ⚠️ **O seed precisou popular `motivo_nao_venda` em todo o histórico realizado.** Sem isso a coluna estrearia vazia em ~300 linhas — o campo novo chegaria sem dado justamente na reunião de supervisão. As listas respeitam o que a visita foi: quem nem falou com o TD não aparece recusando por preço.
 
 ### 5.5 O seed precisou crescer
 
@@ -387,6 +418,10 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Conversão não passa pelo check-out** (§3): `csc`/`aquisicao` vêm do ERP e prevalecem. Um card pode aparecer em Aquisição sem nenhuma atividade concluída.
 - **Agendar põe o pin no funil** (§2.1) — e **o check-in também**, desde 28/07: a tarefa que ele cria nasce `planejada`, então o pin entra em `Visita planejada` e só o `resultado` do check-out o move dali (§2.3). Consequência de produto inalterada: o Funil mostra só o pipeline, e a contagem dele divergir da do mapa é o comportamento correto ([[spec-06-funil]] §5).
 - **Check-in em todo pin, sem exigir plano** (§2.3) — a CAP-6 revisada, finalmente implementada. Alternativa recusada: manter `＋ Agendar` como única porta e fazer o vendedor planejar uma visita que já estava acontecendo.
+- **O desfecho virou pergunta, não rótulo** (§3, fim de 28/07). O chip `Resultado` pedia ao vendedor que **classificasse** a visita num dos quatro nomes do enum; os checkboxes perguntam **o que aconteceu** — encontrou o decisor? vendeu? — e o rótulo sai disso. É a mesma inversão que tirou o `tipo` do check-in: perguntar o fato que a pessoa viu, não a categoria em que ele cai. Alternativa recusada: manter os chips e só acrescentar "Vendeu" como 5ª opção — não caberia, porque *vendeu* e *encontrou o TD* são verdadeiros **ao mesmo tempo**, e chip é escolha única.
+- **"Vendeu?" existe sem quebrar "conversão não é fato de campo"** (§3). A frase virou uma distinção em vez de uma proibição: **venda declarada** é do vendedor, **conversão** é do ERP. O invariante que importa segue de pé — só o pedido leva a Aquisição —, e o vão entre os dois virou dado visível (tag no card, KPI na gerencial). Alternativa recusada: `resultado = convertido` movendo o pin, que era exatamente o que a decisão de 27/07 proibia.
+- **Todo check-out sem venda cobra motivo** (§3). Antes só os dois desfechos negativos cobravam, e a pergunta que a supervisão mais faz — *"por que não saiu pedido?"* — não tinha campo. Custo aceito: uma seleção a mais no check-out mais comum. Mitigação: a lista tem `Sem objeção específica` e `Outro`, então nunca trava ninguém.
+- **Três vocabulários de motivo, um por vez na tela** (§3). Eles se sobrepõem de propósito (`preço` está em dois), porque respondem perguntas diferentes — o evento, a negociação, o ponto. Alternativa recusada: um vocabulário único com todos os motivos, que obrigaria a supervisão a separar "não vendi hoje" de "perdi a conta" no olho.
 - **O tipo é confirmado no fim, não no começo** (§2.3 + §3). Ele esteve em chips no pin, acima do botão de check-in, por uma hora em 28/07: quem entra na porta do cliente não para para classificar a visita — e no check-in ainda não sabe o que ela vai ser. Foi para o sheet de conclusão, onde a informação existe. Alternativa recusada: um passo de confirmação **antes** do check-in (sheet ou prompt) — um toque a mais na ação mais frequente do app.
 - **O sheet de conclusão nasceu de um campo, não de um refactor** (§3). A pendência dos três `window.prompt` era conhecida havia dois dias; o que a resolveu foi precisar de um lugar para o `tipo`. Fica registrado porque é o padrão útil: pendência de apresentação sai junto com o próximo requisito que a encoste.
 - **O sheet é a 4ª tela do pin-sheet, não um sheet sobre o sheet** (§2.2). Empilhar dois bottom sheets exigiria segundo backdrop e nova camada de z-index para uma tela que sempre pertence a **um** ponto.

@@ -310,6 +310,12 @@
     if (campo === 'vendedor') return nomeVend(t.responsavelId);
     if (campo === 'resultado') return (D.RESULTADO[t.resultado] || {}).label || '—';
     if (campo === 'feito') return t.status === 'realizada' ? 'Sim' : 'Não';
+    /* `td` e `venda` são os CHECKBOXES, não o rótulo do resultado — é por eles
+       que os KPIs contam, então é por eles que o drill tem de filtrar. Ligar o
+       KPI de TD ao `resultado === 'td_encontrado'` faria o número dizer 40 e a
+       lista abrir com 25, porque toda venda também encontrou o TD. */
+    if (campo === 'td') return t.tdEncontrado ? 'Sim' : 'Não';
+    if (campo === 'venda') return t.vendaDeclarada ? 'Sim' : 'Não';
     return '';
   }
   /* O drill aceita mais de um critério (a célula da pivô é vendedor + tipo);
@@ -326,9 +332,14 @@
   // não se leem. O chip diz o que a pessoa clicou, não o valor cru.
   function rotuloDrill() {
     if (!drill) return '';
+    const ROTULO = {
+      feito: { Sim: 'Realizadas',     'Não': 'Não realizadas' },
+      td:    { Sim: 'TD encontrado',  'Não': 'Sem TD' },
+      venda: { Sim: 'Venda realizada', 'Não': 'Sem venda' }
+    };
     return drill.valores.map(function (v, i) {
-      if (drill.campos[i] !== 'feito') return v;
-      return v === 'Sim' ? 'Realizadas' : 'Não realizadas';
+      const m = ROTULO[drill.campos[i]];
+      return m ? (m[v] || v) : v;
     }).join(' · ');
   }
 
@@ -571,11 +582,24 @@
     { k: 'rota',  t: 'Nome Rota' },
     { k: 'tipo',  t: 'Tipo de visita' },
     { k: 'feito', t: 'Realizado' },
+    { k: 'res',   t: 'Resultado' },
+    { k: 'mot',   t: 'Motivo' },
     { k: 'ci',    t: 'Tipo Check-in' },
     { k: 'nota',  t: 'Comentário' },
     { k: 'dist',  t: 'Distância' },
     { k: 'end',   t: 'Endereço' }
   ];
+  /* Um motivo por tarefa, vindo de um dos TRÊS vocabulários (spec-07 §3) — na
+     tabela eles moram na mesma coluna porque são mutuamente exclusivos: com
+     Perda ou Desqualificar marcado, o de não venda nem aparece na tela.
+     Em `outro`, vale o texto que o vendedor escreveu. */
+  function motivoDe(t) {
+    if (t.motivoTexto) return t.motivoTexto;
+    if (t.motivoPerda) return D.MOTIVO_PERDA[t.motivoPerda] || '';
+    if (t.motivoDesqualificacao) return D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || '';
+    if (t.motivoNaoVenda) return D.MOTIVO_NAO_VENDA[t.motivoNaoVenda] || '';
+    return '';
+  }
   function linhasTabela(ts) {
     return ts.map(function (t) {
       const p = pinOf(t) || {};
@@ -588,6 +612,8 @@
         rota: nomeRota(t),
         tipo: (D.TAREFA_TIPO[t.tipo] || {}).label || t.tipo,
         feito: t.status === 'realizada' ? 'Sim' : 'Não',
+        res: (D.RESULTADO[t.resultado] || {}).label || '',
+        mot: motivoDe(t),
         ci: tipoCheckin(t),
         nota: t.notas || '',
         dist: t.distanciaKm,                       // number|null — ordena numérico
@@ -632,6 +658,9 @@
         '<td>' + esc(l.rota) + '</td>' +
         '<td>' + esc(l.tipo) + '</td>' +
         '<td><span class="ger-sim' + (l.feito === 'Sim' ? ' is-sim' : '') + '">' + l.feito + '</span></td>' +
+        // Planejada não tem desfecho: as duas colunas ficam "—", como o resto.
+        '<td>' + esc(l.res || '—') + '</td>' +
+        '<td class="ger-td--nota" title="' + esc(l.mot) + '">' + esc(l.mot || '—') + '</td>' +
         '<td>' + esc(l.ci) + '</td>' +
         '<td class="ger-td--nota" title="' + esc(l.nota) + '">' + esc(l.nota || '—') + '</td>' +
         '<td class="ger-td--num">' + (l.dist == null ? '—' : l.dist.toFixed(2).replace('.', ',') + ' km') + '</td>' +
@@ -661,8 +690,15 @@
     const planejadas = tarefasVisiveis().filter(function (t) {
       return t.status === 'planejada' && noPeriodo(t.data);
     });
-    const td = ts.filter(function (t) { return t.resultado === 'td_encontrado'; }).length;
+    /* ⚖️ "TD encontrado" aqui conta o FATO, não o rótulo do resultado: quem
+       vendeu também encontrou o TD (a venda o implica), e quem perdeu pode ter
+       encontrado. Contar `resultado === 'td_encontrado'` passaria a esconder
+       toda venda da taxa de TD — o número cairia no dia em que o time vendesse
+       mais, que é o oposto do que a supervisão precisa ler. */
+    const td = ts.filter(function (t) { return t.tdEncontrado; }).length;
     const taxa = ts.length ? Math.round((td / ts.length) * 100) : 0;
+    const vend = ts.filter(function (t) { return t.vendaDeclarada; }).length;
+    const taxaV = ts.length ? Math.round((vend / ts.length) * 100) : 0;
 
     countEl.textContent = ts.length + (ts.length === 1 ? ' realizada' : ' realizadas');
     setHint(rotuloPeriodo() + ' · toque num número para a lista');
@@ -688,9 +724,13 @@
         kpi('', 'data-act="ir-tabela"', '', noPlano, 'Planejadas', 'no período') +
         kpi('', 'data-act="drill" data-campo="feito"', ' data-valor="Sim"',
             ts.length, 'Realizadas', pctExec + '% das planejadas') +
-        kpi('', 'data-act="drill" data-campo="resultado"',
-            ' data-valor="' + esc(D.RESULTADO.td_encontrado.label) + '"',
+        kpi('', 'data-act="drill" data-campo="td"', ' data-valor="Sim"',
             td, 'TD encontrado', taxa + '% das realizadas') +
+        /* 4º KPI (28/07): venda DECLARADA em campo. Não é Aquisição e não quer
+           ser — Aquisição depende do pedido no ERP. A distância entre este
+           número e o de Aquisição é justamente o que a supervisão precisa ver. */
+        kpi(' ger-kpi--venda', 'data-act="drill" data-campo="venda"', ' data-valor="Sim"',
+            vend, 'Venda realizada', taxaV + '% das realizadas') +
       '</div>';
 
     // A contagem já vive no head da aba ("N realizadas") — repetir num

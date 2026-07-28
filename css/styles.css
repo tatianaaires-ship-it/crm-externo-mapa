@@ -487,6 +487,68 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
   border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
 }
 .sform-inp--data { font-size: 15px; }
+/* Select nativo: 14 opções em chips viram parede e empurram o botão de
+   concluir para fora da tela. A seta é desenhada aqui porque `appearance:none`
+   tira a nativa — sem ela o campo lê como caixa de texto. */
+.sform-sel {
+  width: 100%; margin-top: 7px; font-size: 16px;   /* 16px: sem zoom no iOS */
+  padding: 10px 34px 10px 12px; border: 1px solid var(--line-2);
+  border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 16px;
+}
+.sform-sel:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-050); }
+/* Textarea das notas da visita — mesma caixa do input, com altura para
+   respirar e sem resize horizontal (quebraria o sheet). */
+.sform-txt {
+  width: 100%; margin-top: 7px; font-size: 16px; line-height: 1.45;
+  padding: 10px 12px; border: 1px solid var(--line-2);
+  border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
+  resize: vertical; min-height: 74px; font-family: inherit;
+}
+.sform-txt:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-050); }
+
+/* ---- Checkbox do check-out (SPEC 07 §3) ------------------------------------
+   É `button[role=checkbox]`, não `input`: a tela se re-renderiza a cada toque e
+   tudo é delegado, então o input nativo dispararia click e change no mesmo
+   gesto. O quadrado é desenhado aqui.
+   `is-locked` = TD travado pela venda (não se desmarca o que a venda implica):
+   fica marcado e apagado, sem virar `disabled` — o toque não faz nada, mas o
+   estado continua legível. */
+.sform-check-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px; }
+.sform-check {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 11px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 14px;
+  text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.sform-check__box {
+  flex: none; width: 20px; height: 20px; border-radius: 5px;
+  border: 2px solid var(--line-2); background: var(--surface); position: relative;
+}
+.sform-check.is-on { border-color: var(--brand); background: var(--brand-050); }
+.sform-check.is-on .sform-check__box { border-color: var(--brand); background: var(--brand); }
+.sform-check.is-on .sform-check__box::after {
+  content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg);
+}
+.sform-check.is-on .sform-check__lbl { font-weight: 700; }
+.sform-check.is-locked { opacity: .62; cursor: default; }
+/* O (i): explica QUANDO usar desqualificar, perda e não venda — a distinção
+   entre os três é a única coisa desta tela que não se aprende olhando. */
+.sform-i {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--line-2); background: var(--surface-2); color: var(--muted);
+  font: 700 13px/1 Georgia, serif; cursor: pointer;
+}
+.sform-i[aria-expanded="true"] { border-color: var(--brand); background: var(--brand-050); color: var(--brand); }
+.sform-lbl .sform-i { width: 22px; height: 22px; font-size: 11px; margin-left: 6px; vertical-align: middle; }
+.sform-ajuda {
+  flex: 1 0 100%; margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  background: var(--brand-050); border-left: 3px solid var(--brand);
+  border-radius: var(--r-sm); padding: 9px 11px;
+}
 .sform-hint { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); }
 /* Consequência fora da tela, dita ANTES do botão: agendar mexe no funil. */
 .sform-nota {
@@ -928,7 +990,14 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
 
 /* KPI row: os três números de apoio. Planejadas e Atrasadas vêm de tarefa
    PLANEJADA — a gerencial mostra o plano ao lado da execução. */
-.ger-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 2px; }
+/* 2×2 no celular: com o 4º KPI (Venda realizada, 28/07) quatro colunas numa
+   tela de 360px cortam o rótulo no meio. Em Z, a leitura continua sendo o
+   funil de execução — plano → feito → TD → venda. */
+.ger-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 2px; }
+@media (min-width: 620px) { .ger-kpis { grid-template-columns: repeat(4, 1fr); } }
+/* O KPI de venda veste o verde do `resultado = vendido`, não o do funil:
+   Aquisição continua sendo outra coisa, e a cor não pode sugerir que chegou. */
+.ger-kpi--venda .ger-kpi__n { color: #15803d; }
 .ger-kpi {
   display: flex; flex-direction: column; gap: 1px; text-align: left;
   background: var(--surface); border: 1px solid var(--line);
@@ -1121,6 +1190,15 @@ body.view-funil .placing-banner { display: none !important; }
 .funil-card__name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .funil-card__sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .funil-card__zone { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tag de venda declarada: verde do `resultado = vendido`, com a legenda que
+   explica por que o card não andou — a venda existe, o pedido não. */
+.funil-card__venda {
+  display: flex; align-items: baseline; gap: 6px; margin-top: 7px;
+  padding: 5px 8px; border-radius: var(--r-sm);
+  background: #dcfce7; border: 1px solid #86efac;
+  font-size: 11px; font-weight: 700; color: #15803d; line-height: 1.2;
+}
+.funil-card__venda small { font-weight: 500; font-size: 10px; color: #3f6212; }
 /* Clone flutuante durante o arraste */
 .funil-ghost {
   position: fixed; z-index: 62; pointer-events: none; margin: 0;

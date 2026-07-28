@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v6'; // v6: tarefa ganha hora + rotaId; entra a coleção `rotas`
+  const KEY = 'crm-externo-map:v7'; // v7: check-out em checkboxes; 3 vocabulários de motivo
   const D = window.CRM_DATA;
 
   let pins = [];
@@ -30,8 +30,16 @@
      gráficos por dia nasceriam ralos em quem já abriu a demo.
      v6 (28/07): a tarefa ganhou `hora` e `rotaId`, e o estado passou a carregar
      a coleção `rotas`. Estado v5 tem planejadas sem rota nenhuma — a Agenda em
-     calendário nasceria sem uma única rota em quem já abriu a demo. */
-  const STATE_V = 6;
+     calendário nasceria sem uma única rota em quem já abriu a demo.
+     v7 (28/07): o check-out virou quatro checkboxes e a tarefa ganhou
+     `tdEncontrado`, `vendaDeclarada` e `motivoNaoVenda`; `resultado` ganhou
+     `vendido`; e os DOIS vocabulários de motivo foram trocados por TRÊS, com
+     chaves novas. Estado v6 tem tarefas com `motivoPerda: 'compra_do_
+     concorrente'` e afins — chaves que não existem mais, e que apareceriam
+     como motivo em branco no detalhe e na gerencial. Migrar meia-boca seria
+     inventar o motivo que o vendedor fictício teria escolhido; descartar e
+     resemear é honesto. */
+  const STATE_V = 7;
 
   // Snapshot real e persistência antiga podem trazer o enum velho.
   const STATUS_LEGADO = {
@@ -343,7 +351,9 @@
       status: 'planejada',
       responsavelId: p.vendedorId || D.VENDEDOR_SESSAO,  // DERIVADO, nunca digitado
       checkinEm: null, checkoutEm: null,
-      resultado: null, motivoPerda: null, motivoDesqualificacao: null, motivoTexto: null,
+      // Desfecho — tudo nasce vazio e só o check-out preenche (spec-07 §3).
+      resultado: null, tdEncontrado: false, vendaDeclarada: false,
+      motivoNaoVenda: null, motivoPerda: null, motivoDesqualificacao: null, motivoTexto: null,
       proximaAcao: null, proximaAcaoData: null,
       notas: (data.notas && data.notas.trim()) || null,
       criadoPor: D.VENDEDOR_SESSAO
@@ -444,10 +454,24 @@
     out = out || {};
     if (!t || t.status !== 'planejada') return null;
     if (!t.checkinEm) return null;          // sem check-in não há conclusão
-    const r = D.RESULTADO[out.resultado];
+
+    /* O `resultado` não vem mais digitado: vem dos quatro checkboxes (§3).
+       `normalizeCheckout` aplica as regras de combinação ANTES da derivação,
+       para que o que é gravado seja exatamente o que a tela mostrava. */
+    const f = D.normalizeCheckout(out);
+    const r = D.RESULTADO[D.deriveResultado(f)];
     if (!r) return null;
-    if (r.motivo === 'perda' && !out.motivo) return null;
-    if (r.motivo === 'desqualificacao' && !out.motivo) return null;
+
+    // Motivo é obrigatório nas duas laterais E na não venda (§3). O motivo de
+    // não venda SOME quando há lateral: vale só o da saída.
+    const motLateral = r.motivo ? out.motivo : null;
+    if (r.motivo && !motLateral) return null;
+    const pedeNaoVenda = !r.motivo && !f.vendaDeclarada;
+    const motNaoVenda = pedeNaoVenda ? (out.motivoNaoVenda || null) : null;
+    if (pedeNaoVenda && !motNaoVenda) return null;
+    // `outro` vale nos três vocabulários; o texto acompanha o motivo efetivo.
+    const motEfetivo = motLateral || motNaoVenda;
+    if (motEfetivo === 'outro' && !(out.motivoTexto && out.motivoTexto.trim())) return null;
 
     // O tipo confirmado no sheet de conclusão entra no mesmo ato — é a última
     // janela em que a tarefa é `planejada` e, portanto, editável (§8).
@@ -455,22 +479,42 @@
     t.status = 'realizada';
     t.checkoutEm = nowISO();
     t.resultado = r.key;
-    t.motivoPerda = (r.motivo === 'perda') ? out.motivo : null;
-    t.motivoDesqualificacao = (r.motivo === 'desqualificacao') ? out.motivo : null;
-    t.motivoTexto = (out.motivo === 'outro' && out.motivoTexto) ? String(out.motivoTexto).trim() : null;
+    // Os checkboxes viram FATO guardado, não só o rótulo derivado: `perdido`
+    // com TD encontrado é diferente de `perdido` sem falar com ninguém, e o
+    // enum de resultado único não caberia as duas coisas.
+    t.tdEncontrado = !!f.tdEncontrado;
+    t.vendaDeclarada = !!f.vendaDeclarada;
+    t.motivoNaoVenda = motNaoVenda;
+    t.motivoPerda = (r.motivo === 'perda') ? motLateral : null;
+    t.motivoDesqualificacao = (r.motivo === 'desqualificacao') ? motLateral : null;
+    t.motivoTexto = (motEfetivo === 'outro') ? String(out.motivoTexto).trim() : null;
     t.proximaAcao = (out.proximaAcao && out.proximaAcao.trim()) || null;
     t.proximaAcaoData = out.proximaAcaoData || null;
+    // A nota da ATIVIDADE (≠ nota do ponto). Até 28/07 só o agendar a escrevia;
+    // o check-out é o momento em que há o que contar.
+    if (out.notas != null) t.notas = (String(out.notas).trim() || null);
 
     const p = getById(t.estabelecimentoId);
     if (p) {
       p.lastVisit = t.data;
-      // Em `outro`, o pin mostra o TEXTO que o vendedor escreveu — "Outro" não
-      // informa nada a quem abre o pin depois.
-      p.motivoStatus = t.motivoTexto || (t.motivoPerda
+      /* `motivoStatus` explica a SAÍDA LATERAL no pin — só existe quando há
+         uma. O motivo de não venda não entra aqui: ele é do evento, não do
+         estado do ponto, e "Sem objeção específica" colado no pin não diria
+         nada a quem o abrir depois.
+         Em `outro`, mostra o TEXTO que o vendedor escreveu — a palavra "Outro"
+         também não informa nada. */
+      p.motivoStatus = !r.motivo ? null : (t.motivoTexto || (t.motivoPerda
         ? (D.MOTIVO_PERDA[t.motivoPerda] || null)
-        : (t.motivoDesqualificacao ? (D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || null) : null));
+        : (D.MOTIVO_DESQUALIFICACAO[t.motivoDesqualificacao] || null)));
       // A tabela resultado→status vive em CRM_DATA.RESULTADO (é dado, não switch).
       applyStatus(p, r.status);
+      /* Tag `Venda realizada`: venda declarada que o ERP ainda não confirmou.
+         Some sozinha em Aquisição — lá o pedido chegou e não há mais furo a
+         denunciar. Em CSC ela FICA. Mesma regra de `reconcileStatus`. */
+      p.vendaDeclarada = p.status !== 'aquisicao' &&
+        getTarefasByPin(p.id).some(function (x) {
+          return x.status === 'realizada' && x.vendaDeclarada;
+        });
       // Concluir é constatação de campo: sobe na escada de confiança.
       if (t.checkinEm) promoteToFieldValidated(p);
       p.checkins = getTarefasByPin(p.id)

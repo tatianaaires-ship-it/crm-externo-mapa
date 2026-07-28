@@ -133,40 +133,141 @@
     cancelada: { key: 'cancelada', label: 'Cancelada' }
   };
 
-  /* ---- resultado: 4 valores. `status` aqui É a tabela de mapeamento
+  /* ---- resultado: 5 valores. `status` aqui É a tabela de mapeamento
           resultado → status do estabelecimento (tarefa.md §5) — mantida como
           DADO para não haver um `switch` escondido em algum lugar.
-          NÃO existe `convertido`: conversão vem do ERP, não de tarefa.
-          Cor = a do status homônimo (SPEC 00 §2.6), sem escala nova. ---- */
+          Cor = a do status homônimo (SPEC 00 §2.6); só `vendido` tem cor
+          própria, porque não tem status homônimo — e não pode ter.
+
+          ⚖️ O `resultado` deixou de ser DIGITADO em 28/07 e passou a ser
+          DERIVADO dos quatro checkboxes do check-out (spec-07 §3). O enum
+          sobrevive porque é dele que vivem o gráfico "Por resultado", o drill
+          da gerencial e a tabela que move o funil. A derivação está em
+          `deriveResultado`.
+
+          ⚖️ `vendido` NÃO é "convertido". Venda declarada em campo é fato do
+          VENDEDOR; conversão é fato do ERP (cadastro/pedido) e continua
+          prevalecendo. Por isso `vendido.status` é `td_encontrado` — quem
+          vendeu falou com o tomador de decisão, e é até aí que o campo
+          alcança. Aquisição só chega com pedido no sistema; enquanto não
+          chega, o pin carrega a tag `Venda realizada`. ---- */
   // `label` é o REGISTRO (histórico, relatório); `acao` é o BOTÃO de escolha no
   // check-out. Sem os dois, a gerencial mostraria "Desqualificar 3" — verbo no
   // imperativo descrevendo fato passado.
   const RESULTADO = {
-    sem_avanco:     { key: 'sem_avanco',     label: 'Sem avanço',     acao: 'Sem avanço',     status: 'visitado',       color: STATUS.visitado.color,       motivo: null },
-    td_encontrado:  { key: 'td_encontrado',  label: 'TD encontrado',  acao: 'TD encontrado',  status: 'td_encontrado',  color: STATUS.td_encontrado.color,  motivo: null },
-    perdido:        { key: 'perdido',        label: 'Perdido',        acao: 'Perdido',        status: 'perdido',        color: STATUS.perdido.color,        motivo: 'perda' },
-    desqualificado: { key: 'desqualificado', label: 'Desqualificado', acao: 'Desqualificar',  status: 'desqualificado', color: STATUS.desqualificado.color, motivo: 'desqualificacao' }
+    sem_avanco:     { key: 'sem_avanco',     label: 'Sem avanço',      acao: 'Sem avanço',     status: 'visitado',       color: STATUS.visitado.color,       motivo: null },
+    td_encontrado:  { key: 'td_encontrado',  label: 'TD encontrado',   acao: 'TD encontrado',  status: 'td_encontrado',  color: STATUS.td_encontrado.color,  motivo: null },
+    vendido:        { key: 'vendido',        label: 'Venda realizada', acao: 'Vendeu',         status: 'td_encontrado',  color: '#15803d',                   motivo: null },
+    perdido:        { key: 'perdido',        label: 'Perdido',         acao: 'Perdido',        status: 'perdido',        color: STATUS.perdido.color,        motivo: 'perda' },
+    desqualificado: { key: 'desqualificado', label: 'Desqualificado',  acao: 'Desqualificar',  status: 'desqualificado', color: STATUS.desqualificado.color, motivo: 'desqualificacao' }
   };
-  const RESULTADO_ORDER = ['sem_avanco', 'td_encontrado', 'perdido', 'desqualificado'];
+  const RESULTADO_ORDER = ['sem_avanco', 'td_encontrado', 'vendido', 'perdido', 'desqualificado'];
 
-  /* ---- Motivos: dois vocabulários FECHADOS e separados. Perder é a
-          negociação morrer; desqualificar é o ponto não ser oportunidade. ---- */
+  /* ---- Os quatro checkboxes do check-out (spec-07 §3), na ordem da tela.
+          `exclui` é a regra de combinação: marcar um desmarca os opostos.
+          `TD encontrado` não exclui ninguém — é o único ortogonal. ---- */
+  const CHECKOUT_FLAGS = [
+    { key: 'tdEncontrado',   label: 'TD encontrado?', exclui: [] },
+    { key: 'vendaDeclarada', label: 'Vendeu?',        exclui: ['perda', 'desqualificar'] },
+    { key: 'desqualificar',  label: 'Desqualificar',  exclui: ['vendaDeclarada', 'perda'],
+      ajuda: 'Desqualificar é dizer que o PONTO não é oportunidade: não existe, não é food-service, está fora da área. O pin continua no mapa, mas sai do pipeline.' },
+    { key: 'perda',          label: 'Perda',          exclui: ['vendaDeclarada', 'desqualificar'],
+      ajuda: 'Perder é dizer que a NEGOCIAÇÃO morreu, mas o ponto segue sendo oportunidade — dá para reabordar mais tarde.' }
+  ];
+
+  /* Venda declarada exige tomador de decisão: não se vende sem falar com quem
+     decide. O checkbox de TD marca junto e trava (spec-07 §3). */
+  const VENDA_IMPLICA_TD = true;
+
+  /* ---- Motivos: TRÊS vocabulários FECHADOS e separados.
+            · não venda    — esta VISITA não gerou pedido (o evento);
+            · perda        — a NEGOCIAÇÃO morreu, o ponto segue oportunidade;
+            · desqualificação — o PONTO não é oportunidade.
+          Os três vieram da operação (Tatiana, 28/07). Só um aparece por vez na
+          tela: marcar Perda ou Desqualificar esconde o motivo de não venda,
+          senão o vendedor veria "preço" duas vezes, em dois campos, com
+          vocabulários diferentes. ---- */
+  const MOTIVO_NAO_VENDA = {
+    cliente_com_divida:         'Cliente com dívida',
+    ja_abastecido:              'Cliente já estava abastecido',
+    ec_fechado:                 'EC fechado',
+    credito_nao_liberado:       'Não liberou crédito',
+    nao_trabalha_food_service:  'Não trabalha mais com food service',
+    prazo_limite_insuficiente:  'Prazo/limite insuficiente',
+    preco:                      'Preço',
+    ruptura_de_produto:         'Ruptura de produto',
+    sku_indisponivel:           'Não trabalhamos com o SKU que o cliente queria',
+    td_ausente:                 'TD ausente',
+    td_indisponivel:            'TD ocupado/indisponível',
+    sem_objecao:                'Sem objeção específica',
+    fora_do_perfil_praso:       'Cliente não faz o perfil da Praso',
+    outro:                      'Outro'
+  };
   const MOTIVO_PERDA = {
-    preco:                   'Preço',
-    compra_do_concorrente:   'Compra do concorrente',
-    sem_interesse:           'Sem interesse',
-    sem_contato_com_decisor: 'Sem contato com o decisor',
-    credito_reprovado:       'Crédito reprovado',
+    preco_alto:              'Preço alto',
+    sem_contato_efetivo:     'Não consegui contato efetivo',
+    ja_tem_fornecedores:     'Já tem fornecedores',
+    sem_mix_procurado:       'Não temos o mix procurado',
+    sem_interesse:           'Não tem interesse',
     outro:                   'Outro'
   };
   const MOTIVO_DESQUALIFICACAO = {
+    cnpj_baixado:            'CNPJ baixado',
+    ativo_em_outro_cnpj:     'Ativo em outro CNPJ',
+    fora_da_area_de_entrega: 'Fora da área de entrega',
+    nao_e_food_service:      'Não é food-service',
+    fora_de_funcionamento:   'Negócio fora de funcionamento',
+    // A dor-manchete da KR: rota caindo em endereço onde não há nada. Nenhuma
+    // das outras cobre "o endereço está errado" — fechado ≠ inexistente.
     nao_existe_no_endereco:  'Não existe no endereço',
-    fora_do_perfil:          'Fora do perfil',
-    fechado_definitivamente: 'Fechado definitivamente',
-    endereco_e_residencia:   'Endereço é residência',
-    duplicado:               'Duplicado',
+    contato_invalido:        'Contato inválido',
+    ie_denegada:             'Inscrição estadual denegada',
     outro:                   'Outro'
   };
+
+  /* ---- `resultado` a partir dos checkboxes (spec-07 §3) --------------------
+     Precedência: as saídas laterais mandam (são o desfecho mais decisivo),
+     depois a venda, depois o TD, e o default é o "nada aconteceu".
+     ⚖️ `tdEncontrado` continua guardado como FATO mesmo quando o resultado é
+     `perdido` — falei com o dono e ele disse não é informação que a gerencial
+     quer, e o enum de resultado único não caberia as duas coisas. ---- */
+  function deriveResultado(f) {
+    f = f || {};
+    if (f.desqualificar)  return 'desqualificado';
+    if (f.perda)          return 'perdido';
+    if (f.vendaDeclarada) return 'vendido';
+    if (f.tdEncontrado)   return 'td_encontrado';
+    return 'sem_avanco';
+  }
+
+  /* ---- Regras de combinação dos checkboxes (spec-07 §3) -------------------
+     Vendeu, Perda e Desqualificar são desfechos OPOSTOS: marcar um desmarca os
+     outros. `mudou` é a chave que o vendedor acabou de tocar — ela ganha, para
+     que o toque faça o que o dedo mandou (e não o contrário, que é o que
+     acontece quando a precedência é fixa e o checkbox "não obedece").
+     Sem `mudou` — é o caso do store validando o que chegou — vale a mesma
+     precedência de `deriveResultado`, como rede de segurança.
+     Os opostos ficam HABILITADOS na tela: checkbox apagado no Android lê como
+     tela travada, e a regra fica mais clara sendo aplicada do que sendo
+     proibida. A linha de ajuda embaixo do grupo conta o que aconteceu. ---- */
+  function normalizeCheckout(f, mudou) {
+    const o = {
+      tdEncontrado:   !!(f && f.tdEncontrado),
+      vendaDeclarada: !!(f && f.vendaDeclarada),
+      desqualificar:  !!(f && f.desqualificar),
+      perda:          !!(f && f.perda)
+    };
+    if (mudou && o[mudou]) {
+      const regra = CHECKOUT_FLAGS.filter(function (c) { return c.key === mudou; })[0];
+      (regra ? regra.exclui : []).forEach(function (k) { o[k] = false; });
+    } else {
+      if (o.desqualificar)     { o.vendaDeclarada = false; o.perda = false; }
+      else if (o.perda)        { o.vendaDeclarada = false; }
+    }
+    // Vendeu implica TD encontrado — e o checkbox de TD fica travado marcado.
+    if (VENDA_IMPLICA_TD && o.vendaDeclarada) o.tdEncontrado = true;
+    return o;
+  }
 
   /* ---- Tabela de referência cnae_tier (seed do anexo do artefato).
           Vira tabela editável no Admin (sem código) na plataforma real. ---- */
@@ -674,6 +775,28 @@
          da gerencial existir com a razão certa, em vez de vir de tarefa sem
          check-in. Derivada no check-in (GPS × geo do pin), nunca digitada. */
       const temCheckin = !!t.checkinEm;
+      /* Os checkboxes do check-out são FATO guardado, não rótulo derivado do
+         `resultado` — a gerencial lê os dois. O seed reconstrói o que teria
+         sido marcado na tela para produzir este resultado (spec-07 §3):
+           · vendeu ⇒ TD encontrado (não se vende sem falar com quem decide);
+           · perdeu ⇒ falou com o TD, EXCETO quando o motivo é justamente não
+             ter conseguido contato efetivo;
+           · desqualificou ⇒ não há TD a encontrar. */
+      const res = t.resultado || null;
+      const tdEnc = t.tdEncontrado != null ? t.tdEncontrado
+        : (res === 'td_encontrado' || res === 'vendido' ||
+           (res === 'perdido' && t.motivoPerda !== 'sem_contato_efetivo'));
+      /* `motivo_nao_venda` é OBRIGATÓRIO em todo check-out sem venda (§3), e
+         só some quando Perda ou Desqualificar toma a tela. Sem semear aqui, a
+         coluna nasceria vazia em todo o histórico — o campo estrearia sem
+         dado justamente na reunião de supervisão. As duas listas respeitam o
+         que a visita foi: quem nem falou com o TD não pode ter recusado por
+         preço. */
+      const SEM_TD  = ['td_ausente', 'td_indisponivel', 'ec_fechado', 'sem_objecao'];
+      const COM_TD  = ['preco', 'ja_abastecido', 'prazo_limite_insuficiente', 'sem_objecao',
+                       'cliente_com_divida', 'credito_nao_liberado', 'sku_indisponivel',
+                       'ruptura_de_produto', 'fora_do_perfil_praso'];
+      const pedeMotivo = res === 'sem_avanco' || res === 'td_encontrado';
       out.push({
         id: 't' + pad(seq),
         estabelecimentoId: pin.id,
@@ -690,7 +813,12 @@
         // Hora MARCADA (opcional) e a rota a que a parada pertence (null = avulsa).
         hora: t.hora || null,
         rotaId: t.rotaId || null,
-        resultado: t.resultado || null,
+        resultado: res,
+        // Os quatro checkboxes do check-out (spec-07 §3).
+        tdEncontrado: res ? !!tdEnc : false,
+        vendaDeclarada: res === 'vendido',
+        motivoNaoVenda: t.motivoNaoVenda ||
+          (pedeMotivo ? umDe(tdEnc ? COM_TD : SEM_TD) : null),
         motivoPerda: t.motivoPerda || null,
         motivoDesqualificacao: t.motivoDesqualificacao || null,
         motivoTexto: null,
@@ -709,6 +837,7 @@
         checkinEm: data + 'T09:30:00', checkoutEm: data + 'T10:15:00',
         resultado: resultado,
         motivoPerda: e.motivoPerda, motivoDesqualificacao: e.motivoDesqualificacao,
+        motivoNaoVenda: e.motivoNaoVenda, tdEncontrado: e.tdEncontrado,
         proximaAcao: e.proximaAcao, proximaAcaoData: e.proximaAcaoData, notas: e.notas
       });
     }
@@ -729,8 +858,13 @@
         if (i % 2 === 0) realizada(p, 'follow_up', isoPlus(-(3 + (i % 10))), 'td_encontrado');
       } else if (st === 'csc' || st === 'aquisicao') {
         realizada(p, 'primeira_visita', p.lastVisit || isoPlus(-30), 'td_encontrado');
-        // Cliente ativo recebe recorrência — é o tipo que existe pra isso.
-        realizada(p, 'recorrencia', isoPlus(-(2 + (i % 12))), 'sem_avanco',
+        /* Cliente ativo recebe recorrência — é o tipo que existe pra isso.
+           Em um terço dos CSC a recorrência fecha VENDA: cadastrado, vendedor
+           declarou o pedido e o ERP ainda não confirmou. É esse pin que carrega
+           a tag `Venda realizada` no board — o vão entre o campo e o sistema,
+           que é o que a supervisão quer enxergar. */
+        realizada(p, 'recorrencia', isoPlus(-(2 + (i % 12))),
+          (st === 'csc' && i % 3 === 0) ? 'vendido' : 'sem_avanco',
           { notas: 'Reposição da semana conferida.' });
       } else if (st === 'sem_plano') {
         // A base fora do pipeline. Uma fatia entra por plano, outra saiu pelas laterais.
@@ -748,11 +882,11 @@
                    notas: 'Reagendar — não deu tempo na rota.' });
         } else if (nPerd < 4) {                // → Perdido
           nPerd += 1;
-          const mot = ['preco', 'compra_do_concorrente', 'sem_interesse', 'credito_reprovado'][nPerd - 1];
+          const mot = ['preco_alto', 'ja_tem_fornecedores', 'sem_interesse', 'sem_contato_efetivo'][nPerd - 1];
           realizada(p, 'primeira_visita', isoPlus(-(5 + nPerd * 3)), 'perdido', { motivoPerda: mot });
         } else if (nDesq < 3) {                // → Desqualificado
           nDesq += 1;
-          const mot = ['nao_existe_no_endereco', 'endereco_e_residencia', 'fechado_definitivamente'][nDesq - 1];
+          const mot = ['nao_existe_no_endereco', 'cnpj_baixado', 'fora_de_funcionamento'][nDesq - 1];
           realizada(p, 'primeira_visita', isoPlus(-(4 + nDesq * 4)), 'desqualificado', { motivoDesqualificacao: mot });
         }
         // O resto fica sem tarefa: existe no mapa, não no funil.
@@ -776,10 +910,17 @@
     if (emCampo.length) {
       // `csc`/`aquisicao` têm status vindo do ERP, que PREVALECE — o resultado
       // da tarefa é livre neles. Os demais repetem o resultado da âncora.
+      /* ⚖️ `vendido` cabe aqui sem mexer no board, e a razão é a mesma regra
+         de sempre: `RESULTADO.vendido.status` é `td_encontrado`. Num pin que
+         JÁ é TD encontrado, a última realizada virar venda não muda a coluna
+         — muda só a tag. Em `csc`/`aquisicao` o status vem do ERP e prevalece,
+         então o resultado é livre. Em `visitado`, não: `vendido` o promoveria
+         e embaralharia o funil (o aviso do bloco acima). */
       function resultadoDe(p) {
         if (p.status === 'visitado')      return 'sem_avanco';
-        if (p.status === 'td_encontrado') return 'td_encontrado';
-        return rnd() < 0.62 ? 'sem_avanco' : 'td_encontrado';
+        if (p.status === 'td_encontrado') return rnd() < 0.82 ? 'td_encontrado' : 'vendido';
+        const r = rnd();
+        return r < 0.45 ? 'sem_avanco' : (r < 0.75 ? 'td_encontrado' : 'vendido');
       }
       function tipoDe(p) {
         if (p.status === 'csc' || p.status === 'aquisicao') return rnd() < 0.75 ? 'recorrencia' : 'follow_up';
@@ -982,6 +1123,14 @@
       p.status = novo;
       p.statusAnterior = anterior;
       p.motivoStatus = motivo;
+      /* Tag `Venda realizada` (28/07) — DERIVADA, nunca digitada: existe
+         enquanto houver venda declarada em campo que o ERP ainda não confirmou
+         com pedido. É o vão entre o que o vendedor viu e o que o sistema sabe,
+         e é por isso que ela some sozinha em Aquisição: lá o pedido chegou e a
+         tag não teria mais o que denunciar. Em CSC ela FICA — cadastrado sem
+         compra com venda declarada é exatamente o furo. */
+      p.vendaDeclarada = novo !== 'aquisicao' &&
+        feitas.some(function (t) { return t.vendaDeclarada; });
       if (feitas.length) p.lastVisit = feitas[feitas.length - 1].data;
       // `pin.checkins` DERIVA das tarefas (tarefa.md §7) — não é mais fonte.
       p.checkins = feitas.filter(function (t) { return t.checkinEm; })
@@ -1012,6 +1161,11 @@
     TAREFA_STATUS: TAREFA_STATUS,
     RESULTADO: RESULTADO,
     RESULTADO_ORDER: RESULTADO_ORDER,
+    CHECKOUT_FLAGS: CHECKOUT_FLAGS,
+    VENDA_IMPLICA_TD: VENDA_IMPLICA_TD,
+    deriveResultado: deriveResultado,
+    normalizeCheckout: normalizeCheckout,
+    MOTIVO_NAO_VENDA: MOTIVO_NAO_VENDA,
     MOTIVO_PERDA: MOTIVO_PERDA,
     MOTIVO_DESQUALIFICACAO: MOTIVO_DESQUALIFICACAO,
     CNAE_TIER: CNAE_TIER,

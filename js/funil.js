@@ -50,6 +50,14 @@
           '<span class="funil-card__zone">' + esc(cityOf(p)) + '</span>' +
           '<span class="badge badge--q-' + esc(p.qualidade) + '" style="--c:' + qual.color + ';--ci:' + qual.ink + '">' + qual.emoji + ' ' + esc(qual.label) + '</span>' +
         '</div>' +
+        /* Tag `Venda realizada` (28/07): venda que o vendedor declarou no
+           check-out e o ERP ainda não confirmou com pedido. O card NÃO se move
+           por causa dela — Aquisição continua vindo só do sistema — então a
+           tag é o único lugar onde esse vão aparece no board. Some sozinha
+           quando o pedido chega (o pin vai para Aquisição). */
+        (p.vendaDeclarada
+          ? '<span class="funil-card__venda">💰 Venda realizada<small>aguardando pedido</small></span>'
+          : '') +
       '</div>'
     );
   }

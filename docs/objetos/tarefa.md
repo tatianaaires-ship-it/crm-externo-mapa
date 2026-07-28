@@ -53,12 +53,16 @@ CREATE TABLE tarefa (
   distancia_km        numeric(5,2),         -- DERIVADA no check-in: GPS do vendedor × geo do pin.
                                             -- NULL sem check-in. E ELA que classifica
                                             -- presencial x remoto (§5). Nunca digitada.
-  -- desfecho
-  resultado           text,                 -- sem_avanco | td_encontrado | perdido | desqualificado
+  -- desfecho: os QUATRO checkboxes do check-out (§4) …
+  td_encontrado       boolean NOT NULL DEFAULT false,  -- falou com o tomador de decisão
+  venda_declarada     boolean NOT NULL DEFAULT false,  -- vendeu EM CAMPO (≠ pedido no ERP, §5)
+  -- … e o `resultado`, que é DERIVADO deles (§5), não digitado
+  resultado           text,                 -- sem_avanco | td_encontrado | vendido | perdido | desqualificado
                                             -- NÃO existe 'convertido': conversão vem do ERP, não de tarefa (§5)
+  motivo_nao_venda    text,                 -- obrigatório quando NÃO houve venda nem saída lateral
   motivo_perda        text,                 -- obrigatório se resultado = 'perdido'
   motivo_desqualificacao text,              -- obrigatório se resultado = 'desqualificado'
-  motivo_texto        text,                 -- só quando o motivo escolhido for 'outro'
+  motivo_texto        text,                 -- só quando o motivo escolhido for 'outro' (serve aos TRÊS)
   -- continuidade
   proxima_acao        text,
   proxima_acao_data   date,
@@ -68,6 +72,13 @@ CREATE TABLE tarefa (
   updated_at          timestamptz NOT NULL DEFAULT now(),
   CHECK (resultado <> 'perdido' OR motivo_perda IS NOT NULL),
   CHECK (resultado <> 'desqualificado' OR motivo_desqualificacao IS NOT NULL),
+  -- Motivo de NÃO VENDA é obrigatório em toda realizada que não vendeu e não
+  -- saiu pela lateral — e é PROIBIDO nos outros casos (um motivo por vez, §4).
+  CHECK (resultado NOT IN ('sem_avanco','td_encontrado') OR motivo_nao_venda IS NOT NULL),
+  CHECK (resultado IN ('sem_avanco','td_encontrado') OR motivo_nao_venda IS NULL),
+  -- Vender exige tomador de decisão: não se vende sem falar com quem decide.
+  CHECK (venda_declarada = false OR td_encontrado = true),
+  CHECK ((resultado = 'vendido') = venda_declarada),
   -- REALIZADA exige os DOIS extremos: sem check-in nao houve presenca, sem
   -- check-out a visita nao fechou. E vale ao contrario: quem tem check-out
   -- esta realizada. Ver §5.
@@ -90,13 +101,16 @@ CREATE TABLE tarefa (
 | 6 | `responsavel_id` | fk → [[vendedor]] | Não | **derivado** | aba Atividades · **filtro gerencial** | §5 — nunca digitado; alvo de RLS |
 | 7 | `checkin_em` | timestamptz | Não | `auto` (fluxo) | sheet do pin | botão de check-in; promove o pin a `validado_campo` |
 | 8 | `checkout_em` | timestamptz | Não | `auto` (fluxo) | sheet do pin | fecha a tarefa → `status = realizada` |
-| 9 | `resultado` | enum (4) | Não | `campo` (no check-out) | sheet do pin · **filtro gerencial** | move as etapas **de campo** do funil (§5) — nunca CSC/Aquisição |
-| 10 | `motivo_perda` | enum (6) | Cond. | `campo` | sheet do pin · **filtro gerencial** | obrigatório se `resultado = perdido`; **fechado** |
-| 11 | `motivo_desqualificacao` | enum (6) | Cond. | `campo` | sheet do pin · **filtro gerencial** | obrigatório se `resultado = desqualificado`; **fechado** |
-| 12 | `motivo_texto` | text | Cond. | `campo` | sheet do pin | só quando o motivo escolhido for `outro` (serve aos dois enums) |
+| 9 | `resultado` | enum (5) | Não | **derivado** dos checkboxes | sheet do pin · **filtro gerencial** · **tabela** | move as etapas **de campo** do funil (§5) — nunca CSC/Aquisição. ⚠️ **Deixou de ser digitado em 28/07:** o chip de resultado saiu e o desfecho virou quatro checkboxes (§4b). O enum sobrevive porque é dele que vivem o gráfico "Por resultado", o drill e a tabela que move o funil |
+| 9b | `td_encontrado` | boolean | Não | `campo` (checkbox) | **KPI da gerencial** · detalhe da atividade | falou com o tomador de decisão. É **fato guardado à parte do `resultado`**: "perdi tendo falado com o dono" e "perdi sem achar ninguém" são coisas diferentes, e um enum de valor único não cabe as duas. **O KPI de TD conta este campo**, não `resultado = td_encontrado` — senão a taxa cairia no dia em que o time vendesse mais |
+| 9c | `venda_declarada` | boolean | Não | `campo` (checkbox) | **KPI da gerencial** · **tag no card do Funil** · detalhe | vendeu **em campo**. Marca `td_encontrado` junto e o trava (§5). **Não move o pin para Aquisição** — ver §5 |
+| 10 | `motivo_nao_venda` | enum (14) | Cond. | `campo` | sheet do pin · **tabela da gerencial** | **obrigatório** quando não houve venda nem saída lateral; **fechado** + `outro`. É o motivo do **evento** (esta visita não gerou pedido), não do ponto |
+| 11 | `motivo_perda` | enum (6) | Cond. | `campo` | sheet do pin · **tabela da gerencial** | obrigatório se `resultado = perdido`; **fechado** + `outro` |
+| 12 | `motivo_desqualificacao` | enum (9) | Cond. | `campo` | sheet do pin · **tabela da gerencial** | obrigatório se `resultado = desqualificado`; **fechado** + `outro` |
+| 12b | `motivo_texto` | text | Cond. | `campo` | sheet do pin | só quando o motivo escolhido for `outro` — serve aos **três** enums |
 | 13 | `proxima_acao` | text | Não | `campo` | sheet do pin · **card do Funil** | o que fazer depois, em uma linha |
 | 14 | `proxima_acao_data` | date | Não | `campo` | **visão gerencial** (tabela) | ⚠️ **saiu da Agenda em 28/07** ([[spec-07-atividades]] §4.2): sugestão dentro de um calendário lê como compromisso marcado. Continua no modelo, sem virar tarefa |
-| 15 | `notas` | text | Não | `campo` | sheet do pin | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6) |
+| 15 | `notas` | text | Não | `campo` | sheet do pin · **tabela da gerencial** | nota **da atividade** — a nota **do ponto** é `nota_estabelecimento` (§6). ⚠️ **Até 28/07 só o sheet de agendar a escrevia**, e não havia onde contar o que a visita foi; o check-out passou a pedi-la. Por isso o mesmo campo tem dois sentidos conforme o momento: antes de ir é a **anotação do agendamento**, depois é a **nota da visita** — e o detalhe da atividade rotula conforme o `status` |
 | 16 | `criado_por` | fk → [[vendedor]] | Não | `auto` | — | fallback de `responsavel_id` |
 | 17 | `distancia_km` | numeric(5,2) | Não | **derivado** (no check-in) | **visão gerencial** (tabela) · detalhe da atividade | GPS do vendedor × geo do pin no momento do check-in. `NULL` **sem check-in**. **Persiste** — é prova de presença e não é recalculável depois (o vendedor já saiu de lá). ⚖️ **É ela que decide `tipo_checkin`** (§5): a distância deixou de ser só informação e passou a classificar a visita |
 | 18 | `atrasada` | boolean | — | **derivado** | **nenhuma superfície destaca** | §5 — não persiste. ⚠️ **saiu da Agenda em 28/07** e a Agenda também **não conta nem aponta** a dívida: o derivado continua existindo no modelo, mas nenhuma tela o exibe como marca. Na tabela da gerencial a tarefa vencida aparece só por ser planejada de data passada |
@@ -114,11 +128,20 @@ CREATE TABLE tarefa (
 |---|---|
 | `tipo` | `primeira_visita` · `follow_up` · `recorrencia` |
 | `status` | `planejada` · `realizada` · `cancelada` |
-| `resultado` | `sem_avanco` · `td_encontrado` · `perdido` · `desqualificado` |
-| `motivo_perda` | `preco` · `compra_do_concorrente` · `sem_interesse` · `sem_contato_com_decisor` · `credito_reprovado` · `outro` |
-| `motivo_desqualificacao` | `nao_existe_no_endereco` · `fora_do_perfil` · `fechado_definitivamente` · `endereco_e_residencia` · `duplicado` · `outro` |
+| `resultado` | `sem_avanco` · `td_encontrado` · `vendido` · `perdido` · `desqualificado` |
+| `motivo_nao_venda` | `cliente_com_divida` · `ja_abastecido` · `ec_fechado` · `credito_nao_liberado` · `nao_trabalha_food_service` · `prazo_limite_insuficiente` · `preco` · `ruptura_de_produto` · `sku_indisponivel` · `td_ausente` · `td_indisponivel` · `sem_objecao` · `fora_do_perfil_praso` · `outro` |
+| `motivo_perda` | `preco_alto` · `sem_contato_efetivo` · `ja_tem_fornecedores` · `sem_mix_procurado` · `sem_interesse` · `outro` |
+| `motivo_desqualificacao` | `cnpj_baixado` · `ativo_em_outro_cnpj` · `fora_da_area_de_entrega` · `nao_e_food_service` · `fora_de_funcionamento` · `nao_existe_no_endereco` · `contato_invalido` · `ie_denegada` · `outro` |
 
-> **Perder ≠ desqualificar.** `perdido` = a **negociação** não fechou, mas o ponto segue oportunidade válida (reabordar). `desqualificado` = o **ponto** não é oportunidade. Por isso os motivos são dois vocabulários e não um: a visão gerencial precisa responder *"quantas negociações perdi?"* separado de *"quanto da minha base é lixo?"* — a segunda é a dor-manchete da KR (rotas caindo em endereço vazio).
+> ⚠️ **Os três vocabulários foram reescritos em 28/07 pela operação (Tatiana).** Os dois antigos (`preco`/`compra_do_concorrente`/… e `fora_do_perfil`/`endereco_e_residencia`/`duplicado`) **não existem mais** — é o que obriga a chave de estado a subir para **v7** (§9): migrar seria inventar o motivo que o vendedor teria escolhido.
+> Três ajustes entraram sobre a lista da operação, e ficam declarados: **`nao_existe_no_endereco` foi devolvido** à desqualificação (nenhuma das novas cobria *"o endereço está errado"*, e fechado ≠ inexistente — é a dor-manchete da KR); **`outro` foi devolvido** a perda e desqualificação (sem escape, quem tem motivo fora da lista marca um errado); e **"venda feita por outro vendedor da Praso" saiu** da perda — se outro vendedor vendeu, o ponto é **cliente**, e marcar `perdido` o jogaria na saída lateral errada quando ele deveria chegar em Aquisição pelo ERP.
+
+> **Não venda ≠ perder ≠ desqualificar** — três perguntas diferentes, por isso três vocabulários:
+> · **não venda** = esta **visita** não gerou pedido; a negociação segue viva;
+> · **perdido** = a **negociação** morreu, mas o ponto segue oportunidade (reabordar);
+> · **desqualificado** = o **ponto** não é oportunidade.
+> A visão gerencial precisa responder *"por que não vendi hoje?"*, *"quantas negociações perdi?"* e *"quanto da minha base é lixo?"* separadamente — a última é a dor-manchete da KR (rotas caindo em endereço vazio).
+> ⚖️ **Só um aparece por vez na tela.** Marcar Perda ou Desqualificar **esconde** o motivo de não venda: os vocabulários se sobrepõem de propósito (`preço` está em dois), e dois campos de motivo juntos obrigariam o vendedor a escolher qual dos dois responde a mesma coisa.
 
 > `status` (ciclo de vida da tarefa) e `resultado` (desfecho) são **campos separados** de propósito: `perdido` e `desqualificado` são resultado, não status — a tarefa **foi realizada**, e por isso conta na visão gerencial.
 
@@ -152,10 +175,25 @@ CREATE TABLE tarefa (
 |---|---|
 | `sem_avanco` | → `visitado` e para aí |
 | `td_encontrado` | → `td_encontrado` (achou o tomador de decisão) |
+| `vendido` | → `td_encontrado` **e mais nada** — quem vendeu falou com quem decide, e é **até aí que o campo alcança**. O pedido é do ERP; enquanto ele não chega, o pin carrega a **tag `Venda realizada`** (§5b) |
 | `perdido` | → `perdido`, **guardando a etapa de origem** em `status_anterior` |
 | `desqualificado` | → `desqualificado`, **guardando a etapa de origem** em `status_anterior` |
 
-  **Não existe `resultado = convertido`.** Conversão não é fato de campo: `csc` e `aquisicao` são **derivados do ERP** (cadastro e pedido) e **prevalecem** sobre o que a tarefa disser — quem tem pedido está em Aquisição, mesmo que a última tarefa tenha dado `perdido`. Regra completa em [[estabelecimento]] §5.
+  **Não existe `resultado = convertido`** — e `vendido` não é ele. ⚠️ **Isto foi refinado em 28/07 e a distinção é o coração da mudança:** **venda declarada** é fato do **vendedor** (ele estava lá, fechou); **conversão** é fato do **ERP** (existe pedido no sistema). São coisas diferentes, acontecem em momentos diferentes, e o app agora registra as duas separadamente em vez de fingir que a segunda não existe até o ERP falar. `csc` e `aquisicao` seguem **derivados do ERP** e **prevalecem** sobre o que a tarefa disser — quem tem pedido está em Aquisição mesmo que a última tarefa tenha dado `perdido`, e quem declarou venda **não** vai para Aquisição sem pedido. Regra completa em [[estabelecimento]] §5.
+
+- **`resultado` é DERIVADO dos checkboxes** (28/07) — não se digita mais. A precedência é *saída lateral > venda > TD > nada*:
+
+| Marcado no check-out | `resultado` |
+|---|---|
+| Desqualificar | `desqualificado` |
+| Perda | `perdido` |
+| Vendeu (⇒ TD marcado e travado) | `vendido` |
+| só TD encontrado | `td_encontrado` |
+| nada | `sem_avanco` |
+
+  **Vendeu, Perda e Desqualificar são desfechos opostos** e se desmarcam entre si; **TD encontrado é o único ortogonal** — combina com qualquer um, e por isso é guardado **à parte** do `resultado` (§4, nº 9b). É o que permite distinguir *perdi tendo falado com o dono* de *perdi sem achar ninguém*, distinção que um enum de valor único não comporta.
+
+- **`venda_declarada` → tag `Venda realizada`** (§5b, derivada no [[estabelecimento]]) — existe enquanto houver venda declarada em campo que o ERP ainda **não** confirmou com pedido, e **some sozinha em Aquisição**, onde não teria mais o que denunciar. Em **CSC ela fica**: cadastrado sem compra com venda declarada é exatamente o furo que a supervisão quer enxergar. O vão entre o KPI *Venda realizada* e a coluna *Aquisição* é a medida desse furo.
 
   **A Tarefa é o que faz o pin entrar no funil.** `sem_plano` é o default e **não tem coluna** no Kanban ([[estabelecimento]] §5) — o ponto só aparece no board quando ganha uma visita planejada. **Avanço monotônico de `visita_planejada` em diante** (`→ visitado → td_encontrado → csc → aquisicao`): nunca regride. **`perdido` e `desqualificado` não são regressão — são saídas laterais**: estados terminais-mas-revisáveis *fora* da escada. É por isso que ambos guardam a etapa de origem.
   Em todos os casos, concluir a tarefa atualiza `ultima_visita` do pin e — pela regra de check-in já travada — promove `origem_confianca` a `validado_campo` gravando `geo_verificado`.
@@ -219,7 +257,9 @@ CREATE TABLE tarefa (
 - **Uma coleção só** pra planejado e realizado; `status` distingue.
 - **`realizada` ⟺ check-in E check-out** (§5). Não há realizada pela metade: sem presença não houve visita, sem fechamento não houve `resultado` — e sem `resultado` o funil não se move. **Visita em andamento** (check-in aberto) continua `planejada`, e é o único estado com um extremo só.
 - **O `resultado` move as etapas de campo do funil**, monotonicamente na escada. **Não move `csc`/`aquisicao`** — esses são derivados do ERP e prevalecem ([[estabelecimento]] §5). O invariante do `status` deixa de ser "muda só por fluxo" e passa a ser **"nunca é digitado"**: ou vem de tarefa concluída, ou vem do ERP.
-- **Motivo é obrigatório nos dois desfechos negativos**, de **vocabulário fechado** + `outro` com texto: `motivo_perda` quando `resultado = perdido`, `motivo_desqualificacao` quando `resultado = desqualificado`. Ambos movem o pin para a saída lateral correspondente.
+- **Motivo é obrigatório em TODA realizada que não vendeu** (28/07), de **vocabulário fechado** + `outro` com texto, e **um só por atividade**: `motivo_perda` quando `resultado = perdido`, `motivo_desqualificacao` quando `resultado = desqualificado`, e `motivo_nao_venda` em todo o resto (`sem_avanco` e `td_encontrado`). As duas primeiras movem o pin para a saída lateral correspondente; a terceira não move nada — é o motivo do **evento**, não do estado do ponto, e por isso **não** vira `motivo_status` no pin.
+  > ⚠️ **Isto endureceu a regra.** Até 28/07 só os dois desfechos negativos cobravam motivo, e a maioria das visitas era concluída sem dizer por que não saiu pedido. Agora **todo check-out sem venda cobra** — a lista tem `sem_objecao` e `outro` como saída, então sempre há resposta, e a gerencial nasce sem lacuna.
+- **Vender exige tomador de decisão.** Marcar `Vendeu` marca `td_encontrado` **e o trava**: não se vende sem falar com quem decide, e deixar desmarcar contradiria a venda registrada na linha de cima.
 - **`perdido` e `desqualificado` são estados revisáveis, nunca exclusão** — o pin **segue visível no mapa** e o filtro apenas oculta. Só acontecem **por tarefa concluída** (constatação de campo tem autor e data), nunca por toque solto no pin; e **voltar de lá também exige tarefa** (§5). A diferença entre os dois vive no **motivo**, não na mecânica: `perdido` = a negociação morreu, o ponto segue oportunidade; `desqualificado` = o ponto não é oportunidade.
 - **Tarefa não se deleta — cancela-se** (`status = cancelada`). Espelha *"o pin nunca some"*. Cancelar a **rota** cancela todas as paradas dela ([[rota]] §2.3) — é o mesmo cancelamento, N vezes, e só quem perdeu o **último** plano sai do board.
 - **Concluir é sempre no pin, nunca na Agenda** (28/07). A Agenda é o **plano**: mostra horário, anotação do agendamento e cancelar, e nada mais. Check-in/check-out e conclusão vivem no sheet do pin. ✅ **A ponta solta da atividade remota fechou junto:** ela deixou de ser "concluir sem check-in" (que não tinha porta de UI) e passou a ser "check-in feito longe do pin" (§5) — que **qualquer** check-in produz, sem tela nova, quando a distância passa do raio. Ver [[spec-07-atividades]] §4.2.
@@ -232,6 +272,7 @@ CREATE TABLE tarefa (
 
 - **Parkings (motor):** `recorrencia_dias` + geração automática da próxima ocorrência · SLA/tempo em etapa · fotos e check-in por proximidade (PostGIS) · agenda semanal / Google Agenda · persistência + auth/RLS · alerta "cliente sem visita há N dias" · sync completo tarefa→funil · **objeto [[rota]] completo** (sequenciamento, trajeto, ETA, recorrência — §6).
 - **Chave de estado subiu para v6** (`js/state.js`): a tarefa ganhou `hora` e `rota_id`, e o estado passou a carregar a coleção `rotas`. Estado v5 não tem rota nenhuma, então a Agenda em calendário nasceria sem rotas em quem já abriu a demo.
+- **E para v7 no mesmo dia** (28/07): o check-out virou quatro checkboxes, a tarefa ganhou `td_encontrado`, `venda_declarada` e `motivo_nao_venda`, `resultado` ganhou `vendido`, e os **dois** vocabulários de motivo viraram **três, com chaves novas**. Estado v6 guarda `motivo_perda: 'compra_do_concorrente'` e afins — chaves que não existem mais e que apareceriam **em branco** no detalhe e na tabela da gerencial. Migrar seria inventar o motivo que o vendedor fictício teria escolhido; descartar e resemear é honesto. O seed passou a popular `motivo_nao_venda` em **todo** o histórico realizado (senão o campo estrearia sem dado na reunião de supervisão) e a semear `vendido` onde ele **não mexe no board** — pins já em `td_encontrado` (o `resultado` mapeia para o mesmo status) e em `csc`/`aquisicao` (onde o ERP prevalece). Em `visitado`, não: ali `vendido` promoveria o pin e embaralharia o funil.
 - **Resolve um parking do [[estabelecimento]]:** `proximo_contato_agendado` (§9 de estabelecimento.md) passa a ser `proxima_acao` + `proxima_acao_data` **aqui** — não é campo do pin.
 - **Implementação do enum de 8 valores / 7 colunas:** `STATUS` em `js/data.js` precisa ganhar `sem_plano` (novo default, **sem coluna**), `visita_planejada` (renomeia `nao_visitado`), `td_encontrado` (renomeia `em_negociacao`), `csc` + `aquisicao` (substituem `convertido`), `perdido` e `desqualificado` — as colunas do Kanban saem daí, então o board se ajusta sozinho ([[spec-06-funil]] §2). **Três cores novas** (`csc`, `perdido`, `desqualificado`): decisão de design, `css/styles.css` é a fonte de verdade (regras em [[spec-00-design-system]] §2.6). O seed fictício precisa popular `data_cadastro`/`data_primeira_compra` para que CSC e Aquisição tenham cards.
 - **Divergência de enum com o Notion: RESOLVIDA.** O plano (Fase 4) falava `Novo → Em progresso → CSC → Convertido`; a escada agora é `visita_planejada → visitado → td_encontrado → csc → aquisicao` (com `sem_plano` fora do board) — o `CSC` do plano entrou e "Convertido" virou `aquisicao`. Sobra só diferença de rótulo nas duas primeiras etapas.

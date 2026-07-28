@@ -47,7 +47,16 @@ Compacto, no molde do card de lead ([[spec-05-intel]] §6.9 / SPEC 00 §6.9), ma
 - **Dot de origem** (cor + pista não-cromática: `cnpja_puro` tracejado, `cnpja_google` 3px, `validado_campo` badge `✓`).
 - **Emoji de tipologia + nome** (elipse se estourar).
 - **Cidade/UF** + **badge de qualidade** (Ouro/Prata/Bronze).
+- **Tag `💰 Venda realizada · aguardando pedido`** *(28/07, condicional)* — verde, largura cheia, embaixo de tudo.
 - **Toque simples (sem arrastar) = abre o pin** no mapa (volta pra aba Mapa, foca e abre o sheet) — mesmo gesto da Inteligência.
+
+> ⚖️ **A tag existe porque o card NÃO se move quando há venda.** O check-out ganhou um `Vendeu?` ([[spec-07-atividades]] §3), mas **venda declarada em campo não é conversão**: só o pedido no ERP leva o ponto a **Aquisição**. Sem a tag, o card de quem acabou de vender ficaria parado em *TD encontrado* sem nenhuma pista — o board estaria certo e pareceria errado. Com ela, o board mostra as duas verdades ao mesmo tempo: *o vendedor fechou* e *o sistema ainda não sabe*.
+>
+> **Derivada, nunca digitada** ([[estabelecimento]] §5): existe enquanto houver tarefa realizada com `venda_declarada` e o ponto **não** estiver em `aquisicao`. **Some sozinha quando o pedido chega** — lá ela não teria mais o que denunciar. **Em CSC ela fica**: cadastrado sem compra com venda declarada é exatamente o furo.
+>
+> ⚖️ **Sem contador de dias** (decisão Tatiana, 28/07). "Venda realizada há 12 dias" transformaria a tag num alerta de SLA, e SLA/tempo em etapa é Fase 4 ([[tarefa]] §6) — a tag responde *"vendeu?"*, não *"há quanto tempo está travado?"*.
+>
+> ⚖️ **Não aparece no sheet do pin nem na Inteligência** (decisão Tatiana, 28/07): a tag é leitura de **pipeline**, e o Funil é onde se olha pipeline. No pin, o fato continua acessível no **detalhe da atividade**.
 
 ## 4. Arrastar card entre colunas (a interação-assinatura)
 
