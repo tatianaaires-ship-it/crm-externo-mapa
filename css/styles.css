@@ -463,31 +463,37 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
    4ª tela do pin-sheet. Campo = label + controle + hint, empilhados; o motivo
    é condicional ao resultado. Nada de `window.prompt`: era o que estava aqui
    até 28/07, e é a parte que a supervisão via primeiro. */
-.conc-campo { margin-bottom: 14px; }
-.conc-lbl {
+.sform-campo { margin-bottom: 14px; }
+.sform-lbl {
   display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .04em; color: var(--muted); margin-bottom: 6px;
 }
 /* "obrigatório"/"opcional" em minúscula ao lado: o rótulo diz o que é, o `em`
    diz se cobra — sem asterisco, que exige legenda em algum lugar. */
-.conc-lbl em {
+.sform-lbl em {
   font-style: normal; text-transform: none; letter-spacing: 0;
   font-weight: 600; color: var(--line-2); margin-left: 5px;
 }
-.conc-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.conc-chips .chip { font-size: 12px; padding: 7px 11px; }
+.sform-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.sform-chips .chip { font-size: 12px; padding: 7px 11px; }
 /* Chip de resultado ativo veste a COR do resultado — a mesma que pinta o pin e
    o gráfico. A cor segue a entidade, não a posição (SPEC 00 §6.13). */
 .chip--res.is-on {
   background: var(--c); border-color: var(--c); color: #fff;
 }
-.conc-inp {
+.sform-inp {
   width: 100%; margin-top: 7px; font-size: 16px;   /* 16px: sem zoom no iOS */
   padding: 10px 12px; border: 1px solid var(--line-2);
   border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
 }
-.conc-inp--data { font-size: 15px; }
-.conc-hint { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.sform-inp--data { font-size: 15px; }
+.sform-hint { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); }
+/* Consequência fora da tela, dita ANTES do botão: agendar mexe no funil. */
+.sform-nota {
+  margin: 0 0 12px; font-size: 12.5px; color: var(--ink-2);
+  background: var(--brand-050); border-left: 3px solid var(--brand);
+  border-radius: var(--r-sm); padding: 9px 11px;
+}
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .checklist li { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 11px; font-variant-numeric: tabular-nums; }
 .checklist__dur { color: var(--muted); }

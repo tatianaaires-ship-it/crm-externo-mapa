@@ -83,7 +83,7 @@ CREATE TABLE tarefa (
 |---|---|---|---|---|---|---|
 | 1 | `id` | uuid | Sim | auto | — | PK |
 | 2 | `estabelecimento_id` | fk → [[estabelecimento]] | **Sim** | auto | — | vem do pin de onde foi criada; **1 tarefa = 1 pin** |
-| 3 | `tipo` | enum (3) | **Sim** | `campo` (com **sugestão**) | **sheet de conclusão** · mini-form de agendar · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência. Digitado em **dois** momentos, os dois em que o propósito é conhecido: ao **agendar** (é o plano) ou ao **concluir** (é o que a visita foi). No check-in não se pergunta — a tarefa nasce com a sugestão do histórico (§5) e o vendedor confirma no fim. **Sugestão ≠ derivação travada** |
+| 3 | `tipo` | enum (3) | **Sim** | `campo` (com **sugestão**) | **sheet de conclusão** · sheet de agendar · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência. Digitado em **dois** momentos, os dois em que o propósito é conhecido: ao **agendar** (é o plano) ou ao **concluir** (é o que a visita foi). No check-in não se pergunta — a tarefa nasce com a sugestão do histórico (§5) e o vendedor confirma no fim. **Sugestão ≠ derivação travada** |
 | 4 | `data` | date | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | futuro = planejada; passado = realizada |
 | 4b | `hora` | time | Não | `campo` | **Agenda** (sarjeta de horário) · sheet do pin | horário **marcado**. **Opcional**: sem ela, a atividade é *dia inteiro* e vai no topo do dia ([[spec-07-atividades]] §4.2). ⚠️ **`atrasada` continua sendo por DIA** (§5), nunca por hora |
 | 5 | `status` | enum (3) | Sim | **derivado**/fluxo | sheet do pin · aba Atividades | §5 — nasce `planejada` |

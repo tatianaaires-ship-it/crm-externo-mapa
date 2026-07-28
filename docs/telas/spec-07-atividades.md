@@ -4,7 +4,7 @@ tipo: design-spec
 herda: "spec-00-design-system"
 fase: "Fase 2 (casca) — motor na Fase 3/4/5"
 status: em-revisao
-fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e as 4 telas do sheet, incluindo a conclusão) + js/data.js (seed em rotas) — implementado 27–28/07. ⚠️ PENDÊNCIA de UI que sobrou: só o §2.1 (agendar) segue em window.prompt; o §3 (conclusão) virou sheet em 28/07."
+fonte_de_verdade: "js/atividades.js (aba) + js/state.js (tarefas e rotas) + js/pin.js (bloco e as 5 telas do sheet: pin, lista, detalhe, conclusão, agendar) + js/data.js (seed em rotas) — implementado 27–28/07. ✅ Não há mais window.prompt em nenhum fluxo: o §3 (conclusão) e o §2.1 (agendar) viraram sheets em 28/07."
 sources:
   - "_bmad-output/specs/spec-crm-externo/SPEC.md — CAP-11 (atividade no pin) · CAP-12 (aba) · CAP-13 (visão gerencial) · CAP-14 (desqualificar) · CAP-6 revisada"
   - "docs/objetos/tarefa.md — campos, enums, tabela resultado→funil, requalificação"
@@ -45,7 +45,7 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 > **Preço aceito:** o badge `Atrasada` sumiu do sheet do pin. A dívida vencida continua visível no **detalhe da atividade** (§2.2) e na **tabela da gerencial** (§5.4), mas quem abre só o pin não vê mais que o compromisso venceu. ⚠️ **O preço subiu em 28/07:** o bloco fixo da Agenda, que era a outra porta, também saiu (§4.2) — sobraram duas telas mais fundas.
 
 - **`📍 Check-in` existe em TODO pin** — não é preciso plano para visitar (§2.3). Ele é o **primário e é um toque só**; `＋ Agendar` fica ao lado como **secundário** (visitar agora e planejar depois são intenções diferentes). Com visita em andamento (`checkin_em` preenchido, `checkout_em` nulo), o primário vira **`⏱️ Check-out`** (abre §3) — é assim que o sheet mostra que há check-in aberto, junto de uma faixa verde com a hora do check-in.
-- **O `tipo` da visita NÃO é escolhido aqui** (28/07). Ele vive no **sheet de conclusão** (§3) — ou no mini-form de agendar (§2.1), se o caminho for planejar.
+- **O `tipo` da visita NÃO é escolhido aqui** (28/07). Ele vive no **sheet de conclusão** (§3) — ou no sheet de agendar (§2.1), se o caminho for planejar.
 - **Histórico — as 3 últimas**, cada uma clicável, mais recente primeiro: emoji do tipo · data · `resultado` (com cor) · duração. Deriva das tarefas, não de `pin.checkins`. Abaixo, **`Ver todas as atividades (N) ›`** quando houver alguma que a tela não mostra (a conta inclui o banner da próxima, não só as realizadas).
 
 > ⚖️ **Por que 3 e não todas.** Um ponto de recorrência acumula dezenas de atividades; a lista inteira empurrava as **notas** — que a CAP-3 obriga a manter sempre visíveis — para fora da tela. O bloco vira um resumo, e a lista completa ganha tela própria.
@@ -54,12 +54,15 @@ Bloco no pin-sheet, **abaixo das notas** — as notas seguem sempre visíveis (C
 
 ### 2.2 Lista e detalhe: as outras duas telas do sheet
 
-O sheet do pin tem **quatro telas**, não quatro lugares — tudo dentro do mesmo bottom sheet, com voltar, porque sair do sheet tiraria o vendedor do contexto do ponto:
+O sheet do pin tem **cinco telas**, não cinco lugares — tudo dentro do mesmo bottom sheet, com voltar, porque sair do sheet tiraria o vendedor do contexto do ponto:
 
 1. **Pin** — o que já existia, com o histórico enxugado a 3.
 2. **Lista** (`Ver todas ›`) — todas as atividades do ponto, em dois grupos: **Planejadas** e **Realizadas**. Cabeçalho com voltar, título `Atividades` e o **nome do ponto** por baixo, para não se perder de quem é a lista.
 3. **Detalhe** (toque numa atividade) — a ficha da [[tarefa]]: data · situação · responsável · **rota** · tipo de check-in · check-in/check-out com duração · **distância no check-in** · resultado · motivo · próxima ação · comentário.
-4. **Conclusão** (§3) — o check-out, que era `window.prompt` até 28/07. Entra pelo botão do pin **ou** pelo detalhe da atividade, e volta para a tela do pin ao concluir.
+4. **Conclusão** (§3) — o check-out. Entra pelo botão do pin **ou** pelo detalhe da atividade, e volta para a tela do pin ao concluir.
+5. **Agendar** (§2.1) — o plano. Entra pelo `＋ Agendar` do bloco e volta ao pin.
+
+> ⚖️ **As duas telas de formulário nasceram em 28/07 e mataram os seis `window.prompt` da fatia.** Elas compartilham o padrão `.sform-*` ([[spec-00-design-system]] §6.7.2): label caixa-alta + `obrigatório`/`opcional` em `em` minúsculo, chips para escolha fechada, inputs nativos a 16px, e **botão que diz o que falta** em vez de recusar depois do toque.
 
 - **Ações vivem só no detalhe de atividade aberta** (`Check-in`/`Check-out` + `Cancelar atividade`), e operam sobre **aquela** tarefa — não sobre "a próxima do pin". Atividade realizada é **registro, não formulário**: nenhum botão.
 - Cancelar a última planejada avisa que o pin **sai do funil** e volta à lista (§2.1).
@@ -67,9 +70,24 @@ O sheet do pin tem **quatro telas**, não quatro lugares — tudo dentro do mesm
 
 > ✅ **O botão de check-in mudou de significado, não de lugar — e isso está implementado (28/07).** Antes ele gravava um par `{in, out}` solto no pin; agora opera sobre uma **tarefa**, criando uma na hora quando não há planejada. É a CAP-6 revisada, detalhada em §2.3.
 
-### 2.1 Agendar atividade (mini-form)
+### 2.1 Agendar visita (sheet)
 
-Enxuto, no molde do modal de criação (SPEC 00 §6.8). Pede **só o que é digitado**: `tipo` (3 chips: 1ª visita · Follow-up · Recorrência) + `data` (default hoje) + `notas` opcional. `responsavel_id` **não aparece** — é derivado ([[tarefa]] §5). `estabelecimento_id` vem do pin.
+> ✅ **É um sheet desde 28/07** — a **5ª tela do pin-sheet**, no mesmo molde do sheet de conclusão (§3), porque é o mesmo tipo de tarefa cognitiva: poucos campos, escolha fechada em chips, um botão que diz o que falta. Eram três `window.prompt`, a **última pendência de UI da fatia**. Com isto, **não há mais `window.prompt` em nenhum fluxo do app**.
+
+Pede **só o que é digitado**, nesta ordem:
+
+| Campo | Obrig. | Nota |
+|---|---|---|
+| **Tipo da visita** | sim | 3 chips, **pré-marcado** pela mesma sugestão do check-in ([[tarefa]] §5) — o histórico já diz que visita é essa |
+| **Dia** | **sim** | `input[type=date]` nativo, default **hoje**, com `min = hoje` |
+| **Hora** | não | `input[type=time]` nativo. Sem hora, a visita entra como **dia inteiro** no topo do dia (§4.2) — e o hint diz isso |
+| **Anotação** | não | é **o único texto que o card da Agenda mostra**, e o hint avisa. Vira `tarefa.notas` |
+
+`responsavel_id` **não aparece** — é derivado ([[tarefa]] §5). `estabelecimento_id` vem do pin. A tarefa nasce **avulsa** (`rota_id` null), porque montar rota é outro fluxo (§4.2).
+
+> ⚖️ **Não se agenda para o passado.** `min = hoje` no campo, e o botão vira `O dia já passou` se alguém digitar uma data vencida. O motivo não é purismo: uma planejada em data passada **não apareceria na Agenda** (que mostra de hoje em diante — §4.2), então o vendedor criaria um compromisso invisível.
+>
+> ⚖️ **O sheet diz o que agendar faz ao funil**, na linha antes do botão: *"Agendar coloca {ponto} no funil, em Visita planejada"* — ou, se já houver plano, quantas planejadas o ponto tem. Quem está a um toque de mexer no board deve saber disso **antes** do toque, não descobrir pelo Funil depois.
 
 > ⚖️ **Agendar já move o funil.** Criar a atividade promove o pin de `sem_plano` para **Visita planejada** — é assim que ele **entra no board** do Funil ([[estabelecimento]] §5). **Cancelar** a última atividade planejada devolve o pin a `sem_plano` e ele sai do board. É a única transição reversível do funil, e vale confirmar no cancelamento por isso.
 
@@ -99,7 +117,7 @@ Enxuto, no molde do modal de criação (SPEC 00 §6.8). Pede **só o que é digi
 | cliente (CSC ou Aquisição) | **Recorrência** — é o tipo que existe para isso |
 | visitado, ainda não cliente | **Follow-up** |
 
-> ⚖️ **Os chips de tipo estiveram no pin, acima do botão, por uma hora** (28/07) — e saíram: **quem está entrando na porta do cliente não para para classificar a visita**. Pior, no check-in ele ainda não sabe o que a visita vai ser; no check-out sabe. Então o campo foi para onde a informação existe, e o check-in voltou a ser um gesto único. Se o caminho for **planejar** em vez de visitar, o tipo é pedido no mini-form de agendar (§2.1) — que é o outro momento em que se sabe o propósito.
+> ⚖️ **Os chips de tipo estiveram no pin, acima do botão, por uma hora** (28/07) — e saíram: **quem está entrando na porta do cliente não para para classificar a visita**. Pior, no check-in ele ainda não sabe o que a visita vai ser; no check-out sabe. Então o campo foi para onde a informação existe, e o check-in voltou a ser um gesto único. Se o caminho for **planejar** em vez de visitar, o tipo é pedido no sheet de agendar (§2.1) — que é o outro momento em que se sabe o propósito.
 >
 > **Sugestão ≠ classificação derivada.** `tipo` segue sendo campo digitado ([[tarefa]] §4) — o que a regra faz é preencher bem o default para que confirmar seja o caso comum. Isso não fere *"classificação nunca é digitada"*, que vale para `qualidade`/`porte`/`origem_confianca`/`status`.
 >
@@ -364,7 +382,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Atraso não é assunto da Agenda, nem por referência** (§4.2). Decisão de produto de 28/07: nem bloco, nem badge, nem contagem, nem atalho. É a única "omissão não anunciada" aceita na aba — e é aceita porque anunciar já seria dar o destaque que se quis remover.
 - **[[rota]] entrou como RASCUNHO declarado**, contra o que a [[tarefa]] §6 dizia (Rota é Fase 4, tarefa não é parada). O que entrou é identidade + nome + dia + dono; **sequenciamento continua fora**, e é ele que faz o objeto da Fase 4. Alternativa recusada: agrupar por `(vendedor, dia)` derivado — não distinguia rota de avulsa, e era justamente a distinção pedida.
 - **Cancelar rota é cancelamento em lote, não exclusão** — N paradas viram `cancelada` e a rota fica sem paradas. Espelha *"tarefa não se deleta"*.
-- **Calendário = `input type="date"` nativo**, não componente próprio. Sem build, sem 150 linhas novas para manter, e o Android já entrega o date picker do sistema. O preço é que esse controle não usa os tokens do [[spec-00-design-system]].
+- **Calendário e relógio = `input type="date"`/`type="time"` nativos**, não componente próprio. Sem build, sem 150 linhas novas para manter, e o Android já entrega os pickers do sistema. O preço é que esses controles não usam os tokens do [[spec-00-design-system]].
 - **Perdido e Desqualificado só pelo check-out** (§3.1) — nunca botão solto, nunca arraste. A [[spec-06-funil]] recusa o drop nessas duas colunas (exigem motivo) e também em CSC/Aquisição (vêm do ERP).
 - **Conversão não passa pelo check-out** (§3): `csc`/`aquisicao` vêm do ERP e prevalecem. Um card pode aparecer em Aquisição sem nenhuma atividade concluída.
 - **Agendar põe o pin no funil** (§2.1) — e **o check-in também**, desde 28/07: a tarefa que ele cria nasce `planejada`, então o pin entra em `Visita planejada` e só o `resultado` do check-out o move dali (§2.3). Consequência de produto inalterada: o Funil mostra só o pipeline, e a contagem dele divergir da do mapa é o comportamento correto ([[spec-06-funil]] §5).

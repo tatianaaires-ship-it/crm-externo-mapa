@@ -18,6 +18,9 @@
      atividade zera o formulário em vez de herdar escolha da anterior. */
   let form = { tarefaId: null, tipo: null, resultado: null, motivo: null,
                motivoTexto: '', prox: '', proxData: '' };
+  /* Rascunho do sheet de AGENDAR (§2.1). Mesmo motivo de viver fora do render:
+     cada toque de chip re-renderiza. `pinId` amarra o rascunho ao ponto. */
+  let formAg = { pinId: null, tipo: null, data: '', hora: '', notas: '' };
   let sheetEl, backdropEl;
 
   // Ícone de pin padrão (sem emoji de tipologia) para o avatar do sheet.
@@ -58,15 +61,16 @@
       '<span class="info__v ' + (cls || '') + '">' + value + '</span></div>';
   }
 
-  /* O sheet tem QUATRO telas, e não quatro lugares: pin → lista de atividades
-     → detalhe de uma atividade → conclusão (check-out). Tudo dentro do mesmo
-     bottom sheet, com voltar — abrir uma tela nova por atividade tiraria o
+  /* O sheet tem CINCO telas, e não cinco lugares: pin → lista de atividades →
+     detalhe de uma atividade → conclusão (check-out) → agendar. Tudo dentro do
+     mesmo bottom sheet, com voltar — abrir tela nova por atividade tiraria o
      vendedor do contexto do ponto. */
   function render() {
     if (!currentId) return;
     if (view === 'lista')     return renderLista();
     if (view === 'detalhe')   return renderDetalhe();
     if (view === 'conclusao') return renderConclusao();
+    if (view === 'agendar')   return renderAgendar();
     renderPin();
   }
 
@@ -262,48 +266,122 @@
           ? ' · <strong>remoto</strong> (' + String(t.distanciaKm).replace('.', ',') + ' km do pin)'
           : '') + '</p>' +
 
-      '<div class="conc-campo">' +
-        '<span class="conc-lbl">Tipo da visita</span>' +
-        '<div class="conc-chips">' + D.TAREFA_TIPO_ORDER.map(function (k) {
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Tipo da visita</span>' +
+        '<div class="sform-chips">' + D.TAREFA_TIPO_ORDER.map(function (k) {
           const tp = D.TAREFA_TIPO[k];
           return chip('data-ctipo', k, k === form.tipo, tp.emoji + ' ' + esc(tp.label));
         }).join('') + '</div>' +
       '</div>' +
 
-      '<div class="conc-campo">' +
-        '<span class="conc-lbl">Resultado <em>obrigatório</em></span>' +
-        '<div class="conc-chips">' + D.RESULTADO_ORDER.map(function (k) {
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Resultado <em>obrigatório</em></span>' +
+        '<div class="sform-chips">' + D.RESULTADO_ORDER.map(function (k) {
           const res = D.RESULTADO[k];
           return chip('data-cres', k, k === form.resultado, esc(res.acao || res.label), res.color);
         }).join('') + '</div>' +
-        '<span class="conc-hint">CSC e Aquisição não entram aqui — conversão vem do cadastro/pedido, não do campo.</span>' +
+        '<span class="sform-hint">CSC e Aquisição não entram aqui — conversão vem do cadastro/pedido, não do campo.</span>' +
       '</div>' +
 
       (tabelaMotivo
-        ? '<div class="conc-campo">' +
-            '<span class="conc-lbl">' + (r.motivo === 'perda' ? 'Motivo da perda' : 'Motivo da desqualificação') +
+        ? '<div class="sform-campo">' +
+            '<span class="sform-lbl">' + (r.motivo === 'perda' ? 'Motivo da perda' : 'Motivo da desqualificação') +
               ' <em>obrigatório</em></span>' +
-            '<div class="conc-chips">' + Object.keys(tabelaMotivo).map(function (k) {
+            '<div class="sform-chips">' + Object.keys(tabelaMotivo).map(function (k) {
               return chip('data-cmot', k, k === form.motivo, esc(tabelaMotivo[k]));
             }).join('') + '</div>' +
             (form.motivo === 'outro'
-              ? '<input type="text" id="conc-mot-txt" class="conc-inp" maxlength="120" ' +
+              ? '<input type="text" id="conc-mot-txt" class="sform-inp" maxlength="120" ' +
                 'placeholder="Qual motivo?" value="' + esc(form.motivoTexto) + '" />'
               : '') +
           '</div>'
         : '') +
 
-      '<div class="conc-campo">' +
-        '<span class="conc-lbl">Próxima ação <em>opcional</em></span>' +
-        '<input type="text" id="conc-prox" class="conc-inp" maxlength="120" ' +
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Próxima ação <em>opcional</em></span>' +
+        '<input type="text" id="conc-prox" class="sform-inp" maxlength="120" ' +
           'placeholder="Ex.: voltar com a tabela nova" value="' + esc(form.prox) + '" />' +
-        '<input type="date" id="conc-prox-data" class="conc-inp conc-inp--data" value="' + esc(form.proxData) + '" />' +
-        '<span class="conc-hint">Aparece na gerencial como sugestão — <strong>não cria tarefa</strong>.</span>' +
+        '<input type="date" id="conc-prox-data" class="sform-inp sform-inp--data" value="' + esc(form.proxData) + '" />' +
+        '<span class="sform-hint">Aparece na gerencial como sugestão — <strong>não cria tarefa</strong>.</span>' +
       '</div>' +
 
       '<button type="button" id="btn-conc-ok" class="btn btn--checkin btn--block"' +
         (falta ? ' disabled' : '') + '>' +
         (falta ? esc(falta) : '✓ Concluir atividade') + '</button>' +
+      '<button type="button" class="btn btn--ghost btn--block ativ-vertodas" data-voltar="pin">Cancelar</button>';
+    wireSheet();
+  }
+
+  /* ---- Tela 5: AGENDAR (SPEC 07 §2.1) ---------------------------------
+     Era três `window.prompt` — a última pendência de UI da fatia. Mesmo molde
+     do sheet de conclusão (§3), porque é o mesmo tipo de tarefa cognitiva:
+     poucos campos, escolha fechada em chips, um botão que diz o que falta.
+     Pede só o que é DIGITADO: tipo · dia · hora (opcional) · anotação.
+     `responsavel_id` não aparece (é derivado do pin) e `estabelecimento_id`
+     vem do pin — spec-07 §2.1. ---- */
+  function renderAgendar() {
+    const p = S.getById(currentId);
+    if (!p) return closeSheet();
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    if (formAg.pinId !== p.id) {
+      formAg = {
+        pinId: p.id,
+        // Mesma sugestão do check-in: o histórico já diz que visita é essa.
+        tipo: D.sugereTipoVisita(p, S.getTarefasByPin(p.id)),
+        data: hoje, hora: '', notas: ''
+      };
+    }
+
+    // Agendar é planejar: data no passado nasceria atrasada e a Agenda, que só
+    // mostra de hoje em diante, não a exibiria — compromisso invisível.
+    const falta = !formAg.data ? 'Escolha o dia'
+                : (formAg.data < hoje ? 'O dia já passou' : null);
+
+    const jaTem = S.planejadasDoPin(p.id).length;
+
+    sheetEl.querySelector('.sheet__scroll').innerHTML =
+      subHead('Agendar visita', p.name, 'pin') +
+
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Tipo da visita</span>' +
+        '<div class="sform-chips">' + D.TAREFA_TIPO_ORDER.map(function (k) {
+          const tp = D.TAREFA_TIPO[k];
+          return '<button type="button" class="chip' + (k === formAg.tipo ? ' is-on' : '') +
+            '" data-atipo="' + k + '" aria-pressed="' + (k === formAg.tipo) + '">' +
+            tp.emoji + ' ' + esc(tp.label) + '</button>';
+        }).join('') + '</div>' +
+      '</div>' +
+
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Dia <em>obrigatório</em></span>' +
+        '<input type="date" id="ag-data" class="sform-inp sform-inp--data" ' +
+          'min="' + hoje + '" value="' + esc(formAg.data) + '" />' +
+      '</div>' +
+
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Hora <em>opcional</em></span>' +
+        '<input type="time" id="ag-hora" class="sform-inp sform-inp--data" value="' + esc(formAg.hora) + '" />' +
+        '<span class="sform-hint">Sem hora, a visita entra como <strong>dia inteiro</strong> no topo do dia, na Agenda.</span>' +
+      '</div>' +
+
+      '<div class="sform-campo">' +
+        '<span class="sform-lbl">Anotação <em>opcional</em></span>' +
+        '<input type="text" id="ag-notas" class="sform-inp" maxlength="120" ' +
+          'placeholder="Ex.: cliente pediu retorno neste horário" value="' + esc(formAg.notas) + '" />' +
+        '<span class="sform-hint">É o único texto que o card da Agenda mostra.</span>' +
+      '</div>' +
+
+      // Agendar move o funil — quem lê isto está a um toque de mexer no board.
+      (jaTem
+        ? '<p class="sform-nota">Este ponto já tem ' + jaTem +
+          (jaTem === 1 ? ' atividade planejada' : ' atividades planejadas') + '.</p>'
+        : '<p class="sform-nota">Agendar coloca <strong>' + esc(p.name) +
+          '</strong> no funil, em <strong>Visita planejada</strong>.</p>') +
+
+      '<button type="button" id="btn-ag-ok" class="btn btn--checkin btn--block"' +
+        (falta ? ' disabled' : '') + '>' +
+        (falta ? esc(falta) : '＋ Agendar visita') + '</button>' +
       '<button type="button" class="btn btn--ghost btn--block ativ-vertodas" data-voltar="pin">Cancelar</button>';
     wireSheet();
   }
@@ -466,7 +544,7 @@
 
     // Atividades: o botão opera sobre a TAREFA (check-in é a tarefa).
     const ag = sheetEl.querySelector('#btn-agendar');
-    if (ag) ag.addEventListener('click', function () { window.CRM_ATIV.agendar(currentId); });
+    if (ag) ag.addEventListener('click', function () { irPara('agendar'); });
 
     const ci = sheetEl.querySelector('#btn-checkin');
     if (ci) ci.addEventListener('click', function () {
@@ -525,7 +603,8 @@
     currentId = id;
     view = 'pin';               // abrir um pin sempre começa no pin
     tarefaAberta = null;
-    form.tarefaId = null;       // o rascunho de conclusão é daquela atividade
+    form.tarefaId = null;       // os rascunhos são daquela atividade / daquele pin
+    formAg.pinId = null;
     render();
     sheetEl.classList.add('is-open');
     backdropEl.classList.add('is-open');
@@ -554,6 +633,12 @@
           próximo render. Um listener só, no container que sobrevive, e o
           `data-*` diz qual campo mudou. ---- */
   function onSheetClick(e) {
+    if (view === 'agendar') {
+      if (e.target.closest('#btn-ag-ok')) return agendar();
+      const c = e.target.closest('[data-atipo]');
+      if (c && sheetEl.contains(c)) { formAg.tipo = c.dataset.atipo; render(); }
+      return;
+    }
     if (view !== 'conclusao') return;
     if (e.target.closest('#btn-conc-ok')) return concluir();
     const el = e.target.closest('[data-ctipo],[data-cres],[data-cmot]');
@@ -571,6 +656,22 @@
   /* Texto e data no rascunho SEM re-render: refazer o innerHTML a cada tecla
      tiraria o foco do campo. Quem reflete o estado é o botão, atualizado à mão. */
   function onSheetInput(e) {
+    if (view === 'agendar') {
+      const el = e.target;
+      if (el.id === 'ag-notas') { formAg.notas = el.value; return; }
+      if (el.id === 'ag-hora')  { formAg.hora = el.value; return; }
+      if (el.id !== 'ag-data') return;
+      // A data manda no botão: sem ela, ou no passado, não há o que agendar.
+      formAg.data = el.value;
+      const ok = sheetEl.querySelector('#btn-ag-ok');
+      if (!ok) return;
+      const hoje = new Date().toISOString().slice(0, 10);
+      const falta = !formAg.data ? 'Escolha o dia'
+                  : (formAg.data < hoje ? 'O dia já passou' : null);
+      ok.disabled = !!falta;
+      ok.textContent = falta || '＋ Agendar visita';
+      return;
+    }
     if (view !== 'conclusao') return;
     const el = e.target;
     if (el.id === 'conc-prox') { form.prox = el.value; return; }
@@ -582,6 +683,24 @@
     const pronto = !!el.value.trim();
     ok.disabled = !pronto;
     ok.textContent = pronto ? '✓ Concluir atividade' : 'Descreva o motivo';
+  }
+
+  // Agendar: cria a tarefa planejada e põe o pin no funil (tarefa.md §5).
+  function agendar() {
+    const t = S.agendarTarefa({
+      pinId: formAg.pinId,
+      tipo: formAg.tipo,
+      data: formAg.data,
+      hora: formAg.hora,
+      notas: formAg.notas
+    });
+    if (!t) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível agendar.');
+    formAg = { pinId: null, tipo: null, data: '', hora: '', notas: '' };
+    irPara('pin');
+    if (window.CRM_TOAST) {
+      const q = t.data.slice(8) + '/' + t.data.slice(5, 7) + (t.hora ? ' às ' + t.hora : '');
+      window.CRM_TOAST('Agendada para ' + q + ' — o pin entrou no funil.');
+    }
   }
 
   // Fecha a atividade: o tipo confirmado entra junto, é o mesmo ato.

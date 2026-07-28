@@ -999,34 +999,13 @@
     montaFiltros();
   }
 
-  /* ---- Agendar (usado pelo pin sheet — SPEC 07 §2.1).
-          Agendar já move o funil: o pin ENTRA em Visita planejada. ---- */
-  function pedirAgendamento(pinId) {
-    const p = S.getById(pinId);
-    if (!p) return;
-    const lista = D.TAREFA_TIPO_ORDER.map(function (k, i) {
-      return (i + 1) + ') ' + D.TAREFA_TIPO[k].label;
-    }).join('\n');
-    const esc1 = window.prompt('Tipo da atividade:\n' + lista, '1');
-    if (esc1 == null) return;
-    const tipo = D.TAREFA_TIPO_ORDER[parseInt(esc1, 10) - 1];
-    if (!tipo) return window.CRM_TOAST && window.CRM_TOAST('Tipo inválido.');
-
-    const dt = window.prompt('Data (AAAA-MM-DD):', hoje());
-    if (dt == null) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return window.CRM_TOAST && window.CRM_TOAST('Data inválida.');
-
-    const notas = window.prompt('Notas (opcional):', '') || null;
-    const t = S.agendarTarefa({ pinId: pinId, tipo: tipo, data: dt, notas: notas });
-    if (!t) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível agendar.');
-    if (window.CRM_TOAST) window.CRM_TOAST('Agendada — o pin entrou no funil (Visita planejada).');
-  }
+  /* Agendar e concluir vivem nos SHEETS do pin (4ª e 5ª telas — js/pin.js,
+     spec-07 §2.1 e §3). Eram seis `window.prompt` neste arquivo até 28/07;
+     não sobrou nenhum no app. */
 
   window.CRM_ATIV = {
     init: init,
     refresh: refresh,
-    render: render,
-    agendar: pedirAgendamento
-    // `concluir` saiu: a conclusão é a 4ª tela do sheet do pin (js/pin.js).
+    render: render
   };
 })();

@@ -216,13 +216,16 @@ Avatar (cor da origem + emoji) · nome + sub · **origin-card** (badge + escada 
 
 > ⚖️ **O bloco não pede nada — só age.** Chips de tipo já moraram aqui, acima do botão, e saíram: quem está na porta do cliente não classifica visita. Formulário de campo se resolve **no momento em que a informação existe**, e para o tipo esse momento é o check-out (§6.7.2). O check-in é um gesto único. Ver [[spec-07-atividades]] §2.3.
 
-### 6.7.2 Formulário de conclusão (`.conc-*`)
-4ª tela do pin-sheet, não um sheet sobre o sheet (§6.7 sub-telas). Padrão do campo: **label 10.5px caixa-alta** (`.conc-lbl`) + controle + **hint 11px** (`.conc-hint`). A obrigatoriedade vai num `<em>` minúsculo ao lado do label (`obrigatório`/`opcional`) — **sem asterisco**, que exigiria legenda em algum lugar da tela.
+### 6.7.2 Formulário dentro do sheet (`.sform-*`)
+O padrão das duas telas de formulário do pin-sheet — **conclusão** (check-out) e **agendar** —, que em 28/07 substituíram **seis `window.prompt`**. São sub-telas (§6.7), **não sheet sobre sheet**: empilhar dois bottom sheets pediria segundo backdrop e camada nova de z-index para uma tela que sempre pertence a **um** ponto.
 
-- **Chips para escolha fechada** (`.conc-chips`, reusa o §6.2). O chip de resultado ativo veste a **cor da entidade** (`.chip--res.is-on { background: var(--c) }`), a mesma do pin e do gráfico.
-- **Campo condicional:** o motivo só existe depois do resultado que o exige, e trocar o resultado **zera** o motivo — o vocabulário é outro.
-- **Inputs a 16px** (`.conc-inp`), pela regra travada do §3 (sem zoom no iOS).
-- **O botão diz o que falta**, desabilitado, em vez de recusar depois do toque: `Escolha o resultado` → `Escolha o motivo` → `✓ Concluir atividade`. Validação que aparece só depois de tentar obriga a errar primeiro.
+Padrão do campo: **label 10.5px caixa-alta** (`.sform-lbl`) + controle + **hint 11px** (`.sform-hint`). A obrigatoriedade vai num `<em>` minúsculo ao lado do label (`obrigatório`/`opcional`) — **sem asterisco**, que exigiria legenda em algum lugar da tela.
+
+- **Chips para escolha fechada** (`.sform-chips`, reusa o §6.2) — em três valores o dedo escolhe direto, e o default já é a resposta provável. No sheet de conclusão, o chip de resultado ativo veste a **cor da entidade** (`.chip--res.is-on { background: var(--c) }`), a mesma do pin e do gráfico.
+- **Campo condicional:** no check-out, o motivo só existe depois do resultado que o exige, e trocar o resultado **zera** o motivo — o vocabulário é outro.
+- **Inputs nativos a 16px** (`.sform-inp`), pela regra travada do §3 (sem zoom no iOS): `date`, `time` e texto. Picker de calendário e de relógio são do sistema — sem build, sem componente novo para manter.
+- **O botão diz o que falta**, desabilitado, em vez de recusar depois do toque: `Escolha o resultado` → `Escolha o motivo` → `✓ Concluir atividade`; `Escolha o dia` / `O dia já passou` → `＋ Agendar visita`. Validação que aparece só depois de tentar obriga a errar primeiro.
+- **Nota de consequência antes do botão** (`.sform-nota`), quando o envio muda estado fora da tela: *"Agendar coloca {ponto} no funil, em Visita planejada"*. Quem está a um toque de mexer no board deve saber **antes** do toque.
 - **A faixa do topo diz o estado do check-in em curso** (`.ativ-tipo-atual`, verde): hora e minutos em campo — e, quando a distância passou do raio, `remoto (1,2 km do pin)`. O vendedor fica sabendo **como a visita vai ser classificada antes de fechar**, não depois, na coluna da gerencial. *(Uma faixa âmbar `.conc-remota` existiu aqui por uma hora, avisando que "sem check-in a atividade será remota" — a premissa estava errada e ela saiu: ver [[spec-07-atividades]] §2.)*
 
 > ⚖️ **Tela que se re-renderiza a cada toque pede delegação de evento**, não listener por elemento: o nó que recebeu o listener morre no próximo render. Um `click`/`input` no container que sobrevive, e o `data-*` diz qual campo mudou. **Texto e data não re-renderizam** — refazer o HTML a cada tecla tira o foco do campo; quem reflete o estado é o botão, atualizado à mão.
