@@ -30,7 +30,7 @@ Uma **tarefa** é uma atividade **com data e dono** ligada a **um** estabelecime
 ## 2. Decisões-chave
 
 1. **Planejada e realizada são o MESMO objeto.** Uma coleção só; `status` distingue. A **agenda** lê `status = planejada`; a **visão gerencial** lê `status = realizada` com `data` no período. Dois recortes, uma lista — é isso que faz a visão gerencial sair de graça sobre a casca.
-2. **A Tarefa dirige o funil de ponta a ponta — até onde o campo alcança.** **Agendar** faz o pin entrar (`visita_planejada`); o **`resultado`** ao concluir move as etapas de campo e as saídas laterais; **`csc` e `aquisicao` vêm do ERP** (cadastro/pedido) e **prevalecem**. O `tipo` diz o *propósito*, o `resultado` diz o *efeito* (§5). O `status` tem três fontes — e nenhuma é digitação.
+2. **A Tarefa dirige o funil de ponta a ponta — até onde o campo alcança.** **Agendar** faz o pin entrar (`visita_planejada`) — e, desde 28/07, **o check-in também**, porque a tarefa que ele cria nasce `planejada` (§8); o **`resultado`** ao concluir move as etapas de campo e as saídas laterais; **`csc` e `aquisicao` vêm do ERP** (cadastro/pedido) e **prevalecem**. O `tipo` diz o *propósito*, o `resultado` diz o *efeito* (§5). O `status` tem três fontes — e nenhuma é digitação.
 3. **Recorrência é rótulo, não motor.** Na Fase 2, `tipo = recorrencia` só classifica. **Nada é gerado automaticamente** — nem N ocorrências futuras, nem "concluir cria a próxima" (parking §9).
 
 ## 3. Schema-alvo (DDL)
@@ -128,7 +128,7 @@ CREATE TABLE tarefa (
 
 | Evento | efeito no `status` do estabelecimento |
 |---|---|
-| **agendar** (nasce `planejada`) | `sem_plano → visita_planejada` — **entra no funil** |
+| **agendar** — ou **check-in em pin sem plano**, que cria a tarefa (nasce `planejada` nos dois casos) | `sem_plano → visita_planejada` — **entra no funil** |
 | **cancelar** a última planejada | `visita_planejada → sem_plano` — sai do board (única reversão) |
 
 | `resultado` (ao concluir) | efeito no `status` do estabelecimento |
