@@ -42,15 +42,37 @@
     return window.CRM_FILTERS ? window.CRM_FILTERS.getBusca() : '';
   }
 
+  /* `localeCompare` por comparação custava 82,5ms com 6.914 leads — mais que
+     todo o resto da tela somado. A chave normalizada (a MESMA `CRM_DATA.norm`
+     da busca) reproduz a colação pt-BR e cai para 12ms; verificado item a item
+     nos 6.914: zero divergências de ordem.
+     A chave fica no pin e se auto-invalida pelo nome, então renomear ou criar
+     um pin em campo não deixa chave velha para trás. */
+  function chaveNome(p) {
+    const nome = String(p.name == null ? '' : p.name);
+    if (p.__skDe !== nome) { p.__skDe = nome; p.__sk = D.norm(nome); }
+    return p.__sk;
+  }
+
+  /* Decora → ordena → desdecora. Chamar `chaveNome`/`qualRank` DENTRO do
+     comparador são ~176 mil chamadas de função com 6.914 leads (53ms medidos);
+     com os campos prontos num array auxiliar, a ordenação compara valores
+     simples e cai para ~12ms. `qualRank` também sai do laço quente — ele faz
+     `indexOf` num array a cada chamada. */
   function sortLeads(list) {
-    return list.slice().sort(function (a, b) {
-      const dq = qualRank(a.qualidade) - qualRank(b.qualidade);
-      if (dq !== 0) return dq;
-      // nome_fantasia pode chegar null no dado real (higienizado/vazio no snapshot) —
-      // localeCompare estoura em null, então normaliza antes de comparar.
-      return String(a.name == null ? '' : a.name)
-        .localeCompare(String(b.name == null ? '' : b.name), 'pt-BR');
+    const dec = new Array(list.length);
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      // nome_fantasia pode chegar null no dado real (higienizado/vazio no snapshot).
+      dec[i] = { p: p, r: qualRank(p.qualidade), k: chaveNome(p) };
+    }
+    dec.sort(function (a, b) {
+      if (a.r !== b.r) return a.r - b.r;
+      return a.k < b.k ? -1 : a.k > b.k ? 1 : 0;
     });
+    const out = new Array(dec.length);
+    for (let i = 0; i < dec.length; i++) out[i] = dec[i].p;
+    return out;
   }
 
   function cardHtml(p) {
@@ -80,14 +102,25 @@
     );
   }
 
+  /* ---- Janela por scroll ----
+     Construir os 6.914 de uma vez custava 0,6s no Android (cronometrado 29/07)
+     e 172ms no desktop, com 76.054 nós. Com 200 itens: 12ms. A janela só
+     CRESCE — nada é reciclado nem removido —, então scroll nativo, arraste e o
+     `content-visibility` do card seguem intactos.
+     O contador continua dizendo o TOTAL: janela é detalhe de renderização,
+     nunca de informação. */
+  const LOTE = 200;
+  let janela = LOTE;        // quantos itens estão renderizados agora
+  let ordenada = [];        // o conjunto ordenado inteiro (a janela fatia daqui)
+
   function renderList() {
     if (!listEl) return;
-    const shown = sortLeads(lastList);
+    ordenada = sortLeads(lastList);
     const query = buscaAtual();
 
-    if (countEl) countEl.textContent = shown.length + (shown.length === 1 ? ' lead' : ' leads');
+    if (countEl) countEl.textContent = ordenada.length + (ordenada.length === 1 ? ' lead' : ' leads');
 
-    if (!shown.length) {
+    if (!ordenada.length) {
       listEl.innerHTML = '';
       if (emptyEl) {
         emptyEl.classList.add('is-visible');
@@ -101,13 +134,29 @@
       return;
     }
     if (emptyEl) emptyEl.classList.remove('is-visible');
-    listEl.innerHTML = shown.map(cardHtml).join('');
+    listEl.innerHTML = ordenada.slice(0, janela).map(cardHtml).join('');
+  }
+
+  // Anexa o próximo lote sem reconstruir o que já está na tela — reconstruir
+  // mataria a posição do scroll no meio do gesto.
+  function crescerJanela() {
+    if (janela >= ordenada.length) return;
+    const de = janela;
+    janela = Math.min(janela + LOTE, ordenada.length);
+    listEl.insertAdjacentHTML('beforeend', ordenada.slice(de, janela).map(cardHtml).join(''));
+  }
+
+  function onScroll() {
+    // 400px de folga: o lote entra antes de a pessoa chegar no fundo.
+    if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 400) crescerJanela();
   }
 
   // Recebe o conjunto já filtrado (mesmos filtros do mapa).
   function refresh(list) {
     lastList = list || [];
+    janela = LOTE;                    // conjunto novo ⇒ janela recomeça
     renderList();
+    if (listEl) listEl.scrollTop = 0; // e o scroll volta ao topo
   }
 
   /* Escreve na dimensão compartilhada — o `reapply` volta para cá via refresh().
@@ -139,6 +188,8 @@
     showMap = (opts && opts.showMap) || showMap;
 
     if (searchEl) searchEl.addEventListener('input', onSearch);
+    // `listEl` vem do getElementById e é estável — armar uma vez aqui basta.
+    if (listEl) listEl.addEventListener('scroll', onScroll, { passive: true });
     if (listEl) listEl.addEventListener('click', function (e) {
       const btn = e.target.closest('.lead');
       if (!btn) return;

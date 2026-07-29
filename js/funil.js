@@ -95,6 +95,8 @@
     // Índice da 1ª saída lateral: ganha o divisor que separa o bloco da escada.
     const primeiraLateral = ORDER.findIndex(function (k) { return D.STATUS[k].family === 'lateral'; });
 
+    porStatus = byStatus;   // a janela fatia daqui ao crescer
+
     boardEl.innerHTML = ORDER.map(function (k, idx) {
       const st = D.STATUS[k];
       const items = byStatus[k] || [];
@@ -102,19 +104,42 @@
       const lateral = st.family === 'lateral'
         ? ' funil-col--lateral' + (idx === primeiraLateral ? ' funil-col--lateral-first' : '')
         : '';
+      janelas[k] = Math.min(LOTE, items.length);
       return (
         '<section class="funil-col' + lateral + '" data-status="' + k + '" style="--sc:' + st.color + '">' +
           '<div class="funil-col__head">' +
             '<span class="funil-col__dot"></span>' +
             '<span class="funil-col__title">' + esc(st.label) + '</span>' +
+            // Conta o TOTAL da coluna, não o renderizado.
             '<span class="funil-col__count">' + items.length + '</span>' +
           '</div>' +
           '<div class="funil-col__body" data-status="' + k + '">' +
-            items.map(cardHtml).join('') +
+            items.slice(0, janelas[k]).map(cardHtml).join('') +
           '</div>' +
         '</section>'
       );
     }).join('');
+  }
+
+  /* ---- Janela por scroll, uma por coluna ----
+     Mesma razão da Inteligência: construir tudo custava 114ms no desktop
+     (~400ms no Android). A janela só cresce; nada é reciclado, então o arraste
+     e o `content-visibility` do card seguem intactos. */
+  /* LOTE menor que o da Inteligência de propósito: são SETE colunas, então 200
+     por coluna seriam 1.400 cards de uma vez (83ms medidos). Com 50 são 350, e
+     cada coluna é estreita — 50 cards já são ~10 telas de rolagem nela. */
+  const LOTE = 50;
+  const janelas = {};       // status -> quantos cards renderizados
+  let porStatus = {};       // status -> lista completa da coluna
+
+  function crescerColuna(bodyEl) {
+    const k = bodyEl.getAttribute('data-status');
+    const items = porStatus[k] || [];
+    const atual = janelas[k] || 0;
+    if (atual >= items.length) return;
+    const ate = Math.min(atual + LOTE, items.length);
+    bodyEl.insertAdjacentHTML('beforeend', items.slice(atual, ate).map(cardHtml).join(''));
+    janelas[k] = ate;
   }
 
   function refresh(list) {
@@ -228,6 +253,15 @@
     showMap = (opts && opts.showMap) || showMap;
 
     if (boardEl) boardEl.addEventListener('pointerdown', onDown);
+    /* `scroll` NÃO borbulha, e os `.funil-col__body` são recriados a cada
+       render do board — listener por coluna morreria no render seguinte e a
+       janela pararia de crescer em silêncio, parecendo "acabaram os cards".
+       Fase de captura no board pega o scroll de qualquer coluna, sempre. */
+    if (boardEl) boardEl.addEventListener('scroll', function (e) {
+      const body = e.target;
+      if (!body || !body.classList || !body.classList.contains('funil-col__body')) return;
+      if (body.scrollTop + body.clientHeight >= body.scrollHeight - 400) crescerColuna(body);
+    }, true);
     if (hintEl) hintEl.addEventListener('click', function (e) {
       if (e.target.closest('[data-filtro]')) showMap();
     });
