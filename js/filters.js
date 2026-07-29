@@ -18,7 +18,15 @@
     origin: new Set(),
     status: new Set(),      // FUNIL — rotulado "Fase" na tela desde 29/07
     statusCliente: new Set(), // lead/csc/recorrente/churn (29/07)
-    lastVisit: 'todos'      // todos | nao_30 | recente
+    lastVisit: 'todos',     // todos | nao_30 | recente
+    /* Busca por texto (29/07) — dimensão de filtro como as outras, então vale
+       nas QUATRO abas. É a mesma `CRM_DATA.matchBusca` (nome fantasia · razão
+       social · CNPJ por dígitos) que a Inteligência e a barra de Atividades já
+       usavam: uma busca só para o produto. A caixa da Intel passou a escrever
+       AQUI em vez de filtrar a lista por conta própria — antes, digitar lá não
+       mexia no mapa, e as duas telas mostravam conjuntos diferentes apesar de
+       prometerem o mesmo. */
+    q: ''
   };
 
   let getSelectedId = function () { return null; };
@@ -72,6 +80,24 @@
     return PRESET_DIMS.every(function (d) { return mesmoConjunto(filters[d], p[d]); });
   }
 
+  /* ---- Abrir/fechar a barra de busca do mapa ---- */
+  function abrirBusca(focar) {
+    const qb = document.getElementById('quickbar');
+    if (!qb) return;
+    qb.classList.add('is-searching');
+    if (focar) {
+      const el = document.getElementById('map-search');
+      if (el) el.focus();
+    }
+  }
+  function fecharBusca() {
+    const qb = document.getElementById('quickbar');
+    if (qb) qb.classList.remove('is-searching');
+    // Fechar LIMPA o termo — barra fechada com filtro ativo seria filtro
+    // invisível, o mesmo erro que a gaveta "Mais" da aba Atividades cometeu.
+    setBusca('', false);
+  }
+
   function toggleAquisicao() {
     const ligar = !aquisicaoAtiva();
     const p = presetAquisicao();
@@ -107,6 +133,7 @@
     if (!setMatch(filters.statusCliente, p.statusCliente || D.deriveStatusCliente(p))) return false;
     if (filters.lastVisit === 'nao_30' && daysSince(p.lastVisit) < 30) return false;
     if (filters.lastVisit === 'recente' && daysSince(p.lastVisit) >= 30) return false;
+    if (!D.matchBusca(p, filters.q)) return false;   // busca = dimensão (29/07)
     return true;
   }
 
@@ -115,6 +142,7 @@
             filters.porte.size + filters.origin.size + filters.status.size +
             filters.statusCliente.size;
     if (filters.lastVisit !== 'todos') n += 1;
+    if (filters.q.trim()) n += 1;   // busca conta como filtro: nunca é invisível
     return n;
   }
 
@@ -202,6 +230,20 @@
       el.classList.toggle('is-on', on);
       el.setAttribute('aria-pressed', String(on));
     });
+    /* As DUAS caixas de busca refletem o mesmo `filters.q`. Guarda de valor
+       igual: escrever num input que já tem o valor mata a posição do cursor
+       enquanto a pessoa digita. */
+    ['map-search', 'intel-search'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el && el.value !== filters.q) el.value = filters.q;
+    });
+    const lupa = document.getElementById('btn-busca');
+    if (lupa) {
+      const on = !!filters.q.trim();
+      lupa.classList.toggle('is-on', on);
+      // Termo buscado com a barra fechada seria filtro invisível: mantém aberta.
+      if (on) abrirBusca(false);
+    }
     // Botão "Aquisição": estado DERIVADO dos quatro conjuntos (ver toggleAquisicao).
     const aq = document.getElementById('btn-aquisicao');
     if (aq) {
@@ -235,7 +277,28 @@
     filters.porte.clear(); filters.origin.clear(); filters.status.clear();
     filters.statusCliente.clear();
     filters.lastVisit = 'todos';
+    filters.q = '';
     reapply();
+  }
+
+  /* ---- Busca (dimensão compartilhada) ---- */
+  // Escrita pelas DUAS caixas: a da quickbar do mapa e a da Inteligência.
+  // `enquadrar` só é pedido por quem digitou: reenquadrar o mapa a cada toque
+  // em chip seria roubar o enquadramento do usuário.
+  function setBusca(q, enquadrar) {
+    const novo = String(q == null ? '' : q);
+    if (novo === filters.q) return;
+    filters.q = novo;
+    reapply();
+    if (enquadrar) enquadrarNaBusca();
+  }
+
+  /* Sem isto a busca-como-filtro é inútil no mapa: os casamentos podem estar em
+     Fortaleza enquanto a viewport está no Recife, e a tela fica vazia sem dizer
+     por quê. Só enquadra com termo digitado e resultado — nunca "desenquadra". */
+  function enquadrarNaBusca() {
+    if (!filters.q.trim() || !window.CRM_MAP || !window.CRM_MAP.fitTo) return;
+    window.CRM_MAP.fitTo(getFiltered());
   }
 
   /* ---- Construção da UI ---- */
@@ -450,8 +513,29 @@
     if (clearBtn) clearBtn.addEventListener('click', clearAll);
     const classBd = document.getElementById('class-backdrop');
     if (classBd) classBd.addEventListener('click', closeClass);
+
+    /* Busca do mapa. O input NÃO é re-renderizado (isso tiraria o foco a cada
+       tecla — armadilha registrada no SPEC 00 §6), então listener direto serve.
+       `debounce` porque cada tecla re-filtra as 4 abas e reenquadra o mapa. */
+    const lupa = document.getElementById('btn-busca');
+    if (lupa) lupa.addEventListener('click', function () { abrirBusca(true); });
+    const fechar = document.getElementById('btn-busca-fechar');
+    if (fechar) fechar.addEventListener('click', fecharBusca);
+    const inp = document.getElementById('map-search');
+    if (inp) {
+      let t = null;
+      inp.addEventListener('input', function () {
+        clearTimeout(t);
+        const v = inp.value;
+        t = setTimeout(function () { setBusca(v, true); }, 220);
+      });
+    }
+
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeClass();
+      if (e.key !== 'Escape') return;
+      closeClass();
+      const qb = document.getElementById('quickbar');
+      if (qb && qb.classList.contains('is-searching')) fecharBusca();
     });
   }
 
@@ -462,6 +546,8 @@
     activeCount: activeCount,
     getFiltered: getFiltered,
     matches: matches,
-    closeClass: closeClass
+    closeClass: closeClass,
+    setBusca: setBusca,
+    getBusca: function () { return filters.q; }
   };
 })();

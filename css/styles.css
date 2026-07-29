@@ -111,6 +111,32 @@ button { font-family: inherit; cursor: pointer; }
   -webkit-overflow-scrolling: touch; padding: 6px 0;
 }
 .quickbar__scroll::-webkit-scrollbar { display: none; }
+/* Busca do mapa (29/07): lupa fechada → campo de largura cheia aberto.
+   ⚠️ Classe explícita, não `[hidden]`: a quickbar é flex e `[hidden]` perde
+   para `display:flex` (armadilha já paga duas vezes neste CSS). */
+.quick--lupa { padding: 8px 11px; font-size: 14px; line-height: 1; }
+.qsearch { display: none; }
+.quickbar.is-searching .quick--lupa,
+.quickbar.is-searching #quick-filters { display: none; }
+.quickbar.is-searching .qsearch {
+  display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--line-2);
+  border-radius: var(--r-pill); padding: 0 6px 0 11px;
+}
+.qsearch__ico { font-size: 12px; flex: 0 0 auto; opacity: .75; }
+.qsearch input {
+  flex: 1; min-width: 0; border: none; background: transparent;
+  font-size: 16px;              /* 16px trava o zoom automático do iOS (§3) */
+  color: var(--ink); padding: 8px 0;
+}
+.qsearch input:focus { outline: none; }
+.qsearch input::-webkit-search-cancel-button { display: none; }
+.qsearch__x {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: transparent; color: var(--muted); font-size: 13px;
+}
+/* Lupa acesa quando há termo buscado — o filtro nunca fica invisível. */
+.quick--lupa.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .quick {
   flex: 0 0 auto;
   border: 1px solid var(--line-2); background: var(--surface);

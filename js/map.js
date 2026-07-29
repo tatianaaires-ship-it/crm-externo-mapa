@@ -251,6 +251,36 @@
     map.setView([p.lat, p.lng], zoom || Math.max(map.getZoom(), 16), { animate: true });
   }
 
+  /* Enquadra o conjunto (usado pela busca — CRM_FILTERS.enquadrarNaBusca).
+     Sem isto, buscar filtra pins que podem estar em outra capital e a tela
+     fica vazia sem dizer por quê. Um resultado só: centra sem colar no zoom
+     máximo, que perderia a vizinhança do ponto. */
+  function fitTo(pins) {
+    if (!map || !pins || !pins.length) return;
+    const pts = pins
+      .filter(function (p) { return p && p.lat != null && p.lng != null; })
+      .map(function (p) { return [p.lat, p.lng]; });
+    if (!pts.length) return;
+
+    /* `animate: false` de propósito, por duas razões independentes:
+       1. Busca é SALTO DE CONTEXTO, não navegação contínua — animar um pan de
+          Recife a Fortaleza (~430 km) desorienta em vez de situar. Quem buscou
+          quer estar lá, não ver o caminho.
+       2. É o único caminho VERIFICÁVEL aqui: no Browser pane o `transitionend`
+          nunca dispara (o pane não compõe frames — mesma causa de o screenshot
+          falhar), então toda animação do Leaflet fica presa no estado inicial.
+          Medido: com `animate: true` o mapa não saía do lugar em nenhum dos
+          casos; sem animação, acerta sempre.
+       ⚠️ Isso é limitação do AMBIENTE, não do Leaflet — o `focus()` abaixo é
+       animado desde sempre e funciona no Android. Não mexer nele: não tenho
+       como testar, e ele já roda no aparelho. */
+    if (pts.length === 1) {
+      map.setView(pts[0], Math.max(map.getZoom(), 16), { animate: false });
+      return;
+    }
+    map.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 16, animate: false });
+  }
+
   function panToShow(id) {
     const p = window.CRM_STATE.getById(id);
     if (!p) return;
@@ -290,6 +320,7 @@
     setSelected: setSelected,
     onSelect: function (fn) { onSelectCb = fn; },
     focus: focus,
+    fitTo: fitTo,
     panToShow: panToShow,
     startMove: startMove,
     endMove: endMove,

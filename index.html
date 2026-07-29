@@ -37,8 +37,21 @@
     </header>
 
     <!-- Quick filters -->
-    <div class="quickbar">
+    <div class="quickbar" id="quickbar">
+      <!-- Busca do mapa (29/07). Mora aqui, na casa dos filtros do mapa, e não
+           na topbar — que é identidade, não controle, e aperta em 375px.
+           Fechada é uma lupa; aberta, o campo ocupa a barra e os chips somem
+           (`.quickbar.is-searching`). Escreve na MESMA dimensão de filtro que a
+           busca da Inteligência: uma busca só para o produto. -->
+      <button id="btn-busca" class="quick quick--lupa" aria-label="Buscar estabelecimento"
+              title="Buscar por nome, razão social ou CNPJ">🔎</button>
       <div id="quick-filters" class="quickbar__scroll"></div>
+      <div class="qsearch" id="qsearch">
+        <span class="qsearch__ico" aria-hidden="true">🔎</span>
+        <input id="map-search" type="search" enterkeyhint="search" autocomplete="off"
+               placeholder="Nome, razão social ou CNPJ…" aria-label="Buscar estabelecimento no mapa" />
+        <button id="btn-busca-fechar" class="qsearch__x" aria-label="Fechar busca">✕</button>
+      </div>
       <button id="btn-filters" class="filters-btn" aria-haspopup="true">
         <span class="filters-btn__icon" aria-hidden="true">≡</span>
         <span>Filtros</span>

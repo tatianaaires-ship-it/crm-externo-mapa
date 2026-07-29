@@ -2,7 +2,9 @@
    intel.js — Aba "Inteligência / Leads".
    - Lista os leads do MESMO conjunto filtrado do mapa (state + filtros
      compartilhados via CRM_FILTERS.reapply → CRM_INTEL.refresh).
-   - Busca local (nome / razão social / CNPJ), acento-insensível.
+   - Busca (nome / razão social / CNPJ) — desde 29/07 é DIMENSÃO DE FILTRO
+     compartilhada (`CRM_FILTERS.q`), não recorte local: a caixa daqui e a da
+     quickbar do mapa escrevem no mesmo lugar, e as 4 abas concordam.
    - Clicar num lead volta pro mapa e abre o pin correspondente.
    ===================================================================== */
 (function () {
@@ -12,7 +14,7 @@
 
   let listEl, searchEl, countEl, emptyEl;
   let lastList = [];        // último conjunto filtrado recebido do mapa
-  let query = '';
+  // (a busca virou dimensão de filtro compartilhada — ver buscaAtual)
   let showMap = function () {}; // callback: volta pra aba do mapa
 
   function esc(s) {
@@ -30,13 +32,14 @@
     return i < 0 ? 99 : i; // Ouro(0) < Prata(1) < Bronze(2)
   }
 
-  // Nome fantasia · razão social · CNPJ — a MESMA função da barra da aba
-  // Atividades (CRM_DATA.matchBusca): busca igual nas duas telas que buscam pin.
-  // Ganho para esta tela: o CNPJ passou a casar por dígitos, então "14066"
-  // acha "14.066.645/0001-46" — antes exigia digitar a pontuação.
-  function applySearch(list) {
-    if (!query) return list;
-    return list.filter(function (p) { return D.matchBusca(p, query); });
+  /* A busca desta tela virou DIMENSÃO DE FILTRO em 29/07 (`CRM_FILTERS.q`), em
+     vez de recorte local: `lastList` já chega buscado, então não há mais o que
+     filtrar aqui. O ganho é o app parar de se contradizer — a Intel prometia o
+     "mesmo conjunto filtrado" do mapa e, com busca só dela, mostrava outro.
+     Agora digitar aqui filtra o mapa, o Funil e as Atividades também.
+     `query` sobrou apenas para a mensagem de vazio, e é lida do filtro. */
+  function buscaAtual() {
+    return window.CRM_FILTERS ? window.CRM_FILTERS.getBusca() : '';
   }
 
   function sortLeads(list) {
@@ -79,7 +82,8 @@
 
   function renderList() {
     if (!listEl) return;
-    const shown = sortLeads(applySearch(lastList));
+    const shown = sortLeads(lastList);
+    const query = buscaAtual();
 
     if (countEl) countEl.textContent = shown.length + (shown.length === 1 ? ' lead' : ' leads');
 
@@ -106,9 +110,16 @@
     renderList();
   }
 
+  /* Escreve na dimensão compartilhada — o `reapply` volta para cá via refresh().
+     `enquadrar: false`: quem digita aqui está olhando a LISTA, e mexer no
+     enquadramento do mapa por trás seria efeito colateral invisível. */
+  let deb = null;
   function onSearch() {
-    query = (searchEl.value || '').trim();
-    renderList();
+    clearTimeout(deb);
+    const v = searchEl.value || '';
+    deb = setTimeout(function () {
+      if (window.CRM_FILTERS) window.CRM_FILTERS.setBusca(v, false);
+    }, 220);
   }
 
   function openLead(id) {
@@ -135,9 +146,9 @@
     });
     const clr = document.getElementById('btn-intel-clear');
     if (clr) clr.addEventListener('click', function () {
+      // `clearAll` já zera a busca (é dimensão desde 29/07) e chama reapply,
+      // que volta aqui via refresh — não precisa limpar o input à mão.
       if (window.CRM_FILTERS) window.CRM_FILTERS.clearAll();
-      if (searchEl) { searchEl.value = ''; query = ''; }
-      renderList();
     });
   }
 

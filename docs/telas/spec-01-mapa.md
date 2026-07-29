@@ -59,8 +59,9 @@ Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-fil
 
 ## 5. Quickbar — filtros rápidos (CAP-2)
 
-A quickbar tem **três botões + Filtros** desde 29/07, e um deles não é da mesma natureza dos outros:
+A quickbar tem **busca + três botões + Filtros** desde 29/07, e dois deles não são da mesma natureza dos outros:
 
+- **🔎 Busca** — fechada é uma **lupa**; ao tocar, a barra vira um **campo de largura cheia** (`.quickbar.is-searching` esconde os chips) com `×` para fechar. Busca por **nome fantasia · razão social · CNPJ** — ver §5.2.
 - **🏆 Aquisição** — **PRESET, não dimensão.** Liga **quatro filtros de uma vez** para isolar *oportunidades reais de aquisição*: `porte ≠ MEI` · `qualidade ∈ {Ouro, Prata}` · `status do cliente ∈ {lead, csc, churn}` · `fase ∉ {perdido, desqualificado}`. **Dourado** (`#C9971B`) para se distinguir dos recortes; detalhe do componente no [[spec-00-design-system]] §6.
 - **🏷️ Classificação** → abre popover com todas as tipologias (multi-seleção); badge com a contagem de selecionadas.
 - **📌 Não visitados 30+** — atalho toggle, sincronizado com o painel completo.
@@ -78,6 +79,22 @@ A quickbar tem **três botões + Filtros** desde 29/07, e um deles não é da me
 - ✅ **Porte nulo virou filtrável — chip `Sem porte` (29/07).** A lista-branca escondia o **pin criado em campo**: o porte chega via CNPJá, então nasce nulo, e um lead achado na rua ficava fora de "Aquisição" — exatamente a lista onde ele deveria estar. Não era regra do preset (qualquer filtro de porte já fazia isso), mas o preset a tornou visível. Consertado com a **mesma solução do `Sem Zona`**: o vazio ganha nome e vira valor de primeira classe (`matches` compara `p.porte || 'SEM_PORTE'`). O preset **inclui** `Sem porte`, porque a intenção é *excluir MEI*, não *exigir porte conhecido*. Verificado: o lead da rua entra, e filtrar só `Sem porte` isola exatamente ele.
   > O grupo de Porte tem então **7 chips**: as 6 faixas reais de `porte_c` + o balde. `PORTE_ORDER` (enum de **dado**, o que o seed sorteia) e `PORTE_FILTRO` (vocabulário do **filtro**) são listas separadas em `js/data.js` de propósito — juntá-las faria o seed atribuir "Sem porte" como se fosse uma faixa.
 - ℹ️ `fase` inclui `aquisicao` na lista-branca (a regra é "≠ perdido e ≠ desqualificado"), mas na prática nenhum pin em `aquisicao` passa: o filtro de status do cliente já corta `recorrente`, e pelo invariante `aquisicao ⟹ recorrente`. Redundante, não errado.
+
+### 5.2 Busca (29/07) — **uma só, compartilhada pelas 4 abas**
+
+Campos: **nome fantasia · razão social · CNPJ** (por dígitos, então `14066` acha `14.066.645/0001-46`), acento-insensível nos nomes. É a **mesma** `CRM_DATA.matchBusca` que a Inteligência e a barra de Atividades já usavam — o SPEC 00 §6 já dizia que *"busca que se comporta diferente em duas telas do mesmo app é bug de produto"*.
+
+**A busca é uma DIMENSÃO DE FILTRO** (`CRM_FILTERS.q`), não um recorte local. Consequências, todas deliberadas:
+
+- **Vale nas quatro abas.** Antes a Intel filtrava a lista por conta própria: ela prometia "o mesmo conjunto filtrado do mapa" e mostrava outro. Agora a caixa da Intel **escreve na mesma dimensão**, então digitar lá filtra o mapa, o Funil e as Atividades. ⚠️ **É mudança de comportamento na Intel** — o ganho é o app parar de se contradizer. Verificado em 4 termos: mapa e Intel dão a mesma contagem.
+- **Conta no badge de Filtros** (+1) e as duas caixas espelham o mesmo valor, com guarda de valor igual — escrever num input que já tem o texto mata a posição do cursor de quem está digitando.
+- **Fechar a barra LIMPA o termo**, e termo ativo **reabre** a barra sozinho: barra fechada com busca ativa seria **filtro invisível** — o mesmo erro da gaveta "Mais" que já foi revertida na aba Atividades.
+- **`Esc` fecha e limpa.** O `Limpar` do painel zera a busca junto (é dimensão), mas **deixa a barra aberta e vazia**: o "Limpar filtros" do estado vazio aparece justamente quando a busca não achou nada, e fechar o campo tiraria de baixo do dedo de quem quer corrigir o termo.
+- **`debounce` de 220 ms** nas duas caixas — cada tecla re-filtra 4 abas e reenquadra o mapa.
+
+**O mapa REENQUADRA nos resultados** (`CRM_MAP.fitTo`, `padding 56`, `maxZoom 16`). Sem isso a busca-como-filtro é inútil aqui: os casamentos podem estar em Fortaleza enquanto a viewport está no Recife, e a tela fica vazia sem dizer por quê. Só enquadra quem **digitou** (mexer num chip não rouba o enquadramento) e só **com resultado** — nunca desenquadra para o vazio.
+
+> ⚠️ **`fitTo` usa `animate: false` de propósito.** Busca é **salto de contexto**, não navegação contínua: animar um pan de ~430 km desorienta em vez de situar. E é o único caminho verificável — no Browser pane o `transitionend` nunca dispara (o pane não compõe frames), então **toda** animação do Leaflet fica presa no estado inicial. Medido: com `animate: true` o mapa não saía do lugar em nenhum dos casos. *Isso é limitação do ambiente de teste, não do Leaflet* — o `focus()` (§7, usado ao abrir um lead da Intel) é animado desde sempre e roda no Android; **não foi tocado** justamente porque não há como testá-lo aqui.
 - **Contador:** `result-pill` no topbar mostra "N locais"; badge no botão Filtros mostra nº de filtros ativos.
 - **Lógica:** **AND entre dimensões, OR dentro da dimensão**. O filtro **oculta** pins — **nunca deleta** (o pin nunca some). O **mesmo conjunto filtrado** alimenta a aba Inteligência ([[spec-05-intel]]), o Funil e as Atividades.
 - **Oito dimensões** (ordem do painel), com três mudanças em 29/07:

@@ -271,6 +271,15 @@ Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e 
 Linha com dot de origem (mesmas pistas do pin), nome, sub, CNPJ e badge de qualidade. Toque foca o pin correspondente no mapa.
 
 > **Busca de estabelecimento — uma só para o produto** (`CRM_DATA.matchBusca`, 28/07): **nome fantasia · razão social · CNPJ**, acento-insensível nos nomes e **por dígitos** no CNPJ (`14066` acha `14.066.645/0001-46`). Usada pela Inteligência **e** pela barra de filtros da aba Atividades (§6.12) — busca que se comporta diferente em duas telas do mesmo app é bug de produto, não variação. Rótulo `Buscar`, placeholder que **nomeia os três campos**: campo de busca que não diz o que aceita faz o usuário testar.
+> ✅ **Levada às últimas consequências em 29/07: a busca virou DIMENSÃO DE FILTRO** (`CRM_FILTERS.q`) e ganhou uma caixa na quickbar do Mapa. As duas caixas — Mapa e Inteligência — escrevem no **mesmo** lugar, então a busca vale nas **quatro abas** e conta no badge de Filtros. Era o passo que faltava: a Intel prometia "o mesmo conjunto filtrado do mapa" e, buscando por conta própria, mostrava outro. Detalhe em [[spec-01-mapa]] §5.2.
+
+### 6.2c Campo de busca da quickbar (`.qsearch`)
+
+Lupa fechada → **campo de largura cheia** que substitui os chips (`.quickbar.is-searching`), com `×` para fechar. Input a **16px** (regra travada da §3: abaixo disso o iOS dá zoom ao focar).
+
+- ⚠️ **Alternância por classe explícita, nunca `[hidden]`** — a quickbar é `flex` e `[hidden]` perde para `display:flex`. Armadilha já paga duas vezes neste CSS.
+- A lupa fica **acesa** (`--ink`, como qualquer chip ativo) quando há termo, e **termo ativo reabre a barra sozinho**: barra fechada com busca ativa seria **filtro invisível** — o erro que a gaveta "Mais" da §6.12 cometeu e que foi revertido.
+- **Fechar limpa o termo.** `Esc` fecha e limpa. Já o `Limpar` do painel zera a busca mas **deixa a barra aberta e vazia**: o botão de limpar aparece justamente quando a busca não achou nada, e fechar o campo tiraria o teclado de baixo do dedo de quem quer corrigir o termo.
 
 ### 6.10 Segmented control (`.seg`)
 Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (Gerencial · Agenda — [[spec-07-atividades]] §4).
