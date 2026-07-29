@@ -200,14 +200,60 @@
     // Renders pesados por último e ISOLADOS: um que falhe (dado real inesperado)
     // não derruba os outros nem a sincronização de controles acima.
     // Abas Inteligência e Funil compartilham o MESMO conjunto filtrado.
+    ultimaLista = list;
     try { window.CRM_MAP.render(list, getSelectedId()); }
     catch (e) { console.error('[filtros] falha ao renderizar o mapa:', e); }
-    try { if (window.CRM_INTEL) window.CRM_INTEL.refresh(list); }
-    catch (e) { console.error('[filtros] falha ao atualizar Inteligência:', e); }
-    try { if (window.CRM_FUNIL) window.CRM_FUNIL.refresh(list); }
-    catch (e) { console.error('[filtros] falha ao atualizar Funil:', e); }
-    try { if (window.CRM_ATIV) window.CRM_ATIV.refresh(list); }
-    catch (e) { console.error('[filtros] falha ao atualizar Atividades:', e); }
+
+    /* Só a aba VISÍVEL renderiza; as outras ficam sujas e são construídas
+       quando a pessoa entra nelas (`renderizarSeSuja`, chamada pelo showTab).
+       Medido com 6.914 pins: o reapply custava 162,7ms, e 155,2ms disso era
+       construir DOM de aba invisível — 116.954 dos 117.403 nós do documento
+       viviam em abas escondidas. O mapa fica de fora da regra: 7,5ms, e adiá-lo
+       mexeria em fitTo/focus sem ganho. */
+    const ativa = abaAtiva();
+    SUPERFICIES.forEach(function (nome) {
+      if (nome === ativa) renderizarSuperficie(nome);
+      else sujas[nome] = true;
+    });
+  }
+
+  /* ---- Render sob demanda por aba ----
+     A aba ativa já tem fonte de verdade: as classes do <body> que o showTab
+     escreve. Ler dali evita um segundo estado que poderia divergir dela. */
+  const SUPERFICIES = ['intel', 'funil', 'ativ'];
+  const ROTULO = { intel: 'Inteligência', funil: 'Funil', ativ: 'Atividades' };
+  const MODULO = { intel: 'CRM_INTEL', funil: 'CRM_FUNIL', ativ: 'CRM_ATIV' };
+  const sujas = { intel: true, funil: true, ativ: true };
+  let ultimaLista = [];
+
+  function abaAtiva() {
+    const c = document.body.classList;
+    if (c.contains('view-intel')) return 'intel';
+    if (c.contains('view-funil')) return 'funil';
+    if (c.contains('view-ativ')) return 'ativ';
+    return 'map';
+  }
+
+  // Mantém o isolamento de sempre: uma superfície que estoure com dado real
+  // inesperado não derruba as outras. Falhou ⇒ SEGUE SUJA, para a próxima
+  // entrada tentar de novo em vez de congelar conteúdo quebrado na tela.
+  function renderizarSuperficie(nome) {
+    const mod = window[MODULO[nome]];
+    if (!mod) return;
+    try {
+      mod.refresh(ultimaLista);
+      sujas[nome] = false;
+    } catch (e) {
+      console.error('[filtros] falha ao atualizar ' + ROTULO[nome] + ':', e);
+    }
+  }
+
+  // Chamada pelo showTab quando uma aba aparece. É o que garante o invariante:
+  // aba visível nunca mostra dado velho.
+  function renderizarSeSuja(nome) {
+    if (SUPERFICIES.indexOf(nome) < 0) return;   // 'map' não entra na regra
+    if (!sujas[nome]) return;
+    renderizarSuperficie(nome);
   }
 
   /* ---- Sincroniza estado visual dos chips (painel + atalhos) ---- */
@@ -714,6 +760,7 @@
   window.CRM_FILTERS = {
     init: init,
     reapply: reapply,
+    renderizarSeSuja: renderizarSeSuja,   // showTab chama ao abrir uma aba
     clearAll: clearAll,
     activeCount: activeCount,
     getFiltered: getFiltered,

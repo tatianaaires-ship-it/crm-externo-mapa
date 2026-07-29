@@ -108,6 +108,14 @@
       el.classList.toggle('is-active', on);
       el.setAttribute('aria-selected', String(on));
     });
+    /* A aba que aparece constrói agora, se estiver suja. Enquanto escondida ela
+       não renderiza (filters.js) — é o que tira 155 dos 162ms de cada toque de
+       chip com dado real. Vem ANTES do invalidateSize: quem aparece tem que
+       estar em dia antes de qualquer medida de layout. */
+    if (window.CRM_FILTERS && window.CRM_FILTERS.renderizarSeSuja) {
+      window.CRM_FILTERS.renderizarSeSuja(which);
+    }
+
     if (which === 'map') {
       // Volta pro mapa: Leaflet precisa recalcular o tamanho do container.
       setTimeout(function () { window.CRM_MAP.getMap().invalidateSize(); }, 50);
