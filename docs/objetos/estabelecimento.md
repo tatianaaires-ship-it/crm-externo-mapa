@@ -32,7 +32,7 @@ Um **estabelecimento** é qualquer ponto que a operação acompanha no mapa — 
 
 1. **Um objeto, não dois.** Lead + Conta fundidos em Estabelecimento (23/07). Discriminador = `cadastrado` (derivado); campos comerciais nulos enquanto for só lead.
 2. **Preservar cru primeiro, modelar depois.** Carga real do Salesforce e schema canônico são **Fase 3** (contrato SF encerra fev/2027). A *estrutura* vem das colunas reais; no protótipo público só os **valores** são fictícios.
-3. **O vínculo comercial é sticky.** Uma vez cliente, o registro comercial não some se o ponto churnar — a saúde vira `status_cliente` (ativo/em risco/inativo/reconquistado). É o que sustenta a continuidade.
+3. **O vínculo comercial é sticky.** Uma vez cliente, o registro comercial não some se o ponto churnar — a saúde vira `status_cliente` (`lead` → `csc` → `recorrente` → `churn`, vocabulário de 29/07). É o que sustenta a continuidade.
 
 ## 3. Schema-alvo (DDL)
 
@@ -49,14 +49,15 @@ CREATE TABLE estabelecimento (
   cnae_descricao           text,                           -- cache do código
   tipologia                text,
   endereco                 text,                           -- consolidado
+  bairro                   text,                           -- geografia fina; NAO e a zona (29/07)
   -- geo
   geo_original             geography(Point,4326),
   geo_verificado           geography(Point,4326),          -- nulo até validar em campo (monotônico)
-  zona_id                  text REFERENCES zona(id),
+  zona_id                  text REFERENCES zona(id),       -- = zona_guardioes_c; vocabulario FECHADO (15) + 'Sem Zona'
   -- classificação (derivada — ver §5)
-  origem_confianca         text,                           -- escada de confiança
+  origem_confianca         text,                           -- escada de confiança (3 degraus)
   qualidade                text,                           -- de cnae_tier
-  porte                    text,                           -- chega via CNPJá
+  porte                    text,                           -- chega via CNPJá; 6 faixas de porte_c
   -- funil de campo
   -- entrada:          sem_plano (default, FORA do board) <-> visita_planejada
   -- escada de campo:  visitado | td_encontrado
@@ -78,7 +79,7 @@ CREATE TABLE estabelecimento (
   ticket_medio             numeric(12,2),                  -- fonte:erp — FICTÍCIO
   frequencia_compra        numeric,                        -- fonte:erp — compras/mês (aprox.)
   inadimplente             boolean,                        -- flag; fonte:erp (deriva de saldo/vencidos no futuro)
-  status_cliente           text,                           -- DERIVADO: ativo|em_risco|inativo|reconquistado (§5)
+  status_cliente           text,                           -- DERIVADO: lead|csc|recorrente|churn (§5) -- existe para TODO pin desde 29/07
   -- auditoria da correção de pin (detalhe completo → Fase 3)
   data_correcao_pin        timestamptz,
   motivo_correcao_pin      text,
@@ -113,11 +114,12 @@ CREATE TABLE nota_estabelecimento (
 | 6 | `tipologia` | enum | Não | `fonte:sf` | filtro · sheet · form:expandir | — |
 | 7 | `endereco` | text | Não | `fonte:sf` | sheet | consolidado de 6 colunas |
 | 8 | `geo_original` / `geo_verificado` | geography | Não | `fonte:sf` / `campo` | **mapa** | verificado: nulo até validar; monotônico |
-| 9 | `zona_id` | fk → [[zona]] | Não | `fonte:sf` | filtro · sheet | = `zona_2_c` |
+| 8b | `bairro` | text | Não | `fonte:sf` (`bairro_c`) | sheet (subtítulo + sob a Zona) | **geografia fina — não é a zona** (29/07); no protótipo é ele que dá coordenada, endereço e DDD |
+| 9 | `zona_id` | fk → [[zona]] | Não | `fonte:sf` | **filtro (16 chips fixos)** · sheet | = **`zona_guardioes_c`**; **vocabulário FECHADO**: 15 zonas + `Sem Zona` — §5 |
 | 10 | `origem_confianca` | enum (3) | Não | **derivado** | **pista do pin** (tracejado · `G` · `✓`) · sheet | §5; **deixou de ser a cor** em 29/07 |
 | 11 | `qualidade` | enum Ouro/Prata/Bronze | Não | **derivado** | filtro · sheet | de [[cnae_tier]] |
-| 12 | `porte` | enum | Não | `fonte:cnpja` | filtro · sheet | dimensão de filtro |
-| 13 | `status` | enum (8; **7 colunas**) | Sim | **derivado** (tarefa + ERP) | filtro · sheet | **nunca digitado**; três fontes, ERP prevalece; `sem_plano` fica fora do board — §5 |
+| 12 | `porte` | enum (**6**) | Não | `fonte:cnpja` / `fonte:sf` (`porte_c`) | filtro · sheet | 29/07: 4→6 faixas, uma por valor real de `porte_c`; `LTDA` virou `DEMAIS` — §5 |
+| 13 | `status` | enum (8; **7 colunas**) | Sim | **derivado** (tarefa + ERP) | filtro · sheet | **nunca digitado**; três fontes, ERP prevalece; `sem_plano` fica fora do board — §5. ⚠️ **Rotulado "Fase" na tela** desde 29/07 (a chave segue `status`) |
 | 13b | `status_anterior` | enum | Não | `auto` | — | etapa de origem antes de `perdido`/`desqualificado`; usada para **voltar** |
 | 14 | `motivo_status` | text | Não | **derivado** | sheet | cache do `motivo_perda`/`motivo_desqualificacao` da última [[tarefa]] concluída |
 | 15 | `ultima_visita` | date | Não | check-in | filtro · sheet | — |
@@ -137,7 +139,7 @@ CREATE TABLE nota_estabelecimento (
 | `ticket_medio` | numeric(12,2) | `fonte:erp` | sheet (se cliente) | **fictício** |
 | `frequencia_compra` | numeric | `fonte:erp` | sheet (se cliente) | compras/mês (aprox.) |
 | `inadimplente` | boolean | flag (`fonte:erp`) | **filtro** · sheet (se cliente) | deriva de saldo/vencidos no futuro |
-| `status_cliente` | enum | **derivado** | filtro · sheet (se cliente) | ciclo de vida comercial — §5 |
+| `status_cliente` | enum (**4**) | **derivado** | **filtro** · sheet | 29/07: vocabulário `lead \| csc \| recorrente \| churn`; **existe para TODO pin**, não só cliente — §5 |
 | *(entre outros)* | — | `fonte:erp` | — | **depois vamos adicionando** |
 
 **Estruturais:** `cadastrado` substitui o antigo `is_converted` como filtro "é cliente?"; `data_cadastro` substitui `converted_at`; o FK `conta_id` **deixa de existir**. `notas` (1:N, ver DDL); auditoria de correção de pin; `created_at`/`updated_at`.
@@ -168,7 +170,16 @@ CREATE TABLE nota_estabelecimento (
 - **`origem_confianca`** — eixo = **a localização do pin**. Escada **aditiva de 3 degraus** (nível mais alto que alcançar): (1) **validado em campo (Máxima)** — monotônico; (2) **Google (Média)** — o cadastro de CNPJ foi enriquecido com Google; (3) **CNPJ (Menor)** — o piso. Princípio: *na dúvida, arredonda pra BAIXO*. Exceções: validação de campo sobe/grava; reclassificação manual permitida.
   > ⚠️ **Mudou em 29/07: eram 4 valores, viraram 3, e as chaves mudaram** (`cnpja_puro`→`cnpj`, `cnpja_google`→`google`). A categoria **"Google puro"** (ponto com Google e **sem** CNPJ) deixou de existir por decisão de produto: todo ponto nasce da base de CNPJ e o Google **enriquece** esse cadastro. Consequências: os degraus são cumulativos (`cnpj` ⊂ `google` ⊂ `validado_campo`), `match_confirmado` deixou de entrar na conta (não há mais dois degraus para ele separar), e a **inversão-tese "Google puro > CNPJá puro" ficou DORMENTE, não revogada** — sem a categoria, ela não tem sujeito; se um dia entrar ponto sem CNPJ, ela volta e vira o 4º degrau.
   > **Isto NÃO é mais a cor do pin.** A origem virou **pista de forma** (tracejado · `G` · `✓`) e a cor passou a ser `cadastrado`. Ver [[spec-00-design-system]] §2.3 e [[spec-01-mapa]] §3.
-- **`status_cliente`** *(retenção)* — só quando `cadastrado`. Derivado dos dias desde `data_ultima_compra`: `ativo` → `em_risco` → `inativo`; volta a comprar após inativo = `reconquistado`. **É o sinal que expõe o fosso de retenção.** ⚠️ **Limiares a definir** (ex., do CRM-KA: risco após N dias sem compra).
+- **`status_cliente`** *(a relação no tempo)* — **enum de 4: `lead` → `csc` → `recorrente` → `churn`.** É o sinal que expõe o fosso de retenção, e desde 29/07 é **dimensão de filtro própria**. Derivado, nunca digitado:
+  `cadastrado = false` → **`lead`** · `cadastrado` sem `data_primeira_compra` → **`csc`** · com `data_primeira_compra` → **`recorrente`** · era cliente e parou de comprar → **`churn`**.
+  > ⚠️ **Mudou em 29/07, e a mudança é de forma, não só de vocabulário.** Antes: `ativo | em_risco | inativo | reconquistado`, **só quando cadastrado**. Agora o enum inclui **`lead`**, então o campo **existe para todo pin** — deixou de ser "atributo de cliente" e passou a ser "onde este ponto está na relação". Em troca, os quatro degraus de saúde colapsaram em `recorrente` × `churn`: a granularidade fina (em risco, reconquistado) volta quando o ERP trouxer `data_ultima_compra`, com os **limiares que continuam a definir**.
+  > ⚠️ **`csc` fica nos DOIS enums** — aqui e em `status` (funil). Não é duplicação: é a mesma verdade em eixos diferentes. No funil `csc` é a **coluna** (onde o trabalho está); aqui é a **relação** (o que o ponto é). O invariante `status ∈ {csc, aquisicao} ⟺ cadastrado` amarra os dois, então eles nunca discordam.
+  > ⚠️ **`churn` não tem fonte hoje** e nasce **vazio nas duas bases**. O `salesforce.lead` não traz compra nem pedido — só `cliente_minal*_lead_c` (cliente de outra marca) e `faixa_faturamento_c`. O valor existe no vocabulário para o filtro não mentir sobre o que o modelo prevê; o chip fica em 0 até a integração do ERP.
+  > 📍 **Relação com a COR do pin:** este é o refinamento que a [[spec-00-design-system]] §2.5 previu que ia querer o canal da cor. **A cor segue binária** (cliente × lead) por ora — `lead` aqui é exatamente o lilás, e `csc`/`recorrente`/`churn` são exatamente o azul. Abrir o azul em três tons é decisão em aberto.
+- **`porte`** — **6 faixas** desde 29/07, uma por valor real de `porte_c` (conferidos no Metabase): `MEI` ← `me-ei-mei` · `ME` ← `me-ltda` · `ME_EI` ("ME-EI Não MEI") ← `me-ei-nao_mei` · `EPP` ← `epp-ltda` · `EPP_EI` ← `epp-ei` · `DEMAIS` ← `demais`. O prefixo deixou de bastar (`me-ltda` e `me-ei-nao_mei` são faixas distintas e ambas começam com "me"). `LTDA` era rótulo nosso e **morreu**. Valor novo na coluna → **nulo**, nunca chute. ⚠️ **`MEI` nunca aparece no dado real:** o recorte do snapshot o exclui duas vezes.
+- **`zona_id`** — **vocabulário FECHADO** desde 29/07, de `zona_guardioes_c`: as **15 zonas** da operação (`CE Guararapes` · `CE Grande Fortaleza` · `REC Zona Sul` · `PE Interior` · `PE Litoral Sul` · `JP Sul` · `CE Maracanaú` · `RMR Norte` · `REC Zona Norte` · `REC Zona Oeste` · `CE Caucaia - Parquelândia` · `CE Aldeota` · `PE Jaboatão` · `PB João Pessoa Litoral` · `JP Oeste`) **+ `Sem Zona`** para tudo o mais — inclusive nulo e os 7 valores residuais da base (`CE Eusébio Guararapes`, `CE Maracanaú Fatima`, `CE Aldeota Cumbuco`, `PE Áreas Brancas`, `CE Litoral Oeste` e dois `Recife Zona Sul - Oeste/Leste` com 1 registro cada). **Nunca inventa zona.**
+  > ⚠️ **Trocamos de coluna, não só de valores.** Usávamos `zona_2_c`, cuja taxonomia é **outra** — só 5 dos 13 valores dela estão nestes 15 — e que é muito menos preenchida (82k nulos contra 33k). No recorte do snapshot as 15 cobrem **99,6%** (29 de 6.880 caem em `Sem Zona`).
+  > ⚠️ **Zona não é bairro.** No protótipo `zone` era o bairro, e era ele que dava coordenada, endereço e DDD; por isso o bairro **não** foi absorvido — virou o campo `bairro` (§4, linha 8b), e a zona passou a ser a zona. Confundir os dois foi o que obrigou a subir o `localStorage` para v9.
 
 ## 6. O que NUNCA fica aqui
 
@@ -197,7 +208,7 @@ CREATE TABLE nota_estabelecimento (
 | Estab. → Nota_estabelecimento | 1:N | net-new; sempre visível no pin |
 | Estab. → [[tarefa]] | 1:N | atividade datada **= check-in/out**; promove a "validado em campo"; o `resultado` move o `status` |
 | Estab. → Vendedor | N:1 | `vendedor_responsavel_id`; alvo de RLS |
-| Estab. → Zona | N:1 | `zona_id` = `zona_2_c` |
+| Estab. → [[zona]] | N:1 | `zona_id` = **`zona_guardioes_c`** (vocabulário fechado de 15 + `Sem Zona`) |
 | Estab. → cnae_tier | N:1 (lookup) | deriva `qualidade` |
 
 > ~~Estab. → Conta~~ **removido** — Conta deixou de ser objeto separado (fusão 23/07).

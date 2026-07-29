@@ -487,6 +487,8 @@
     const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍', label: p.typology };
     const qual = D.QUALIDADE[p.qualidade] || { label: p.qualidade, emoji: '', color: '#64748b', ink: '#334155' };
     const stat = D.STATUS[p.status] || { label: p.status, color: '#64748b' };
+    const stCliKey = p.statusCliente || D.deriveStatusCliente(p);
+    const stCli = D.STATUS_CLIENTE[stCliKey] || { label: stCliKey, desc: '' };
     const porte = p.porte ? (D.PORTE[p.porte] || { label: p.porte }) : null;
 
     // Escala de confiança (dots) — 3 degraus desde 29/07, não 4.
@@ -577,7 +579,9 @@
         '<div class="sheet__avatar" style="--pin:' + rel.color + '">' + PIN_SVG + '</div>' +
         '<div class="sheet__titles">' +
           '<h2 class="sheet__name">' + esc(p.name) + '</h2>' +
-          '<div class="sheet__sub">' + esc(typ.label) + ' · ' + esc(p.zone) +
+          // Bairro no subtítulo (mais preciso ao lado do nome); a ZONA fica na
+          // linha de info, porque é ela que o filtro usa.
+          '<div class="sheet__sub">' + esc(typ.label) + ' · ' + esc(p.bairro || p.zone) +
             (p.createdByUser ? ' · <span class="tag-new">novo</span>' : '') + '</div>' +
         '</div>' +
         '<button type="button" class="sheet__close" id="btn-close-sheet" aria-label="Fechar">✕</button>' +
@@ -599,7 +603,13 @@
       '<section class="info">' +
         infoRow('Qualidade', '<span class="pill pill--qual" style="--c:' + qual.color + ';--ci:' + qual.ink + '">' + qual.emoji + ' ' + esc(qual.label) + '</span>') +
         infoRow('Porte', porte ? esc(porte.label) : '<em class="muted">—</em>') +
-        infoRow('Status', '<span class="pill" style="--c:' + stat.color + '">' + esc(stat.label) + '</span>') +
+        // "Fase" = o funil (renomeado em 29/07). "Status" agora é a relação do
+        // cliente, na linha seguinte — dois eixos, dois nomes.
+        infoRow('Fase', '<span class="pill" style="--c:' + stat.color + '">' + esc(stat.label) + '</span>') +
+        infoRow('Status', esc(stCli.label) +
+          '<small class="info__desc">' + esc(stCli.desc) + '</small>') +
+        infoRow('Zona', esc(p.zone || D.SEM_ZONA) +
+          (p.bairro ? '<small class="info__desc">' + esc(p.bairro) + '</small>' : '')) +
         infoRow('Última visita', fmtDate(p.lastVisit)) +
         (p.cadastrado ? infoRow('Cadastrado em', fmtDate(p.dataCadastro)) : '') +
         (p.dataPrimeiraCompra ? infoRow('1ª compra', fmtDate(p.dataPrimeiraCompra)) : '') +

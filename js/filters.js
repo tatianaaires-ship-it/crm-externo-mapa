@@ -12,11 +12,12 @@
 
   const filters = {
     typology: new Set(),
-    zone: new Set(),
+    zone: new Set(),        // zona_guardioes_c — 15 fixas + "Sem Zona"
     qualidade: new Set(),   // Ouro/Prata/Bronze (derivada do CNAE)
-    porte: new Set(),       // MEI/ME/EPP/LTDA
+    porte: new Set(),       // 6 faixas de porte_c (29/07)
     origin: new Set(),
-    status: new Set(),      // funil (antes visitStatus)
+    status: new Set(),      // FUNIL — rotulado "Fase" na tela desde 29/07
+    statusCliente: new Set(), // lead/csc/recorrente/churn (29/07)
     lastVisit: 'todos'      // todos | nao_30 | recente
   };
 
@@ -38,6 +39,9 @@
     if (!setMatch(filters.porte, p.porte)) return false;
     if (!setMatch(filters.origin, p.origin)) return false;
     if (!setMatch(filters.status, p.status)) return false;
+    // `statusCliente` é derivado; se um pin chegar sem ele (dado real cru),
+    // deriva na hora em vez de sumir do filtro.
+    if (!setMatch(filters.statusCliente, p.statusCliente || D.deriveStatusCliente(p))) return false;
     if (filters.lastVisit === 'nao_30' && daysSince(p.lastVisit) < 30) return false;
     if (filters.lastVisit === 'recente' && daysSince(p.lastVisit) >= 30) return false;
     return true;
@@ -45,7 +49,8 @@
 
   function activeCount() {
     let n = filters.typology.size + filters.zone.size + filters.qualidade.size +
-            filters.porte.size + filters.origin.size + filters.status.size;
+            filters.porte.size + filters.origin.size + filters.status.size +
+            filters.statusCliente.size;
     if (filters.lastVisit !== 'todos') n += 1;
     return n;
   }
@@ -55,12 +60,14 @@
 
   /* ---- Chips data-driven: reconstroem quando a taxonomia do dataset muda ---- */
   let lastTaxoSig = null;
+  // Desde 29/07 só a TIPOLOGIA é data-driven — a Zona virou vocabulário fechado
+  // (`ZONA_ORDER`), então não entra mais na assinatura: ela nunca muda com o
+  // dataset. Zona continua no painel porque `buildPanel` a redesenha inteira.
   function taxoSignature() {
-    return typologyEntries().map(function (e) { return e.key; }).join(',') +
-      '||' + zoneEntries().map(function (e) { return e.key; }).join(',');
+    return typologyEntries().map(function (e) { return e.key; }).join(',');
   }
-  // Zona/Tipologia saem dos valores PRESENTES no dataset (o fictício e o real têm
-  // taxonomias diferentes: real traz zona="REC Zona Oeste" e tipologia "outro").
+  // Tipologia sai dos valores PRESENTES no dataset (o fictício e o real têm
+  // taxonomias diferentes: o real traz tipologia "outro").
   // Reconstrói só quando o conjunto de valores muda (fictício→real, criar pin…).
   function ensureTaxonomyChips() {
     const sig = taxoSignature();
@@ -156,6 +163,7 @@
   function clearAll() {
     filters.typology.clear(); filters.zone.clear(); filters.qualidade.clear();
     filters.porte.clear(); filters.origin.clear(); filters.status.clear();
+    filters.statusCliente.clear();
     filters.lastVisit = 'todos';
     reapply();
   }
@@ -198,10 +206,16 @@
   }
   // Zona: valores reais presentes ("REC Zona Oeste"…), ordenados. Nulos não viram
   // chip (o pin segue no mapa; zona é filtro parcial — snapshot-dado-real.md §6).
+  /* Zona virou taxonomia FECHADA em 29/07 (`zona_guardioes_c`): as 15 do
+     vocabulário, na ordem em que a operação as lista, + "Sem Zona" no fim.
+     Deixou de ser data-driven de propósito — o painel mostra as 16 mesmo que o
+     dataset carregado não tenha pin em algumas. Com dado real isso quase não
+     acontece (as 15 cobrem 99,6% do recorte); no fictício, sim, e é o preço de
+     a supervisão ver a lista de zonas inteira em vez de só o que sobrou. */
   function zoneEntries() {
-    return distinctValues('zone')
-      .sort(function (a, b) { return String(a).localeCompare(String(b), 'pt-BR'); })
-      .map(function (z) { return { key: z, label: z }; });
+    return D.ZONA_ORDER.map(function (z) {
+      return { key: z, label: z, cls: z === D.SEM_ZONA ? 'chip--sem-zona' : '' };
+    });
   }
 
   function chip(dim, val, label, extraClass) {
@@ -229,6 +243,9 @@
     const porteEntries = D.PORTE_ORDER.map(function (k) {
       return { key: k, label: D.PORTE[k].label };
     });
+    const stCliEntries = D.STATUS_CLIENTE_ORDER.map(function (k) {
+      return { key: k, label: D.STATUS_CLIENTE[k].label, cls: 'chip--stcli chip--sc-' + k };
+    });
     // O chip ensina a PISTA, não a cor: o de CNPJ nasce tracejado (CSS) e os
     // outros dois trazem o glifo no rótulo — mesma gramática do marker.
     const origEntries = D.ORIGIN_ORDER.map(function (k) {
@@ -250,7 +267,10 @@
       group('Qualidade', 'qualidade', qualEntries) +
       group('Porte', 'porte', porteEntries) +
       group('Origem / confiança', 'origin', origEntries) +
-      group('Status', 'status', statEntries) +
+      // "Fase" = o funil. Renomeado em 29/07 para o nome "Status" ficar livre
+      // para a relação do cliente, que é o grupo seguinte.
+      group('Fase', 'status', statEntries) +
+      group('Status do cliente', 'statusCliente', stCliEntries) +
       group('Zona', 'zone', zoneEnts);
     // Listener delegado fica em init() (persiste entre re-renders do innerHTML).
   }

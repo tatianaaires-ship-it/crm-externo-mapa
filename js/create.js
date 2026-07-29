@@ -17,8 +17,8 @@
 
   function nearestZone(lat, lng) {
     let best = 'Recife', bestD = Infinity;
-    Object.keys(D.ZONE_CENTERS).forEach(function (z) {
-      const c = D.ZONE_CENTERS[z];
+    Object.keys(D.BAIRRO_CENTERS).forEach(function (z) {
+      const c = D.BAIRRO_CENTERS[z];
       const d = Math.pow(c[0] - lat, 2) + Math.pow(c[1] - lng, 2);
       if (d < bestD) { bestD = d; best = z; }
     });

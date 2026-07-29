@@ -39,6 +39,42 @@
   };
   const ORIGIN_ORDER = ['cnpj', 'google', 'validado_campo'];
 
+  /* ---- status_cliente — a RELAÇÃO no tempo (decisão 29/07, filtro próprio).
+          É o `status_cliente` que a SPEC 00 §2.5 tinha como buraco marcado,
+          chegando com o vocabulário da operação em vez do que o doc supunha
+          (era `ativo|em_risco|inativo|reconquistado`).
+          Duas diferenças que valem registro:
+            · inclui `lead`, então o campo passa a existir para QUEM NÃO É
+              cliente — antes o doc dizia "só quando cadastrado";
+            · `csc` também é valor de `status` (funil). São a mesma verdade em
+              eixos diferentes: no funil é a coluna, aqui é a relação.
+          NUNCA digitado: deriva de `cadastrado` + `status`, que já vêm do ERP.
+          ⚠️ `churn` não tem fonte: o salesforce.lead não traz compra nem
+          pedido (só `cliente_minal*_lead_c` e `faixa_faturamento_c`). O valor
+          existe no vocabulário e nasce vazio nas duas bases — quando a
+          integração do ERP entrar, `data_ultima_compra` o preenche. ---- */
+  const STATUS_CLIENTE = {
+    lead:       { key: 'lead',       label: 'Lead',       desc: 'Ainda não é cliente — não existe registro comercial.' },
+    csc:        { key: 'csc',        label: 'CSC',        desc: 'Cadastrado sem compra: tem cadastro, a primeira compra não veio.' },
+    recorrente: { key: 'recorrente', label: 'Recorrente', desc: 'Cliente comprando — tem primeira compra registrada.' },
+    churn:      { key: 'churn',      label: 'Churn',      desc: 'Era cliente e parou de comprar. Depende do ERP (sem fonte hoje).' }
+  };
+  // Ordem = a progressão da relação, como você descreveu: lead → csc →
+  // recorrente → churn (a saída fica no fim, como as laterais do funil).
+  const STATUS_CLIENTE_ORDER = ['lead', 'csc', 'recorrente', 'churn'];
+
+  // DERIVADO do que já existe — não é campo novo de entrada.
+  //   não cadastrado        -> lead
+  //   cadastrado, sem compra-> csc         (status = csc)
+  //   cadastrado, com compra-> recorrente  (status = aquisicao)
+  // O invariante `status ∈ {csc,aquisicao} ⟺ cadastrado` garante que o
+  // fallback abaixo nunca é usado; ele existe porque dado real surpreende.
+  function deriveStatusCliente(p) {
+    if (!p || !p.cadastrado) return 'lead';
+    if (p.status === 'aquisicao' || p.dataPrimeiraCompra) return 'recorrente';
+    return 'csc';
+  }
+
   /* ---- Relação comercial — é o que a COR do pin diz (decisão 29/07).
           Deriva de `cadastrado` (existe registro comercial?), que já é derivado
           do ERP — ou seja, a cor continua NUNCA sendo digitada.
@@ -82,14 +118,24 @@
   const QUALIDADE_ORDER = ['Ouro', 'Prata', 'Bronze'];
 
   /* ---- Porte (natureza/tamanho legal) — chega via CNPJá; dimensão de filtro
-          própria (a KR pede "filtrar por porte"). Fictício no protótipo. ---- */
+          própria (a KR pede "filtrar por porte"). Fictício no protótipo.
+          29/07: passou de 4 para 6 faixas, espelhando os valores REAIS de
+          `porte_c` no salesforce.lead (conferidos no Metabase). `LTDA` morreu —
+          era um rótulo nosso; o valor real se chama `demais`. O campo `sf` é a
+          string exata da coluna, para o transform da Fase 3 não adivinhar.
+          ⚠️ MEI existe no enum mas NUNCA aparece no dado real: o recorte do
+          snapshot exclui MEI duas vezes (`porte_c NOT IN ('me-ei-mei')` e
+          `optante_mei_c = 'Não'`). No fictício ele é semeado, então o chip
+          funciona na demo e fica em 0 no modo real — o que é a verdade. ---- */
   const PORTE = {
-    MEI:  { key: 'MEI',  label: 'MEI',  full: 'Microempreendedor individual' },
-    ME:   { key: 'ME',   label: 'ME',   full: 'Microempresa' },
-    EPP:  { key: 'EPP',  label: 'EPP',  full: 'Empresa de pequeno porte' },
-    LTDA: { key: 'LTDA', label: 'LTDA', full: 'Demais (LTDA / S.A.)' }
+    MEI:    { key: 'MEI',    label: 'MEI',           full: 'Microempreendedor individual',            sf: 'me-ei-mei' },
+    ME:     { key: 'ME',     label: 'ME',            full: 'Microempresa (LTDA)',                     sf: 'me-ltda' },
+    ME_EI:  { key: 'ME_EI',  label: 'ME-EI Não MEI', full: 'Microempresa / EI não optante pelo MEI',  sf: 'me-ei-nao_mei' },
+    EPP:    { key: 'EPP',    label: 'EPP',           full: 'Empresa de pequeno porte (LTDA)',         sf: 'epp-ltda' },
+    EPP_EI: { key: 'EPP_EI', label: 'EPP-EI',        full: 'Empresa de pequeno porte (EI)',           sf: 'epp-ei' },
+    DEMAIS: { key: 'DEMAIS', label: 'DEMAIS',        full: 'Demais (LTDA / S.A.)',                    sf: 'demais' }
   };
-  const PORTE_ORDER = ['MEI', 'ME', 'EPP', 'LTDA'];
+  const PORTE_ORDER = ['MEI', 'ME', 'ME_EI', 'EPP', 'EPP_EI', 'DEMAIS'];
 
   /* ---- Vendedores fictícios. Não há auth por usuário até a Fase 4: o
           `responsavel` da tarefa é DERIVADO (herda o do pin; se nulo, o criador
@@ -338,8 +384,59 @@
     marmitaria:  '5620104'  // Prata
   };
 
-  /* ---- Centros aproximados de bairros: Recife/PE (+ RMR), Fortaleza/CE e João Pessoa/PB ---- */
-  const ZONE_CENTERS = {
+  /* =====================================================================
+     ZONA (guardiões) × BAIRRO — separados em 29/07.
+     Até aqui `zone` era o BAIRRO, e era ele que dava coordenada, cidade/UF,
+     DDD e o texto do endereço. A zona de verdade passou a vir da coluna
+     `zona_guardioes_c` do salesforce.lead — vocabulário FECHADO de 15 valores
+     (conferidos no Metabase: são os 15 maiores e cobrem 99,6% do recorte).
+     Então o bairro NÃO podia simplesmente virar zona: ele continua existindo
+     como a geografia fictícia do protótipo, e `zone` passou a ser a zona.
+     ⚠️ `zona_2_c` (a coluna que usávamos) tem vocabulário DIFERENTE — só 5 dos
+     13 valores dela estão nestes 15. Snapshot gerado com a coluna velha cai
+     em "Sem Zona"; regerar com o transform novo resolve.
+     ===================================================================== */
+  const ZONAS_GUARDIOES = [
+    'CE Guararapes', 'CE Grande Fortaleza', 'REC Zona Sul', 'PE Interior',
+    'PE Litoral Sul', 'JP Sul', 'CE Maracanaú', 'RMR Norte', 'REC Zona Norte',
+    'REC Zona Oeste', 'CE Caucaia - Parquelândia', 'CE Aldeota', 'PE Jaboatão',
+    'PB João Pessoa Litoral', 'JP Oeste'
+  ];
+  const SEM_ZONA = 'Sem Zona';
+  // Ordem dos chips = a do print + o balde no fim.
+  const ZONA_ORDER = ZONAS_GUARDIOES.concat([SEM_ZONA]);
+
+  // Fora do vocabulário fechado (inclusive nulo e os 7 valores residuais da
+  // base, como 'CE Eusébio Guararapes') => Sem Zona. Nunca inventa zona.
+  function normalizaZona(v) {
+    return ZONAS_GUARDIOES.indexOf(v) >= 0 ? v : SEM_ZONA;
+  }
+
+  /* Bairro fictício -> zona de guardiões. Mapeamento do PROTÓTIPO (o dado real
+     traz a zona pronta na coluna). Geograficamente plausível, mas fictício. */
+  const BAIRRO_ZONA = {
+    /* Recife/PE */
+    'Boa Viagem': 'REC Zona Sul', 'Pina': 'REC Zona Sul', 'Imbiribeira': 'REC Zona Sul',
+    'Recife Antigo': 'REC Zona Norte', 'Boa Vista': 'REC Zona Norte',
+    'Santo Amaro': 'REC Zona Norte', 'Espinheiro': 'REC Zona Norte',
+    'Aflitos': 'REC Zona Norte', 'Graças': 'REC Zona Norte',
+    'Casa Forte': 'REC Zona Norte', 'Casa Amarela': 'REC Zona Norte',
+    'Madalena': 'REC Zona Oeste', 'Torre': 'REC Zona Oeste',
+    'Derby': 'REC Zona Oeste', 'Ilha do Leite': 'REC Zona Oeste',
+    'Olinda': 'RMR Norte', 'Jaboatão': 'PE Jaboatão',
+    /* Fortaleza/CE */
+    'Meireles': 'CE Grande Fortaleza', 'Praia de Iracema': 'CE Grande Fortaleza',
+    'Centro (Fortaleza)': 'CE Grande Fortaleza',
+    'Aldeota': 'CE Aldeota', 'Varjota': 'CE Aldeota', 'Cocó': 'CE Aldeota',
+    /* João Pessoa/PB */
+    'Tambaú': 'PB João Pessoa Litoral', 'Manaíra': 'PB João Pessoa Litoral',
+    'Cabo Branco': 'PB João Pessoa Litoral', 'Bessa': 'PB João Pessoa Litoral',
+    'Bancários': 'JP Sul'
+  };
+  function zonaDoBairro(b) { return normalizaZona(BAIRRO_ZONA[b]); }
+
+  /* ---- Centros aproximados de BAIRROS: Recife/PE (+ RMR), Fortaleza/CE e João Pessoa/PB ---- */
+  const BAIRRO_CENTERS = {
     'Recife Antigo': [-8.0630, -34.8712],
     'Boa Vista':     [-8.0575, -34.8880],
     'Santo Amaro':   [-8.0470, -34.8815],
@@ -373,11 +470,11 @@
     'Bessa':              [-7.0810, -34.8380],
     'Bancários':          [-7.1400, -34.8420]
   };
-  const ZONES = Object.keys(ZONE_CENTERS);
+  const BAIRROS = Object.keys(BAIRRO_CENTERS);
 
-  /* ---- Cidade/UF/DDD por zona (deriva endereço e DDD do telefone fictícios) ---- */
+  /* ---- Cidade/UF/DDD por BAIRRO (deriva endereço e DDD do telefone fictícios) ---- */
   const REC = { city: 'Recife', uf: 'PE', ddd: '81' };
-  const ZONE_META = {
+  const BAIRRO_META = {
     'Recife Antigo': REC, 'Boa Vista': REC, 'Santo Amaro': REC, 'Derby': REC,
     'Ilha do Leite': REC, 'Espinheiro': REC, 'Aflitos': REC, 'Graças': REC,
     'Casa Forte': REC, 'Casa Amarela': REC, 'Madalena': REC, 'Torre': REC,
@@ -575,8 +672,10 @@
 
   function buildSeed() {
     return SEED.map(function (r, i) {
-      const c = ZONE_CENTERS[r.z] || MAP_CENTER;
-      const meta = ZONE_META[r.z] || REC;
+      // `r.z` da semente é o BAIRRO (dá coordenada, cidade/UF e DDD); a ZONA
+      // de guardiões deriva dele pelo mapa BAIRRO_ZONA.
+      const c = BAIRRO_CENTERS[r.z] || MAP_CENTER;
+      const meta = BAIRRO_META[r.z] || REC;
       const lat = +(c[0] + jitter(i * 3 + 1, 0.014)).toFixed(6);
       const lng = +(c[1] + jitter(i * 5 + 2, 0.014)).toFixed(6);
       // Desde 29/07 TODO ponto nasce da base de CNPJ (a categoria "só Google"
@@ -611,13 +710,17 @@
         address: `${r.z}, ${meta.city}/${meta.uf} (fictício)`, // endereco
         lat: lat, lng: lng,                          // geo_original
         geoVerificado: validado ? { lat: lat, lng: lng } : null,
-        zone: r.z,                                   // zona_id
+        bairro: r.z,                                 // geografia fictícia (endereço/DDD/coordenada)
+        zone: zonaDoBairro(r.z),                     // zona_guardioes_c — vocabulário FECHADO
         origin: r.o,                                 // origem_confianca (derivada; seed = resultado da escada)
         status: status,                              // status (funil) — DERIVADO
         statusAnterior: null,                        // etapa antes de uma saída lateral
         motivoStatus: null,                          // cache do motivo da última tarefa
         qualidade: deriveQualidade(cnae),            // DERIVADA do cnae_codigo
-        porte: hasCnpj ? PORTE_ORDER[(i * 3 + 1) % 4] : null,
+        // Passo 5, não 3: o rodízio precisa ser COPRIMO com o nº de faixas para
+        // cobrir todas. Com 6 faixas e passo 3 (gcd 3) só saíam os índices 1 e 4
+        // — ME e EPP-EI — e os outros quatro chips nasciam mortos na demo.
+        porte: hasCnpj ? PORTE_ORDER[(i * 5 + 1) % PORTE_ORDER.length] : null,
         vendedorId: vendId,                          // vendedor_responsavel_id
         vendedor: VENDEDORES[vendId].nome,           // cache do nome (exibição)
         lastVisit: r.lv || null,                     // ultima_visita
@@ -631,6 +734,9 @@
         checkins: [],
         createdByUser: false
       };
+
+      // Derivado por último: depende de `cadastrado` + `status` já resolvidos.
+      pin.statusCliente = deriveStatusCliente(pin);
 
       if (r.note) pin.notes.push({ text: r.note, ts: (r.lv || '2026-06-01') + 'T10:15:00' });
       // Pins validados em campo carregam um check-in histórico (reforça CAP-6)
@@ -1160,6 +1266,9 @@
       p.checkins = feitas.filter(function (t) { return t.checkinEm; })
         .map(function (t) { return { in: t.checkinEm, out: t.checkoutEm }; })
         .reverse();
+      // `statusCliente` deriva de `status`, que acabou de ser recalculado aqui —
+      // sem esta linha o filtro novo congelaria no valor da carga.
+      p.statusCliente = deriveStatusCliente(p);
     });
 
     return pins;
@@ -1198,12 +1307,21 @@
     CNAE_TIER: CNAE_TIER,
     CNAE_DESC: CNAE_DESC,
     TYPOLOGY_CNAE: TYPOLOGY_CNAE,
-    ZONES: ZONES,
-    ZONE_CENTERS: ZONE_CENTERS,
+    BAIRROS: BAIRROS,
+    BAIRRO_CENTERS: BAIRRO_CENTERS,
+    BAIRRO_META: BAIRRO_META,
+    BAIRRO_ZONA: BAIRRO_ZONA,
+    ZONAS_GUARDIOES: ZONAS_GUARDIOES,
+    ZONA_ORDER: ZONA_ORDER,
+    SEM_ZONA: SEM_ZONA,
+    STATUS_CLIENTE: STATUS_CLIENTE,
+    STATUS_CLIENTE_ORDER: STATUS_CLIENTE_ORDER,
     MAP_CENTER: MAP_CENTER,
     MAP_ZOOM: MAP_ZOOM,
-    ZONE_META: ZONE_META,
     // Derivações (puras)
+    normalizaZona: normalizaZona,
+    zonaDoBairro: zonaDoBairro,
+    deriveStatusCliente: deriveStatusCliente,
     deriveQualidade: deriveQualidade,
     deriveCadastrado: deriveCadastrado,
     deriveStatusComercial: deriveStatusComercial,

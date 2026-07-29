@@ -22,7 +22,7 @@
   }
   // (a normalização acento-insensível mora em CRM_DATA.matchBusca)
   function cityOf(p) {
-    const meta = D.ZONE_META[p.zone];
+    const meta = D.BAIRRO_META[p.bairro];
     return meta ? meta.city + '/' + meta.uf : '';
   }
   function qualRank(q) {

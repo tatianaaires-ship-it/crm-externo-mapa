@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v8'; // v8: origem_confianca com 3 valores e chaves novas
+  const KEY = 'crm-externo-map:v9'; // v9: zona de guardioes x bairro, porte com 6 faixas, statusCliente
   const D = window.CRM_DATA;
 
   let pins = [];
@@ -44,8 +44,17 @@
      Estado v7 tem pins com `origin: 'cnpja_google'` — chave fora do enum, que
      cairia no fallback e deixaria o pin sem pista nenhuma no mapa. Aqui migrar
      é honesto (é renomeação, não invenção), e a tabela abaixo faz isso; a
-     versão sobe porque o shape do pin mudou de vocabulário. */
-  const STATE_V = 8;
+     versão sobe porque o shape do pin mudou de vocabulário.
+     v9 (29/07): três mexidas de shape na mesma fatia de filtros. (1) `zone`
+     deixou de ser o BAIRRO e passou a ser a zona de `zona_guardioes_c`
+     (vocabulário fechado de 15 + "Sem Zona"); o bairro virou o campo `bairro`,
+     que é quem ainda dá coordenada, endereço e DDD. (2) `porte` foi de 4 para 6
+     faixas e `LTDA` virou `DEMAIS`. (3) nasceu `statusCliente`
+     (lead/csc/recorrente/churn), derivado. Estado v8 tem `zone: 'Boa Viagem'`,
+     `porte: 'LTDA'` e nenhum `bairro` — migrável, e é o que a tabela abaixo
+     faz; a versão sobe porque o significado de um campo existente mudou, que é
+     pior que campo novo: silenciosamente, todo pin cairia em "Sem Zona". */
+  const STATE_V = 9;
 
   // Snapshot real e persistência antiga podem trazer o enum velho.
   const STATUS_LEGADO = {
@@ -86,13 +95,44 @@
     if (p.dataPrimeiraCompra === undefined) p.dataPrimeiraCompra = null;
   }
 
+  // Porte: 4 -> 6 faixas em 29/07. `LTDA` era rótulo nosso; o valor real da
+  // coluna se chama `demais`. As chaves cruas do salesforce.lead também entram,
+  // porque o transform da Fase 3 pode entregá-las direto.
+  const PORTE_LEGADO = {
+    LTDA: 'DEMAIS',
+    'me-ei-mei': 'MEI', 'me-ltda': 'ME', 'me-ei-nao_mei': 'ME_EI',
+    'epp-ltda': 'EPP', 'epp-ei': 'EPP_EI', 'demais': 'DEMAIS'
+  };
+
+  /* Zona/bairro (29/07). O campo `zone` trocou de SIGNIFICADO — era bairro,
+     virou zona de guardiões —, então migrar é obrigatório: sem isto todo pin
+     antigo cai em "Sem Zona" sem avisar. Duas procedências:
+       · estado v8 e seed antigo: `zone` guardava BAIRRO ('Boa Viagem') → move
+         para `bairro` e deriva a zona pelo mapa BAIRRO_ZONA;
+       · snapshot real: `zone` já é uma zona, mas pode vir de `zona_2_c`, cuja
+         taxonomia é OUTRA (só 5 dos 13 valores dela estão nos 15) → o que não
+         estiver no vocabulário fechado vira "Sem Zona", sem inventar. */
+  function migrarZona(p) {
+    if (p.bairro == null && p.zone && D.BAIRRO_ZONA[p.zone]) {
+      p.bairro = p.zone;                  // era bairro disfarçado de zona
+      p.zone = D.zonaDoBairro(p.bairro);
+      return;
+    }
+    if (p.bairro == null) p.bairro = null; // dado real não tem bairro
+    p.zone = D.normalizaZona(p.zone);
+  }
+
   function migratePin(p) {
     if (!p) return p;
     if (STATUS_LEGADO[p.status]) p.status = STATUS_LEGADO[p.status];
     if (!D.STATUS[p.status]) p.status = 'sem_plano';
     if (ORIGIN_LEGADO[p.origin]) p.origin = ORIGIN_LEGADO[p.origin];
     if (!D.ORIGINS[p.origin]) p.origin = 'cnpj';        // arredonda pra BAIXO
+    if (PORTE_LEGADO[p.porte]) p.porte = PORTE_LEGADO[p.porte];
+    if (p.porte && !D.PORTE[p.porte]) p.porte = null;   // porte desconhecido é nulo, não chute
+    migrarZona(p);
     migrarRelacao(p);                                   // roda DEPOIS do status
+    p.statusCliente = D.deriveStatusCliente(p);         // e DEPOIS de migrarRelacao
     if (p.checkins == null) p.checkins = [];
     return p;
   }
@@ -252,7 +292,16 @@
           prevalece; o avanço na escada é monotônico; as laterais guardam a
           etapa de origem; e a única reversão é visita_planejada → sem_plano
           (cancelar o plano). Devolve true se mudou. ---- */
+  /* `statusCliente` deriva de `status` + `cadastrado`, então TODO caminho que
+     move o status precisa rederivar. Envolver o corpo é mais seguro que espalhar
+     a linha pelos três `return true` — o próximo caminho novo já nasce coberto. */
   function applyStatus(p, novo) {
+    const mudou = applyStatusRaw(p, novo);
+    if (mudou) p.statusCliente = D.deriveStatusCliente(p);
+    return mudou;
+  }
+
+  function applyStatusRaw(p, novo) {
     if (!p || !D.STATUS[novo] || p.status === novo) return false;
     const atualFam = D.STATUS[p.status] ? D.STATUS[p.status].family : 'entrada';
 
@@ -584,7 +633,10 @@
   // O status nunca é digitado nem entra no form.
   function createPin(data) {
     if (!data || !data.name || !data.name.trim()) return null;
-    const meta = (D.ZONE_META && D.ZONE_META[data.zone]) || { city: 'Recife', uf: 'PE' };
+    // `data.zone` vem do form, mas é o BAIRRO mais próximo do toque no mapa
+    // (create.js/nearestZone) — a ZONA é derivada dele, nunca digitada.
+    const bairro = data.bairro || data.zone || null;
+    const meta = (D.BAIRRO_META && D.BAIRRO_META[bairro]) || { city: 'Recife', uf: 'PE' };
     const typology = data.typology || 'restaurante';
     const cnae = D.TYPOLOGY_CNAE[typology] || null;
     const cnpj = (data.cnpj && data.cnpj.trim()) ? data.cnpj.trim() : null;
@@ -599,10 +651,11 @@
       cnaeCodigo: cnae,
       cnaeDescricao: cnae ? (D.CNAE_DESC[cnae] || '—') : null,
       typology: typology,
-      address: (data.zone ? data.zone + ', ' : '') + meta.city + '/' + meta.uf + ' (criado em campo)',
+      address: (bairro ? bairro + ', ' : '') + meta.city + '/' + meta.uf + ' (criado em campo)',
       lat: lat, lng: lng,                           // geo_original
       geoVerificado: { lat: lat, lng: lng },        // marcado em campo = já verificado
-      zone: data.zone || 'Recife',
+      bairro: bairro,                               // geografia (do toque no mapa)
+      zone: D.zonaDoBairro(bairro),                 // DERIVADA do bairro — nunca digitada
       origin: D.deriveOrigemConfianca({ fieldValidated: true }), // validado_campo
       status: 'sem_plano',                          // fora do funil até ganhar um plano
       statusAnterior: null,
@@ -615,6 +668,7 @@
       dataCadastro: null,                           // vem do ERP
       dataPrimeiraCompra: null,                     // vem do ERP
       cadastrado: false,                            // DERIVADO
+      statusCliente: 'lead',                        // DERIVADO — nasce lead, sem cadastro
       phone: phone,
       notes: [],
       checkins: [],

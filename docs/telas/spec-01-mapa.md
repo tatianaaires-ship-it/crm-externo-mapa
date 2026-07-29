@@ -63,7 +63,23 @@ Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-fil
 - **3 atalhos toggle:** **🥇 Ouro** · **📌 Não visitados 30+** · **✓ Validado em campo** (sincronizados com o painel completo).
 - **Filtros** → painel completo com todas as dimensões (detalhe em [[spec-03-filtros]]).
 - **Contador:** `result-pill` no topbar mostra "N locais"; badge no botão Filtros mostra nº de filtros ativos.
-- **Lógica:** **AND entre dimensões, OR dentro da dimensão** (tipologia, zona, qualidade, porte, origem, status, última visita). O filtro **oculta** pins — **nunca deleta** (o pin nunca some). O **mesmo conjunto filtrado** alimenta a aba Inteligência ([[spec-05-intel]]).
+- **Lógica:** **AND entre dimensões, OR dentro da dimensão**. O filtro **oculta** pins — **nunca deleta** (o pin nunca some). O **mesmo conjunto filtrado** alimenta a aba Inteligência ([[spec-05-intel]]), o Funil e as Atividades.
+- **Oito dimensões** (ordem do painel), com três mudanças em 29/07:
+
+  | Grupo | Chips | Nota |
+  |---|---|---|
+  | Tipologia | 12 | **data-driven** (o real traz `outro`) |
+  | Última visita | 2 | `nao_30` · `recente` |
+  | Qualidade | 3 | Ouro/Prata/Bronze |
+  | **Porte** | **6** | ⬆️ era 4; uma faixa por valor real de `porte_c`, `LTDA`→`DEMAIS` |
+  | Origem / confiança | 3 | chips ensinam a **pista** (§3), sem cor |
+  | **Fase** | 8 | 🔤 **era "Status"** — renomeado para liberar o nome |
+  | **Status do cliente** | **4** | 🆕 `lead` · `csc` · `recorrente` · `churn` |
+  | **Zona** | **16** | 🔒 era data-driven; virou **vocabulário fechado** |
+
+- **Zona virou taxonomia fechada.** As 15 de `zona_guardioes_c` **na ordem da operação** + `Sem Zona` (itálico apagado — é o balde, não uma zona). Os 16 chips aparecem **sempre**, mesmo vazios: no fictício 6 ficam sem pin, e é o preço de a supervisão ver a lista inteira. Só a Tipologia continua saindo dos valores presentes, então `taxoSignature` deixou de olhar a zona.
+- **"Fase" × "Status do cliente" são eixos diferentes.** Fase = onde o trabalho está (o funil, 8 valores). Status do cliente = o que o ponto é na relação (4 valores). `csc` aparece nos dois de propósito — ver [[estabelecimento]] §5.
+- ⚠️ **`churn` e `MEI` nascem em 0** e isso é a verdade, não bug: `churn` não tem fonte no `salesforce.lead`, e MEI está fora do recorte do snapshot. Chip zerado informa; chip escondido mentiria.
 
 ## 6. FABs
 

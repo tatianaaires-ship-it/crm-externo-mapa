@@ -63,12 +63,38 @@ function buildAddress(r) {
 }
 
 /* ---- Derivações que espelham js/data.js ---- */
+
+/* Porte: 6 faixas desde 29/07, uma por valor REAL de `porte_c` (conferidos no
+   Metabase). O prefixo deixou de bastar — `me-ltda` e `me-ei-nao_mei` são
+   faixas distintas agora, e as duas começam com "me". */
+const PORTE_SF = {
+  'me-ei-mei':     'MEI',
+  'me-ltda':       'ME',
+  'me-ei-nao_mei': 'ME_EI',
+  'epp-ltda':      'EPP',
+  'epp-ei':        'EPP_EI',
+  'demais':        'DEMAIS'
+};
 function derivePorte(p) {
   if (!p) return null;
-  if (p.startsWith('epp')) return 'EPP';
-  if (p.startsWith('me'))  return 'ME';
-  if (p === 'demais')      return 'LTDA';
-  return null;
+  return PORTE_SF[p] || null;      // valor novo na coluna => nulo, nunca chute
+}
+
+/* Zona: passou a vir de `zona_guardioes_c` (29/07) — vocabulário FECHADO de 15.
+   A coluna antiga (`zona_2_c`) tinha OUTRA taxonomia: só 5 dos 13 valores dela
+   estão nestes 15, e ela é bem menos preenchida (82k nulos contra 33k). O que
+   não estiver no vocabulário — inclusive os 7 residuais da base, tipo
+   'CE Eusébio Guararapes' — vira "Sem Zona". Nunca inventa zona. */
+const ZONAS_GUARDIOES = [
+  'CE Guararapes', 'CE Grande Fortaleza', 'REC Zona Sul', 'PE Interior',
+  'PE Litoral Sul', 'JP Sul', 'CE Maracanaú', 'RMR Norte', 'REC Zona Norte',
+  'REC Zona Oeste', 'CE Caucaia - Parquelândia', 'CE Aldeota', 'PE Jaboatão',
+  'PB João Pessoa Litoral', 'JP Oeste'
+];
+const SEM_ZONA = 'Sem Zona';
+function deriveZona(r) {
+  const z = r.zona_guardioes_c;
+  return ZONAS_GUARDIOES.includes(z) ? z : SEM_ZONA;
 }
 function deriveOrigem(r) {
   // validado_campo = correção humana do pin (coordenadas_corrigidas_c); NÃO a coord verificada
@@ -76,11 +102,12 @@ function deriveOrigem(r) {
   const fieldValidated = r.coordenadas_corrigidas_c === true || r.coordenadas_corrigidas_c === 1;
   const hasGoogle = r.localizacao_verificada_google_c === true || r.localizacao_verificada_google_c === 1
                  || (r.gmaps_status_c != null && r.gmaps_status_c !== '');
-  const hasCnpj = r.cnpj_c != null && r.cnpj_c !== '';
+  // 3 degraus ADITIVOS desde 29/07: todo ponto vem da base de CNPJ, o Google
+  // enriquece, o campo confirma. `hasCnpj` e o match saíram da conta porque a
+  // categoria "só Google" deixou de existir (docs/objetos/estabelecimento.md §5).
   if (fieldValidated) return 'validado_campo';
-  if (hasCnpj && hasGoogle) return 'cnpja_google';
-  if (hasGoogle) return 'google_puro';
-  return 'cnpja_puro';
+  if (hasGoogle) return 'google';
+  return 'cnpj';
 }
 function deriveStatus(r) {
   if (r.status === 'Cadastrado') return 'convertido';
@@ -128,7 +155,8 @@ const pins = src.map((r, i) => {
     lat: r.latitude != null ? +r.latitude : null,
     lng: r.longitude != null ? +r.longitude : null,
     geoVerificado: geoVerif,
-    zone: r.zona_2_c || null,
+    bairro: r.bairro_c || null,      // geografia; a ZONA é outra coisa (29/07)
+    zone: deriveZona(r),             // zona_guardioes_c, vocabulário fechado
     origin,
     status,
     motivoStatus: r.motivo_perda_c || r.motivo_desqualifica_o_c || null,
@@ -136,6 +164,14 @@ const pins = src.map((r, i) => {
     porte,
     vendedor: r.vendedor_nome || null,
     lastVisit: r.data_ultima_visita_lead_c || null,
+    // Relação comercial no vocabulário ATUAL (29/07). `cadastrado` é a COR do
+    // pin, então emitir só o `isConverted` antigo obrigava o cliente a
+    // reconstruir na carga. `dataPrimeiraCompra` fica nulo de propósito: o
+    // salesforce.lead não tem fonte de PEDIDO, e é por isso que todo convertido
+    // para em CSC. `statusCliente` é derivado — não vai no arquivo.
+    cadastrado: status === 'convertido',
+    dataCadastro: status === 'convertido' ? (r.data_ultima_visita_lead_c || null) : null,
+    dataPrimeiraCompra: null,
     convertedAt: status === 'convertido' ? (r.data_ultima_visita_lead_c || null) : null,
     contaId: null,
     phone: null,                 // dropado (minimização)

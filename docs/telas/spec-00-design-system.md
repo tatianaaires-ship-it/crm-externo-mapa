@@ -94,11 +94,13 @@ Derivada do CNAE (ver [[cnae_tier]]). Aparece como pill no sheet, badge na lista
 | Prata | `#7E8CA0` |
 | Bronze | `#B06A3B` |
 
-### 2.5 Ciclo de vida do cliente — ⚠️ **a definir**
+### 2.5 Ciclo de vida do cliente — 🟡 **chegou como filtro, ainda sem cor**
 
-Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco/inativo/reconquistado) chegarem à tela, precisarão de cores próprias (o CSS ainda não as tem). **Buraco marcado**, não preenchido — evitar colidir com o semáforo de qualidade.
+`status_cliente` **entrou no mesmo dia (29/07)**, com o vocabulário da operação: **`lead` → `csc` → `recorrente` → `churn`** (o doc supunha `ativo/em_risco/inativo/reconquistado` — ver [[estabelecimento]] §5). Entrou como **dimensão de filtro**, rotulada **"Status do cliente"**, e **não** ganhou cor própria: os chips usam o `--ink` padrão como os demais.
 
-⚠️ **Dívida aberta em 29/07:** a cor do pin agora é `cadastrado` (§2.3), que é o **degrau 0 dessa mesma escala** — `status_cliente` só existe para quem é cadastrado. Quando ele chegar, vai querer exatamente este canal, e a decisão será *"o azul de cliente se abre em N tons de saúde"* ou *"saúde vai para outro canal"*. Fica registrado como escolha consciente, não como colisão descoberta depois.
+**Por que não ganhou cor.** É o mesmo eixo da §2.3 — `lead` é exatamente o lilás e `csc`/`recorrente`/`churn` são exatamente o azul —, então dar paleta própria a ele criaria **dois códigos de cor para a mesma informação**, em granularidades diferentes. A escolha foi manter a **cor binária** e deixar o refinamento no filtro e no sheet.
+
+⚠️ **A dívida continua aberta, só mudou de forma:** abrir o azul de cliente em três tons (`csc` · `recorrente` · `churn`) é o próximo pedido natural — e aí vale a validação de paleta dos 5 checks, porque `churn` provavelmente quer um tom de alerta que não pode colidir com `Perdido` (§2.6) nem com o Danger. **Não foi feito antes do gate de propósito.**
 
 ### 2.6 Status do funil e resultado da tarefa
 

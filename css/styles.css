@@ -414,6 +414,9 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 /* Origem não tem mais COR (29/07) — o chip ensina a PISTA: o de CNPJ é o único
    tracejado, os outros dois trazem o glifo (G / ✓) no próprio rótulo. */
 .chip--o-cnpj { border-style: dashed; }
+/* "Sem Zona" é o balde do vocabulário fechado, não uma zona — fica em itálico
+   e apagado para não ler como as 15 de verdade. */
+.chip--sem-zona { font-style: italic; color: var(--muted); }
 
 /* ---- Pin sheet ---- */
 .sheet__scroll { overflow-y: auto; padding: 0 16px calc(24px + var(--sab)); }

@@ -57,7 +57,8 @@ WHERE l.is_deleted = 0
 | `address` | `street`+`bairro_c`+`city`+`state`+`postal_code`+`complemento_endereco_c` | consolidar |
 | `lat`/`lng` (geo_original) | `latitude` / `longitude` | padrão SF, 100% preench. (`latitude_original_c` está vazio) |
 | `geoVerificado` | `latitude_verificada_lead_c` / `longitude_verificada_lead_c` | 2.110/6.914; + `coordenadas_corrigidas_c`, `data_correcao_pin_c`, `motivo_correcao_pin_c` |
-| `zone` (zona_id = zona_2_c) | `zona_2_c` | 59% preench.; taxonomia real ("REC Zona Oeste") |
+| `bairro` | `bairro_c` | **novo em 29/07** — geografia fina; não é a zona |
+| `zone` (zona_id) | **`zona_guardioes_c`** | **trocou de coluna em 29/07**; vocabulário **fechado** de 15 → o resto vira `Sem Zona` (§3) |
 | `origin` (origem_confianca) | **derivado** | escada §3, a partir de `localizacao_verificada_google_c`, `gmaps_status_c`, `coordenadas_corrigidas_c`, verificada≠null |
 | `status` (funil) | `status` + `data_ultima_visita_lead_c` | régua de cobertura §3 |
 | `motivoStatus` | `motivo_perda_c` / `motivo_desqualifica_o_c` | rótulo quando aplicável |
@@ -84,9 +85,24 @@ WHERE l.is_deleted = 0
   > enriquecido), e `google_puro` deixou de ter degrau próprio. Como no `salesforce.lead` **todo** registro tem
   > CNPJ (MEI já sai no `WHERE`), o caso "Google sem CNPJ" não aparece na prática — a decisão só formalizou
   > isso. Quem carregar snapshot gerado pelo transform antigo é migrado no cliente (`ORIGIN_LEGADO` em
-  > `js/state.js`), então nada cai no fallback. **A rigor o transform da Fase 3 ainda emite as chaves velhas
-  > — alinhar quando ele for tocado.**
-- **`porte`:** prefixo de `porte_c` → `me-*` = **ME**; `epp-*` = **EPP**; `demais` = **LTDA**. (MEI já excluído no `WHERE`.)
+  > `js/state.js`), então nada cai no fallback. ✅ **O transform já foi alinhado (29/07)** — `tools/build-snapshot.mjs`
+  > emite `cnpj`/`google`/`validado_campo`, e também `cadastrado`/`dataCadastro` no vocabulário atual, em vez de
+  > obrigar o cliente a reconstruir.
+- **`porte` (6 faixas desde 29/07):** mapa **exato** de `porte_c`, não mais prefixo — `me-ltda` e `me-ei-nao_mei` são faixas distintas e as duas começam com "me", então o prefixo passou a estar errado.
+
+  | `porte_c` | faixa | n (recorte) |
+  |---|---|---|
+  | `me-ei-mei` | **MEI** | **0** — excluído no `WHERE` |
+  | `me-ltda` | **ME** | 3.034 |
+  | `me-ei-nao_mei` | **ME-EI Não MEI** (`ME_EI`) | 3.020 |
+  | `epp-ltda` | **EPP** | 513 |
+  | `epp-ei` | **EPP-EI** (`EPP_EI`) | 29 |
+  | `demais` | **DEMAIS** | 284 |
+
+  Valor novo na coluna → **nulo**, nunca chute. ⚠️ **MEI nunca casa nada no dado real:** o recorte o exclui **duas vezes** (`porte_c NOT IN ('me-ei-mei')` **e** `optante_mei_c = 'Não'`). O chip existe para o fictício e para o futuro, e fica em 0 no modo real — que é a verdade. Trazer MEI para o recorte não é ajuste de filtro: são **67.691** registros na base, mais de 10× o recorte atual.
+- **`zona_guardioes_c` → `zone` (vocabulário FECHADO, 29/07):** as **15** zonas da operação; **tudo o mais vira `Sem Zona`** — nulo e os 7 residuais (`CE Eusébio Guararapes` 22 · `PE Áreas Brancas` 6 · `CE Maracanaú Fatima` · `CE Aldeota Cumbuco` · `CE Litoral Oeste` · dois `Recife Zona Sul - Oeste/Leste` com 1 cada). No recorte, as 15 cobrem **99,6%**: só **29 de 6.880** caem no balde.
+  > ⚠️ **Trocamos de coluna, e a taxonomia é outra.** `zona_2_c` tem 13 valores, dos quais **só 5** estão nestes 15 (`REC Zona Oeste`, `PE Interior`, `REC Zona Norte`, `PB João Pessoa Litoral`, `REC Zona Sul`) — os outros, como `RMR Norte Olinda` e `PE Litoral Sul 1`, são de outro recorte territorial. A coluna nova também é **muito melhor preenchida**: 33k nulos contra 82k.
+  > 🔴 **Snapshot gerado antes de 29/07 fica errado nesta dimensão.** Medido no arquivo em disco: **5.183 dos 6.914 pins caem em `Sem Zona`** (75%), porque ele carrega `zona_2_c`. O cliente não tem como consertar — os valores da coluna velha simplesmente não existem no vocabulário novo. **É preciso regerar o snapshot** com `tools/build-snapshot.mjs` (já alinhado) e a query da §5, que agora seleciona `zona_guardioes_c`.
 - **`status` (funil — régua de cobertura do mês):** avaliar nesta ordem —
   1. `status = 'Cadastrado'` → **convertido**;
   2. visita **no mês corrente** (`data_ultima_visita_lead_c >= 1º dia do mês do snapshot`) → **visitado**;
@@ -126,7 +142,7 @@ SELECT
   l.latitude, l.longitude,
   l.latitude_verificada_lead_c, l.longitude_verificada_lead_c,
   l.coordenadas_corrigidas_c, l.data_correcao_pin_c, l.motivo_correcao_pin_c,
-  l.qualidade_c, l.porte_c, l.zona_2_c,
+  l.qualidade_c, l.porte_c, l.zona_guardioes_c,
   l.localizacao_verificada_google_c, l.gmaps_status_c,
   l.status, l.motivo_perda_c, l.motivo_desqualifica_o_c, l.data_ultima_visita_lead_c,
   l.vendedor_rota_lead_c, u.name AS vendedor_nome
@@ -138,6 +154,6 @@ WHERE /* §1 */ ;
 ## 6. A resolver
 
 - Corte de `visitado` = **mês corrente** do snapshot (parametrizável se virar "últimos 30 dias").
-- `zona_2_c` nulo em ~41% — pin ainda aparece (usa lat/lng); zona vira filtro parcial.
+- ✅ **Resolvido em 29/07:** a zona parcial era da coluna `zona_2_c` (~41% nula). Com `zona_guardioes_c` o recorte fica **99,6%** coberto pelas 15 — o filtro de zona deixou de ser parcial. **Falta regerar o snapshot** (§3).
 - Coordenadas repetidas entre leads da mesma zona = centroide (não fachada) — ok exibir, sinalizado.
 - Qualidade real vem de `qualidade_c` (pronta); o `cnae_tier` do protótipo é conferência, não fonte.
