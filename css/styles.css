@@ -440,6 +440,41 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 }
 @keyframes dropIn { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+/* ---- Faixa da visita em andamento (SPEC 07 §2.4) --------------------------
+   Verde do `btn--checkin` (#10b981): é a mesma coisa que a faixa dentro do
+   sheet, vista de fora dele. Fica no rodapé, à esquerda dos FABs (que ocupam
+   os 74px da direita) — o topo é dos banners de posicionar pin, e dois
+   absolutos no mesmo `top` se sobrepõem. */
+.checkin-banner {
+  position: absolute; left: 12px; right: 84px; z-index: 34;
+  bottom: calc(20px + var(--sab));
+  display: none; align-items: center; gap: 9px; text-align: left;
+  background: #10b981; color: #fff; border: none; font-family: inherit;
+  padding: 10px 12px; border-radius: var(--r-md); box-shadow: var(--shadow-md);
+  font-size: 13px; font-weight: 600; transition: bottom .2s;
+  animation: dropIn .25s ease;
+}
+.checkin-banner.is-visible { display: flex; }
+.checkin-banner:active { transform: scale(.98); }
+.checkin-banner__ico { flex: 0 0 auto; font-size: 15px; }
+.checkin-banner__txt {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.checkin-banner__txt strong { font-weight: 800; }
+.checkin-banner__cta {
+  flex: 0 0 auto; border: 1px solid rgba(255,255,255,.45);
+  padding: 5px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 700;
+}
+/* Esquecido (âmbar do `btn--checkout`): passou de 8h ou é de outro dia. O aviso
+   é sobre o DADO — a duração que o check-out vai gravar já não é tempo de
+   campo, e a supervisão lê essa coluna. Melhor avisar antes de fechar. */
+.checkin-banner.is-stale { background: #f59e0b; }
+/* O sheet é dono do rodapé quando está aberto, e ele já mostra a faixa verde do
+   check-in (§2.3) — duas vezes a mesma coisa, uma em cima da outra. Nas outras
+   três abas a faixa some junto com o resto dos controles do mapa. */
+body.sheet-open .checkin-banner { display: none !important; }
+body.install-open .checkin-banner { bottom: calc(84px + var(--sab)); }
+
 /* ---- Empty state ---- */
 .map-empty {
   position: absolute; inset: 0; z-index: 20; display: none;
@@ -827,7 +862,7 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 body.view-intel .intel-view { display: flex; }
 /* Na aba de lista, os controles do mapa somem */
 body.view-intel .fab, body.view-intel .fab-locate,
-body.view-intel .placing-banner { display: none !important; }
+body.view-intel .placing-banner, body.view-intel .checkin-banner { display: none !important; }
 
 .intel-search {
   flex: 0 0 auto; position: relative; padding: 10px 12px 8px;
@@ -925,7 +960,7 @@ body.view-intel .placing-banner { display: none !important; }
 }
 body.view-ativ .ativ-view { display: flex; }
 body.view-ativ .fab, body.view-ativ .fab-locate,
-body.view-ativ .placing-banner { display: none !important; }
+body.view-ativ .placing-banner, body.view-ativ .checkin-banner { display: none !important; }
 
 /* A quickbar é o filtro DO MAPA. No Funil e nas Atividades ela não é útil e
    custa ~50px de altura — some, e o espaço volta pro conteúdo. O filtro segue
@@ -1276,7 +1311,7 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
 }
 body.view-funil .funil-view { display: flex; }
 body.view-funil .fab, body.view-funil .fab-locate,
-body.view-funil .placing-banner { display: none !important; }
+body.view-funil .placing-banner, body.view-funil .checkin-banner { display: none !important; }
 
 .funil-board {
   flex: 1 1 auto; display: flex; gap: 10px; align-items: stretch;

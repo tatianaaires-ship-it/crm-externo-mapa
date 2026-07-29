@@ -331,6 +331,10 @@ Faixa âmbar (`#fef3c7` sobre texto `#7c2d12`, borda `#f59e0b`) presa ao topo de
 ### 6.15 Transientes
 **Toast** (pill escuro, rodapé, acima da nav) · **banners de modo** (`placing`/`moving`, faixa escura no topo do mapa) · **install-toast** (Android, "Adicionar à tela inicial") · **empty states** (mapa e lista, com CTA "Limpar filtros").
 
+**E uma faixa que NÃO é transiente: a visita em andamento** (`.checkin-banner`, 29/07 — [[spec-07-atividades]] §2.4). Mora aqui porque compartilha a forma dos banners de modo (faixa de 14px de raio presa ao container do mapa), mas é o oposto deles em três pontos: **fica enquanto o estado durar** (não é aviso de um gesto), **é um `<button>` inteiro** (levar ao check-out é a função dela, não um botão dentro da faixa) e **veste a cor do domínio** — verde `#10b981` do `.btn--checkin`, âmbar `#f59e0b` do `.btn--checkout` quando a visita está esquecida. Fica no **rodapé** (`bottom: 20px`, à esquerda dos FABs) porque o topo já é dos dois banners de modo, que se sobreporiam.
+
+> **Padrão que fica: faixa persistente de estado = cor do domínio; faixa de modo = `--ink`.** Escuro diz *"você está num modo, e ele acaba"*; a cor do domínio diz *"existe um registro aberto"*. Somar as duas linguagens num elemento só faria a visita em curso parecer um modo do mapa, que é o que ela não é. E, sendo persistente, a faixa **cede o rodapé** a quem manda ali: some com `body.sheet-open` e nas abas que não são o mapa.
+
 ### 6.16 Calendário da Agenda (`.ag-*`)
 Formato de agenda-lista (molde do Google Agenda), na aba Atividades — [[spec-07-atividades]] §4.2. Uma variável de sarjeta (`--gut: 52px`) governa as três peças, e é ela que faz a coluna da esquerda existir como coluna:
 

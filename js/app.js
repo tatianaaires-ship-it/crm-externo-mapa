@@ -15,6 +15,78 @@
   }
   window.CRM_TOAST = showToast;   // usado por funil.js / atividades.js
 
+  /* ---- Faixa da visita em andamento (SPEC 07 §2.4) ---------------------------
+     O check-in aberto só existia DENTRO do sheet do pin: fechado o sheet — ou o
+     app, já que o estado persiste no localStorage —, a visita em curso não tinha
+     sintoma nenhum na tela. A faixa é o sintoma, e é a saída: tocar leva ao
+     check-out. Sem ela, o bloqueio de segundo check-in seria beco sem saída. */
+  let checkinTimer = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function hhmm(d) {
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  /* Rótulo do tempo aberto — e o critério de ESQUECIDO, que é o que pinta a
+     faixa de âmbar: passou de 8h, ou o check-in é de outro dia. Nos dois casos a
+     duração que o check-out vai gravar já não é tempo de campo, e é ela que a
+     Gerencial mostra. De outro dia a faixa diz DESDE QUANDO em vez de "há 19h":
+     o que importa não é o número, é que a visita atravessou a virada do dia. */
+  const STALE_MIN = 8 * 60;
+  function labelAberto(t, agora) {
+    const ini = new Date(t.checkinEm);
+    const min = Math.max(0, Math.round((agora - ini) / 60000));
+    if (ini.toDateString() !== agora.toDateString()) {
+      const ontem = new Date(agora.getTime() - 86400000);
+      const quando = ini.toDateString() === ontem.toDateString()
+        ? 'ontem'
+        : String(ini.getDate()).padStart(2, '0') + '/' + String(ini.getMonth() + 1).padStart(2, '0');
+      return { txt: 'aberto desde ' + quando + ', ' + hhmm(ini), stale: true };
+    }
+    const dur = min < 60 ? 'há ' + min + ' min'
+      : 'há ' + Math.floor(min / 60) + 'h' + (min % 60 ? String(min % 60).padStart(2, '0') : '');
+    return { txt: 'check-in ' + dur, stale: min >= STALE_MIN };
+  }
+
+  function renderCheckinBanner() {
+    const el = $('checkin-banner'), txt = $('checkin-banner-txt');
+    if (!el || !txt) return;
+    const t = window.CRM_STATE.checkinAberto();
+    if (!t) {
+      el.classList.remove('is-visible', 'is-stale');
+      if (checkinTimer) { clearInterval(checkinTimer); checkinTimer = null; }
+      return;
+    }
+    const p = window.CRM_STATE.getById(t.estabelecimentoId);
+    const info = labelAberto(t, new Date());
+    txt.innerHTML = '<strong>' + esc(p ? p.name : 'Ponto') + '</strong> · ' + info.txt;
+    el.classList.add('is-visible');
+    el.classList.toggle('is-stale', info.stale);
+    // O minuto tem que andar sozinho: ninguém recarrega a tela para ver o tempo
+    // de campo subir, e é justamente ele que faz a faixa envelhecer.
+    if (!checkinTimer) checkinTimer = setInterval(renderCheckinBanner, 60000);
+  }
+
+  function irParaVisitaAberta() {
+    const t = window.CRM_STATE.checkinAberto();
+    if (!t) return renderCheckinBanner();      // sumiu no meio do caminho
+    showTab('map');
+    /* Mesma regra da busca (SPEC 00 §6.2c): filtro que esconde o ponto não é
+       mexido — o ponto entra como EXCEÇÃO VISÍVEL. Aqui vale ainda mais: a
+       visita está acontecendo, e destruir o recorte de quem está usando o app
+       para chegar até ela seria cobrar um preço que ninguém pediu. */
+    const p = window.CRM_STATE.getById(t.estabelecimentoId);
+    if (p && window.CRM_FILTERS && !window.CRM_FILTERS.matches(p)) {
+      window.CRM_MAP.revelar(t.estabelecimentoId);
+    }
+    window.CRM_MAP.focus(t.estabelecimentoId, 17, false);
+    window.CRM_PIN.abrirCheckout(t.estabelecimentoId);
+  }
+
   function openFilters() {
     $('filter-panel').classList.add('is-open');
     $('filter-backdrop').classList.add('is-open');
@@ -59,6 +131,9 @@
     $('btn-move-done').addEventListener('click', function () {
       window.CRM_MAP.endMove();
     });
+
+    const ckb = $('checkin-banner');
+    if (ckb) ckb.addEventListener('click', irParaVisitaAberta);
 
     // Minha localização (geolocalização do dispositivo)
     const locBtn = $('fab-locate');
@@ -196,9 +271,13 @@
     window.CRM_STATE.onChange(function () {
       window.CRM_FILTERS.reapply();
       window.CRM_PIN.refresh();
+      renderCheckinBanner();
     });
 
     window.CRM_FILTERS.reapply();
+    // Na carga: o estado persiste, então a visita aberta pode ser de outra
+    // sessão — de ontem, inclusive. É o caso que motivou a faixa.
+    renderCheckinBanner();
     wireUI();
     wireInstall();
     registerSW();

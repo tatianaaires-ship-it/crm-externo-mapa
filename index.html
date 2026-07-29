@@ -92,6 +92,19 @@
         <button id="btn-move-done" class="placing-banner__cancel">Concluir</button>
       </div>
 
+      <!-- Visita em andamento (29/07). A faixa existe porque o check-in aberto só
+           vivia DENTRO do sheet do pin: fechado o sheet — ou o app —, a visita em
+           curso não tinha sintoma nenhum na tela, e o estado persiste. Mora no
+           RODAPÉ: no topo colidiria com os dois banners de posicionar pin, que
+           ocupam exatamente aquele lugar. A barra inteira é o alvo do toque
+           (leva ao pin e abre o check-out) porque ela é a única saída do
+           bloqueio de segundo check-in. -->
+      <button id="checkin-banner" class="checkin-banner" type="button" aria-live="polite">
+        <span class="checkin-banner__ico" aria-hidden="true">⏱️</span>
+        <span class="checkin-banner__txt" id="checkin-banner-txt"></span>
+        <span class="checkin-banner__cta" aria-hidden="true">Check-out ›</span>
+      </button>
+
       <!-- Aba Funil (Kanban por status) — cobre o mapa quando ativa -->
       <section id="funil-view" class="funil-view" aria-label="Funil de leads">
         <!-- Só aparece em modo real (body.real-mode): as colunas do board são

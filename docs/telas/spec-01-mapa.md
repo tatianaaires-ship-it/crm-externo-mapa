@@ -145,6 +145,12 @@ Escolher um ponto que os filtros escondem faz ele **aparecer no mapa** (`CRM_MAP
 - **◎ Localizar** (acima do ＋) → CAP-8: `map.locate` (`setView`, `maxZoom 16`, alta precisão, timeout 12s). **Sucesso:** ponto azul (`#2E7DF6`) + **círculo de precisão** (raio = accuracy). **Erro/negado:** toast com mensagem clara, **sem travar**. É apenas "onde estou" — **não valida check-in** (non-goal explícito).
 - Ambos **esmaecem** (opacity .3) durante placing/moving.
 
+## 6.1 Faixa da visita em andamento (29/07)
+
+Faixa verde no **rodapé** do mapa, à esquerda dos FABs: `⏱️ {ponto} · check-in há {tempo}` + `Check-out ›`. Ela é o **sintoma** do check-in aberto fora do sheet do pin — sem ela, fechar o sheet (ou o app) fazia a visita em curso desaparecer da tela, e ainda dava para abrir uma segunda em outro ponto. Tocar leva ao pin e abre o **sheet de conclusão**; se o filtro esconder esse pin, ele entra como **exceção visível** (`revelar`, §5.2), sem mexer no recorte. Âmbar quando a visita está esquecida (>8h ou de outro dia). Regra completa, invariante e pontas soltas em [[spec-07-atividades]] §2.4; forma em [[spec-00-design-system]] §6.15.
+
+> **Rodapé, não topo.** O topo do mapa é dos banners de modo (§7 e §6): dois absolutos no mesmo `top: 12px` se sobrepõem — e a faixa da visita é **persistente**, então seria ela a estorvar os transientes. No rodapé ela divide espaço com os FABs (que ocupam os 74px da direita) e **cede a vez** ao pin sheet, que é dono daquela área quando está aberto.
+
 ## 7. Mover pin (CAP-5)
 
 Acionado por **botão dentro do pin sheet** (não por toque solto no mapa). `startMove` → modo `is-moving`, banner "✥ arraste o pin", zoom ≥ 16, arraste habilitado **só nesse pin**. O `dragend` **persiste a nova coordenada** (`movePin`). "Concluir" reabre o sheet na posição nova. Correção de posição promove o registro a **"validado em campo"** (regra do objeto — ver [[estabelecimento]] §8).
@@ -153,6 +159,7 @@ Acionado por **botão dentro do pin sheet** (não por toque solto no mapa). `sta
 
 - **Vazio:** card central "Nenhum local com esses filtros" + botão "Limpar filtros".
 - **Placing / Moving:** banners no topo do mapa; FABs esmaecidos; cursor crosshair (placing).
+- **Visita em andamento:** faixa verde no rodapé (§6.1) — âmbar se esquecida. Some com o pin sheet aberto e nas outras abas.
 
 ## 9. Dados exibidos (do Estabelecimento)
 

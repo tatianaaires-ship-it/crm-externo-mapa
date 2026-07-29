@@ -658,6 +658,7 @@
 
     const ci = sheetEl.querySelector('#btn-checkin');
     if (ci) ci.addEventListener('click', function () {
+      if (barradoPorVisitaAberta()) return;
       // Um toque só: sem plano, o state cria a tarefa de hoje com o tipo
       // sugerido — que o vendedor confirma no sheet de conclusão.
       const t = S.checkInAgora(currentId);
@@ -682,7 +683,10 @@
 
     // Ações da tela de detalhe: operam sobre AQUELA tarefa, não sobre "a próxima".
     const dci = sheetEl.querySelector('#btn-det-checkin');
-    if (dci) dci.addEventListener('click', function () { S.checkInTarefa(tarefaAberta); });
+    if (dci) dci.addEventListener('click', function () {
+      if (barradoPorVisitaAberta()) return;   // a mesma trava da porta do pin
+      S.checkInTarefa(tarefaAberta);
+    });
     const dco = sheetEl.querySelector('#btn-det-checkout');
     if (dco) dco.addEventListener('click', function () { irPara('conclusao', tarefaAberta); });
     const dcc = sheetEl.querySelector('#btn-det-cancelar');
@@ -707,6 +711,36 @@
       const input = sheetEl.querySelector('#note-input');
       if (input && input.value.trim()) { S.addNote(currentId, input.value); input.value = ''; }
     });
+  }
+
+  /* Porta externa para o check-out da visita em andamento (29/07). A faixa do
+     mapa e a recusa do segundo check-in precisam chegar ao MESMO lugar — abrir o
+     pin e cair direto no sheet de conclusão —, e `irPara` é interno daqui. */
+  function abrirCheckout(pinId) {
+    const t = S.tarefaAberta(pinId);
+    open(pinId);
+    if (t) irPara('conclusao', t.id);
+  }
+
+  /* A visita aberta é UMA no app (state.checkinAberto): se há uma em OUTRO pin,
+     este check-in não acontece. Recusar em silêncio é o pior desfecho possível
+     — o vendedor toca, nada muda, e ele não tem como descobrir por quê. Então a
+     recusa nomeia o ponto e oferece a única saída. Devolve true se barrou. */
+  function barradoPorVisitaAberta() {
+    const ab = S.checkinAberto();
+    if (!ab) return false;
+    /* Cobre também a visita aberta NESTE pin: pela tela de detalhe dá para
+       chegar a uma segunda planejada do mesmo ponto, e ali o botão de check-in
+       existe. Sem este ramo a recusa voltaria a ser silenciosa justo no caminho
+       menos óbvio do app. */
+    const aqui = ab.estabelecimentoId === currentId;
+    const outro = S.getById(ab.estabelecimentoId);
+    const onde = aqui ? 'neste ponto' : 'em ' + ((outro && outro.name) || 'outro ponto');
+    if (window.confirm('Você já tem check-in aberto ' + onde + '.\n\n' +
+        'Só é possível uma visita em andamento por vez. Fazer o check-out agora?')) {
+      abrirCheckout(ab.estabelecimentoId);
+    }
+    return true;
   }
 
   function open(id) {
@@ -891,6 +925,7 @@
   window.CRM_PIN = {
     init: init,
     open: open,
+    abrirCheckout: abrirCheckout,   // usado pela faixa da visita em andamento
     close: closeSheet,
     refresh: refresh,
     currentId: function () { return currentId; }

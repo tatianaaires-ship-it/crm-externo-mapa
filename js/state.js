@@ -391,6 +391,23 @@
       return t.estabelecimentoId === pinId && t.status === 'planejada' && t.checkinEm && !t.checkoutEm;
     }) || null;
   }
+
+  /* A visita em andamento é UMA, no app inteiro (29/07). `tarefaAberta` responde
+     *"este pin tem visita aberta?"*; esta responde *"existe visita aberta em
+     ALGUM pin?"* — a pergunta que o mapa faz para mostrar a faixa e a que barra
+     um segundo check-in.
+     ⚠️ **Não filtra por vendedor, de propósito.** `responsavelId` é DERIVADO do
+     dono do pin (`agendarTarefa`), não de quem tocou o botão: filtrar por
+     `VENDEDOR_SESSAO` deixaria o bloqueio vazar justo no caso que importa —
+     check-in num pin de outro vendedor abriria a segunda visita aberta. Com
+     sessão de verdade (auth/RLS, Fase 4) isto passa a ser por vendedor.
+     O seed nunca deixa check-in aberto (`checkinEm` e `checkoutEm` andam
+     juntos), então a faixa só aparece por ação de quem está usando. */
+  function checkinAberto() {
+    return tarefas.find(function (t) {
+      return t.status === 'planejada' && t.checkinEm && !t.checkoutEm;
+    }) || null;
+  }
   function nextTarefaId() {
     let max = 0;
     tarefas.forEach(function (t) {
@@ -478,6 +495,11 @@
   function checkInTarefa(id) {
     const t = getTarefa(id);
     if (!t || t.status !== 'planejada' || t.checkinEm) return null;
+    /* Invariante: UMA visita aberta no app (29/07). A guarda vive aqui porque
+       este é o único lugar que abre check-in — as duas portas de UI (botão do
+       pin e detalhe da atividade) passam por dentro. Quem recusa explica: a UI
+       consulta `checkinAberto()` antes e oferece o check-out de lá. */
+    if (checkinAberto()) return null;
     const hoje = todayISO();
     if (t.data < hoje) t.data = hoje;
     t.checkinEm = nowISO();
@@ -517,7 +539,9 @@
   function checkInAgora(pinId, tipo) {
     const p = getById(pinId);
     if (!p) return null;
-    if (tarefaAberta(pinId)) return null;          // uma atividade aberta por pin
+    // Uma visita aberta no app inteiro — e a guarda é ANTES de agendar, senão a
+    // recusa deixaria para trás uma planejada de hoje que ninguém pediu.
+    if (checkinAberto()) return null;
     const hoje = todayISO();
     const doDia = planejadasDoPin(pinId)
       .filter(function (t) { return t.data <= hoje && !t.checkinEm; })
@@ -706,6 +730,7 @@
     cancelarRota: cancelarRota,
     checkInTarefa: checkInTarefa,
     checkInAgora: checkInAgora,        // check-in em pin sem plano (CAP-6 revisada)
+    checkinAberto: checkinAberto,      // a visita em andamento — uma só no app
     setTipoTarefa: setTipoTarefa,
     concluirTarefa: concluirTarefa,
     resetDemo: resetDemo,

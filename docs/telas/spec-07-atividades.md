@@ -107,7 +107,7 @@ Pede **só o que é digitado**, nesta ordem:
 >
 > ⚖️ **A tarefa ATRASADA, sim, vem para hoje.** Em planejada a `data` é quando se pretende ir; em realizada é **quando aconteceu**, e é dela que saem a tabela e os gráficos por dia. Check-in hoje numa tarefa de ontem mantendo a data velha poria a visita no dia errado, com `checkin_em` de hoje na coluna ao lado — dado que se contradiz na mesma linha.
 >
-> ⚖️ **Uma atividade aberta por pin** continua valendo: com check-in em curso, o botão é `Check-out` e não há como abrir outra.
+> ⚖️ **Uma visita aberta no APP** — não mais "por pin" (29/07, §2.4). Com check-in em curso, o botão daquele pin é `Check-out`, e em **qualquer outro** pin o check-in é recusado com a oferta de fechar o que está aberto.
 
 **O check-in é um toque só, e o tipo se decide no fim.** A tarefa nasce com o tipo **sugerido** pelo histórico (`CRM_DATA.sugereTipoVisita`) e o vendedor **confirma ou corrige no sheet de conclusão** (§3):
 
@@ -122,6 +122,33 @@ Pede **só o que é digitado**, nesta ordem:
 > **Sugestão ≠ classificação derivada.** `tipo` segue sendo campo digitado ([[tarefa]] §4) — o que a regra faz é preencher bem o default para que confirmar seja o caso comum. Isso não fere *"classificação nunca é digitada"*, que vale para `qualidade`/`porte`/`origem_confianca`/`status`.
 >
 > **A janela de edição é a mesma:** o tipo só muda enquanto a tarefa é `planejada`, e o check-out é o último instante dessa janela. Depois dele a atividade é **registro, não formulário** (§9).
+
+### 2.4 A visita em andamento tem faixa no mapa — e é UMA no app (29/07)
+
+**O check-in aberto só existia dentro do sheet do pin** (§2.3: botão vira `Check-out` + faixa verde com a hora). Fechado o sheet, a visita em curso **não tinha sintoma nenhum na tela** — e, como o estado persiste no `localStorage`, ela sobrevivia a fechar o app sem que nada avisasse ao reabrir. Junto disso, a regra era *"uma atividade aberta **por pin**"*, então dava para fazer check-in no ponto A, fechar o sheet e fazer check-in no ponto B: **duas visitas abertas simultâneas, as duas invisíveis**.
+
+São duas peças de uma coisa só — **a faixa é o sintoma e é a saída**:
+
+| Peça | Comportamento |
+|---|---|
+| **Faixa no mapa** (`.checkin-banner`) | `⏱️ {nome do ponto} · check-in há {tempo}` + `Check-out ›`. Verde `#10b981` — o mesmo do botão, porque é a mesma coisa vista de fora do sheet. **A barra inteira** é o alvo do toque. |
+| **Toque** | Vai para a aba Mapa, **enquadra o pin** e abre **direto o sheet de conclusão** (§3). |
+| **Invariante** | **Uma visita aberta no app.** Check-in em qualquer outro pin é recusado com a oferta: *"Você já tem check-in aberto em {ponto}. Só é possível uma visita em andamento por vez. Fazer o check-out agora?"* — e aceitar leva ao check-out de lá. |
+| **Esquecido** | Passou de **8h**, ou o check-in é de **outro dia**: a faixa vira **âmbar** (`#f59e0b`) e troca o texto por `aberto desde ontem, 14:32`. |
+
+**Onde a faixa aparece e onde não:** rodapé do mapa, à esquerda dos FABs. **Some com o sheet aberto** — ali quem manda é a faixa verde de dentro dele, e duas vezes a mesma coisa uma sobre a outra não informa nada — e **some nas outras três abas**, junto com o resto dos controles do mapa. Fica no **rodapé** porque o topo é dos banners de posicionar/mover pin (§7 da [[spec-01-mapa]]): dois absolutos no mesmo lugar se sobrepõem.
+
+> ⚖️ **Bloquear exige dar a saída.** *"Não pode abrir outra"* sem lugar nenhum que diga onde está a primeira é beco sem saída — e é o estado em que o app já estava, com a diferença de que ninguém era barrado. Por isso as duas coisas entraram no mesmo movimento: se a faixa não existisse, o bloqueio seria uma regressão.
+
+> ⚖️ **A recusa nomeia o ponto.** Recusar em silêncio é o pior desfecho possível: o vendedor toca em `Check-in`, nada muda na tela, e ele não tem como descobrir por quê. A recusa vale também para o **mesmo** pin (dá para chegar pelo detalhe a uma segunda planejada) — o texto muda para *"neste ponto"*.
+
+> ⚖️ **A guarda é ANTES de criar a tarefa.** O check-in em pin sem plano cria a tarefa na hora (§2.3); se a recusa viesse depois, ela deixaria para trás uma planejada de hoje que ninguém pediu.
+
+> ⚖️ **Filtro que esconde o ponto da visita aberta não é mexido.** Ele entra como **exceção visível** (`CRM_MAP.revelar`), a mesma regra da busca ([[spec-00-design-system]] §6.2c): *revelar em vez de mexer no filtro*. Aqui pesa mais — a visita está acontecendo, e destruir o recorte que a pessoa montou para chegar até ela cobraria um preço que ninguém pediu.
+
+> ⚖️ **Âmbar é aviso sobre o DADO, não sobre atraso.** O que envelhece não é a visita, é a **duração** que o check-out vai gravar: "19h em campo" é número falso, e é ele que a Gerencial mostra (§5). A faixa avisa **antes** de fechar. ⚠️ **Ponta solta declarada:** o check-out de uma visita esquecida ainda grava a duração cheia — o que fazer com esse número (não contar? marcar como não confiável? `encerrar sem desfecho`?) **é decisão em aberto**, não escolhida em silêncio.
+
+> ⚖️ **Não filtra por vendedor, de propósito.** `responsavel_id` é derivado do **dono do pin**, não de quem tocou o botão: filtrar a visita aberta por `VENDEDOR_SESSAO` deixaria o bloqueio vazar justo no caso que importa — check-in num pin de outro vendedor abriria a segunda visita. Com sessão de verdade (auth/RLS, **Fase 4**) o invariante passa a ser por vendedor. O seed **nunca** deixa check-in aberto (`checkin_em` e `checkout_em` andam juntos), então a faixa só aparece por ação de quem está usando.
 
 ## 3. Check-out: o fluxo-assinatura (CAP-11 · CAP-14)
 
@@ -400,6 +427,9 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **Pin sem atividade:** `📍 Check-in` e `＋ Agendar`, sem histórico e sem `Ver todas`. *(Antes só havia `＋ Agendar`; e por uma hora houve chips de tipo aqui — §2.3.)*
 - **Pin só com planejada:** o mesmo + `Ver todas as atividades (1) ›`. O tipo da planejada aparece no detalhe dela (§2.2), não no bloco.
 - **Check-in aberto:** o botão do pin vira `Check-out`, os chips somem e uma faixa verde diz `{tipo} em andamento · check-in às HH:MM` (§2.3) — é assim que o sheet mostra visita em curso, já que a planejada não tem linha própria. ⚠️ **A Agenda não marca mais isso** (não tem ação de execução, §4.2): a visita em andamento se vê no pin.
+- **Check-in aberto com o sheet FECHADO:** faixa verde no rodapé do mapa, `⏱️ {ponto} · check-in há {tempo}` + `Check-out ›` (§2.4). É o estado que antes não tinha representação nenhuma — e é o que sobrevive a fechar o app.
+- **Check-in aberto esquecido** (passou de 8h ou é de outro dia): a mesma faixa, **âmbar**, dizendo `aberto desde ontem, 14:32` (§2.4).
+- **Tentando check-in com visita aberta em outro ponto:** nada acontece no pin atual — a recusa nomeia o ponto aberto e oferece o check-out de lá (§2.4).
 - **Loading:** protótipo estático (sem loading) — parking de skeleton no SPEC 00 §10.
 
 ## 9. Decisões & casos de borda
@@ -431,9 +461,12 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **O sheet do pin virou três telas** (§2.2), não uma tela longa. Empilhar lista completa + detalhe dentro do sheet mantém o vendedor no contexto do ponto; abrir tela cheia por atividade perderia o pin de vista.
 - **Atividade realizada não tem ação** — é registro. Corrigir um desfecho errado exige concluir uma **nova** atividade, que é o mesmo caminho da requalificação (§3.1). Não há edição retroativa.
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.
-- **Uma atividade aberta por pin** (com check-in sem check-out). Tentar abrir outra oferece fechar a anterior.
+- ~~**Uma atividade aberta por pin**~~ → **uma visita aberta no APP** (29/07, §2.4). A regra por pin permitia check-in em A, fechar o sheet e check-in em B: duas visitas abertas ao mesmo tempo, as duas invisíveis. Tentar abrir outra continua oferecendo fechar a anterior — só que agora a oferta **nomeia o ponto** e a recusa vale para o app inteiro.
+- **A faixa do mapa entrou junto com o bloqueio, não depois** (§2.4). Bloquear sem dar a saída é beco sem saída: o vendedor seria barrado sem que nenhuma tela dissesse onde está a visita aberta. Alternativa recusada: só bloquear e explicar no diálogo — funcionaria no instante do toque e falharia no caso que motivou tudo, o app reaberto no dia seguinte.
+- **A faixa não vai para as outras três abas** (§2.4). Uma visita aberta é verdade de app, não do mapa — mas Funil e Atividades têm rodapé próprio (board horizontal, listas roláveis) e a faixa cobriria conteúdo. Consequência aceita: estando nessas abas não há lembrete; mitigado pelo bloqueio, que age de qualquer lugar.
+- **Âmbar da faixa é aviso sobre a duração, não sobre atraso** (§2.4) — e o que fazer com a duração de uma visita esquecida ficou **em aberto de propósito**: escolher em silêncio entre não contar, marcar como não confiável ou criar `encerrar sem desfecho` mexeria num número que a supervisão lê (§5).
 - **Sobre dado real:** o snapshot não traz atividades. Até 28/07 a aba nascia **vazia** com dado real; agora ela recebe as **mesmas tarefas simuladas** do fictício, com faixa fixa de procedência (§5.6). A alternativa era demonstrar a fatia só em dado fictício — o que tornaria o login no porteiro um caminho pior que o de demonstração.
 
 ## 10. Como o SPEC 07 usa o SPEC 00
 
-Não repete tokens nem componentes: reusa o pin-sheet (§6.7), o **bloco de duas ações** dele (§6.7.1), o **formulário de sheet** (§6.7.2 — o padrão `.sform-*` das telas de conclusão e de agendar), o sheet/painel bottom (§6.6), o modal de criação (§6.8), os transientes (§6.15), o shell/nav (§5) e o **chip** (§6.2) — nos presets de período, nos tipos de visita e nos resultados. **Pede ao SPEC 00:** a 4ª aba na navegação (§5.2), **três cores novas** de status (`csc`, `perdido`, `desqualificado`), um badge de `resultado` de **5 valores** e **uma cor própria** para `vendido` (`#15803d`, a única sem status homônimo) — todas em §2.6 — mais **dez componentes novos**: o **segmented control** (§6.10), o **pill de filtro herdado** (§6.11), a **barra de filtros de aba** (§6.12), os **gráficos da gerencial** (§6.13, com as regras de cor que passam a valer para qualquer gráfico do produto), a **faixa de procedência** (§6.14) e o **calendário da Agenda** (§6.16: bloco de dia com sarjeta e cabeçalho grudado, item com sarjeta de horário, bloco de rota com espinha) e, dentro do §6.7.2, os **quatro que o check-out novo trouxe** em 28/07 — **checkbox**, **select nativo**, **textarea** e a **ajuda inline `(i)`**. *(Esta lista dizia seis até o §3 ser refeito.)* *(O card de atividade no molde do card de lead saiu junto com os cards da Agenda — §4.2.)*
+Não repete tokens nem componentes: reusa o pin-sheet (§6.7), o **bloco de duas ações** dele (§6.7.1), o **formulário de sheet** (§6.7.2 — o padrão `.sform-*` das telas de conclusão e de agendar), o sheet/painel bottom (§6.6), o modal de criação (§6.8), os transientes (§6.15), o shell/nav (§5) e o **chip** (§6.2) — nos presets de período, nos tipos de visita e nos resultados. **Pede ao SPEC 00:** a 4ª aba na navegação (§5.2), **três cores novas** de status (`csc`, `perdido`, `desqualificado`), um badge de `resultado` de **5 valores** e **uma cor própria** para `vendido` (`#15803d`, a única sem status homônimo) — todas em §2.6 — mais **dez componentes novos**: o **segmented control** (§6.10), o **pill de filtro herdado** (§6.11), a **barra de filtros de aba** (§6.12), os **gráficos da gerencial** (§6.13, com as regras de cor que passam a valer para qualquer gráfico do produto), a **faixa de procedência** (§6.14), a **faixa da visita em andamento** (§6.15, ao lado dos banners de modo — persistente, e a única faixa do mapa que é botão) e o **calendário da Agenda** (§6.16: bloco de dia com sarjeta e cabeçalho grudado, item com sarjeta de horário, bloco de rota com espinha) e, dentro do §6.7.2, os **quatro que o check-out novo trouxe** em 28/07 — **checkbox**, **select nativo**, **textarea** e a **ajuda inline `(i)`**. *(Esta lista dizia seis até o §3 ser refeito.)* *(O card de atividade no molde do card de lead saiu junto com os cards da Agenda — §4.2.)*
