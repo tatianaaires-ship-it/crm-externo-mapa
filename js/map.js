@@ -91,7 +91,16 @@
       chunkedLoading: true,        // adiciona milhares de markers sem bloquear a UI
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
-      disableClusteringAtZoom: 16, // zoom alto → pins sempre individuais
+      /* 19 = acima do maxZoom (18), então na prática NUNCA desliga — sempre
+         bolha com contagem, e o spiderfy abre ao tocar.
+         Era 16, e o penhasco custava 1.040ms com 6.914 pins: no zoom 16 a
+         clusterização desligava inteira e 2.600 markers entravam no DOM de uma
+         vez. Pior: o snapshot põe os pins em CENTROIDES DE ZONA, então esses
+         2.600 eram desenhados um em cima do outro — um segundo de espera para
+         ver um pin e 2.599 escondidos atrás. A bolha mostra mais, não menos.
+         Medido depois: 11ms. Voltar para 16 é uma linha, e faz sentido quando o
+         geocoding da Fase 4 espalhar os pins de verdade. */
+      disableClusteringAtZoom: 19,
       // Raio (px) menor conforme aproxima → bolhas quebram em pins com MENOS zoom.
       // Obs.: markercluster agrupa por PROXIMIDADE (não por contagem), então "≤10 por
       // bolha" não é garantido; raio menor deixa as bolhas bem menores na prática.
