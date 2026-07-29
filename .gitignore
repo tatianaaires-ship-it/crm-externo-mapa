@@ -19,3 +19,7 @@ snapshot_leads_*.json
 .DS_Store
 Thumbs.db
 *.log
+
+# Deck da supervisao: material interno, e o Pages serve a raiz — nao versionar.
+# (Entrou por engano em 1bbfa4d e foi removido no commit seguinte.)
+/apresentacao/
