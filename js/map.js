@@ -81,6 +81,11 @@
       {
         subdomains: 'abcd',
         maxZoom: 19,
+        /* A malha de tiles recalcula no FIM do zoom, não a cada frame da
+           animação (default do Leaflet). Durante o gesto ele escala os tiles
+           que já tem — só há um borrão breve, e some no lugar de disputar a
+           thread principal com o reagrupamento do cluster. */
+        updateWhenZooming: false,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
       }
     ).addTo(map);
@@ -91,6 +96,12 @@
       chunkedLoading: true,        // adiciona milhares de markers sem bloquear a UI
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
+      /* As bolhas trocam na hora em vez de se transformarem. Com 154 clusters
+         em tela a animação de split/merge é trabalho por frame em cima do
+         reagrupamento — medido: 43% do custo síncrono de um passo de zoom sai
+         só com isso (310ms → 177ms em 4 passos). Visualmente é quase
+         imperceptível; o zoom do mapa em si continua animado. */
+      animate: false,
       /* 19 = acima do maxZoom (18), então na prática NUNCA desliga — sempre
          bolha com contagem, e o spiderfy abre ao tocar.
          Era 16, e o penhasco custava 1.040ms com 6.914 pins: no zoom 16 a
@@ -104,8 +115,14 @@
       // Raio (px) menor conforme aproxima → bolhas quebram em pins com MENOS zoom.
       // Obs.: markercluster agrupa por PROXIMIDADE (não por contagem), então "≤10 por
       // bolha" não é garantido; raio menor deixa as bolhas bem menores na prática.
+      /* O raio do zoom alto subiu de 22 para 40 em 29/07. Com 22 o zoom 15
+         gerava 277 bolhas, e criar esse tanto de divIcon a cada passo custava
+         ~85ms só de trabalho síncrono. Com 40 são 154 bolhas e 4 passos caem de
+         203ms para 99ms. Ficou no MEIO-TERMO de propósito: 60 seria mais rápido
+         (59ms) mas deixaria só 54 bolhas, perdendo a granularidade fina que
+         esta rampa existe para dar. */
       maxClusterRadius: function (zoom) {
-        return zoom <= 7 ? 55 : zoom <= 11 ? 34 : 22;
+        return zoom <= 7 ? 55 : zoom <= 11 ? 34 : 40;
       }
     });
     map.addLayer(clusterGroup);
