@@ -236,7 +236,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .filters-btn__badge.is-visible { display: inline-flex; }
 
-/* Botão "Classificação" (abre popover de tipologias) */
+/* Botão "Tipologia" (abre popover de tipologias) */
 .quick--class { display: inline-flex; align-items: center; gap: 6px; }
 .quick__chev { color: var(--muted); font-size: 11px; transition: transform .2s; }
 .quick--class[aria-expanded="true"] .quick__chev { transform: rotate(180deg); }

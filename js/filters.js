@@ -252,7 +252,7 @@
       aq.classList.toggle('is-on', on);
       aq.setAttribute('aria-pressed', String(on));
     }
-    // Botão "Classificação": ativo se houver tipologia selecionada, com contador.
+    // Botão "Tipologia": ativo se houver tipologia selecionada, com contador.
     const cb = document.getElementById('btn-class');
     if (cb) {
       const n = filters.typology.size;
@@ -567,10 +567,10 @@
         'title="Oportunidades reais de aquisição — aplica quatro filtros de uma vez">' +
         '🏆 Aquisição' +
       '</button>';
-    // Botão "Classificação" abre um popover com todas as tipologias (multi-seleção).
+    // Botão "Tipologia" abre um popover com todas as tipologias (multi-seleção).
     html +=
       '<button type="button" class="quick quick--class" id="btn-class" aria-expanded="false" aria-haspopup="true">' +
-        '<span>🏷️ Classificação</span>' +
+        '<span>🏷️ Tipologia</span>' +
         '<span class="quick__badge" id="class-badge"></span>' +
         '<span class="quick__chev" aria-hidden="true">▾</span>' +
       '</button>';
@@ -595,7 +595,7 @@
     buildClassPopover();
   }
 
-  /* ---- Popover de classificação (tipologias) ---- */
+  /* ---- Popover de tipologia ---- */
   function buildClassPopover() {
     const pop = document.getElementById('class-popover');
     if (!pop) return;
@@ -605,7 +605,7 @@
     });
     pop.innerHTML =
       '<div class="class-popover__head">' +
-        '<span class="class-popover__title">Classificação</span>' +
+        '<span class="class-popover__title">Tipologia</span>' +
         '<button type="button" class="btn btn--ghost btn--sm" id="btn-class-clear">Limpar</button>' +
       '</div>' +
       '<div class="class-popover__chips">' + chips + '</div>';

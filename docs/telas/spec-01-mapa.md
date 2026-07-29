@@ -63,7 +63,7 @@ A quickbar tem **busca + três botões + Filtros** desde 29/07, e dois deles nã
 
 - **🔎 Busca** — fechada é uma **lupa**; ao tocar, a barra vira um **campo de largura cheia** (`.quickbar.is-searching` esconde os chips) com `×` para fechar, e um **dropdown de sugestões** abre abaixo. Busca por **nome fantasia · razão social · CNPJ** — ver §5.2.
 - **🏆 Aquisição** — **PRESET, não dimensão.** Liga **quatro filtros de uma vez** para isolar *oportunidades reais de aquisição*: `porte ≠ MEI` · `qualidade ∈ {Ouro, Prata}` · `status do cliente ∈ {lead, csc, churn}` · `fase ∉ {perdido, desqualificado}`. **Dourado** (`#C9971B`) para se distinguir dos recortes; detalhe do componente no [[spec-00-design-system]] §6.
-- **🏷️ Classificação** → abre popover com todas as tipologias (multi-seleção); badge com a contagem de selecionadas.
+- **🏷️ Tipologia** → abre popover com todas as tipologias (multi-seleção); badge com a contagem de selecionadas.
 - **📌 Não visitados 30+** — atalho toggle, sincronizado com o painel completo.
 - **Filtros** → painel completo com todas as dimensões (detalhe em [[spec-03-filtros]]).
 
