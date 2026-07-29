@@ -42,6 +42,9 @@ originou fica em `sources:` (rastreabilidade), não no corpo.
 
 > **Decisão 27/07 — Check-in/out É a Tarefa, são sinônimos.** Não existe objeto `Visita`: a atividade datada, o check-in, o check-out e o desfecho vivem num só registro ([Tarefa](objetos/tarefa.md)). O `resultado` da tarefa concluída é o **único** caminho automático que move o `status` do Estabelecimento no funil.
 
+> **Decisão 29/07 — a COR do pin virou a relação comercial; a origem desceu para PISTA de forma.** Até aqui a cor era `origem_confianca` em 4 categorias. Agora são dois eixos ortogonais em canais diferentes: **cor** = `cadastrado` (azul cliente / lilás lead) e **pista** = degrau de origem (tracejado `cnpj` · badge `G` · badge `✓`). Nenhum degrau depende mais de matiz — era o ponto fraco da CAP-1. A escada caiu de 4 para **3 degraus aditivos** (`cnpj` ⊂ `google` ⊂ `validado_campo`): todo ponto nasce da base de CNPJ, o Google **enriquece**, o campo confirma. A categoria **"Google puro"** deixou de existir, logo a **inversão-tese "Google puro > CNPJá puro" fica DORMENTE, não revogada** — sem a categoria, ela não tem sujeito. Detalhe em [SPEC 00 §2.3](telas/spec-00-design-system.md) · [SPEC 01 §3](telas/spec-01-mapa.md) · [Estabelecimento §5](objetos/estabelecimento.md).
+> ⚠️ **A cor só carrega verdade comercial no modo real** (177 dos 6.914 pins vêm de `status = 'Cadastrado'` no Salesforce). No dataset fictício `cadastrado` é inventado por design — por isso a legenda ganhou nota de procedência, âmbar no fictício e verde no real.
+
 > **Decisão 28/07 — a Tarefa passou a ser a PARADA de uma Rota, e Rota entrou como RASCUNHO.** A [Tarefa](objetos/tarefa.md) §6 mantinha Rota fora de escopo até a Fase 4 (*"uma tarefa não é uma parada"*); com a Agenda em calendário mostrando rotas, ela ganhou `rota_id` + `hora` e o rótulo derivado `nome_rota` morreu. O que existe é o **mínimo** ([Rota](objetos/rota.md)): identidade, nome, dia e dono. **Sequenciamento e otimização de trajeto continuam Fase 4** — é o que mantém o objeto de verdade adiado. Tarefa sem `rota_id` é **avulsa**.
 
 ## Design & Telas
@@ -50,7 +53,7 @@ O **SPEC 00** é o alicerce visual (tokens, componentes, shell) que toda spec de
 
 | Spec | Doc | Status |
 |---|---|---|
-| **SPEC 00 — Design System & App Shell** | [telas/spec-00-design-system.md](telas/spec-00-design-system.md) | ✅ ratificado |
+| **SPEC 00 — Design System & App Shell** | [telas/spec-00-design-system.md](telas/spec-00-design-system.md) | 🟡 em revisão |
 | **SPEC 01 — Mapa** (pins, quickbar, legenda, FAB) | [telas/spec-01-mapa.md](telas/spec-01-mapa.md) | 🟡 em revisão |
 | **SPEC 02 — Pin Sheet** (detalhe, notas, check-in) | `telas/spec-02-pin-sheet.md` | ⬜ a fazer |
 | **SPEC 03 — Filtros** (painel + quick filters) | `telas/spec-03-filtros.md` | ⬜ a fazer |
@@ -58,6 +61,8 @@ O **SPEC 00** é o alicerce visual (tokens, componentes, shell) que toda spec de
 | **SPEC 05 — Inteligência** (lista de leads) | `telas/spec-05-intel.md` | ⬜ a fazer |
 | **SPEC 06 — Funil** (Kanban por status, arrastar card) | [telas/spec-06-funil.md](telas/spec-06-funil.md) | 🟡 em revisão |
 | **SPEC 07 — Atividades** (bloco no pin, agenda em calendário de rotas, visão gerencial com gráficos, desqualificar) | [telas/spec-07-atividades.md](telas/spec-07-atividades.md) | 🟡 em revisão |
+
+> ⚠️ **SPEC 00 voltou a 🟡 em 29/07.** A **decisão** de §2.3 está ratificada (foi tomada na sessão), mas o **texto** que a espelha é novo e ainda não passou pela sua leitura — e a regra do projeto é que o SPEC 00 espelha o `css/styles.css`, não o contrário. Volta a ✅ depois que você ler §2.3, §2.5, §6.1 e §6.2.
 
 > Superfícies do protótipo: **mapa** · **sheet do pin** (com sub-telas de atividade) · **filtros/acesso rápido** · **criar pin** · **aba Funil (Kanban)** · **aba Atividades (gerencial + agenda)** · **aba Inteligência**. Nav de 4 abas, nesta ordem: 🗺️ Mapa · 📋 Intel. · 📊 Funil · 🗓️ Atividades. Cada spec de tela referencia o SPEC 00 em vez de repetir tokens.
 
