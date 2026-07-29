@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const KEY = 'crm-externo-map:v7'; // v7: check-out em checkboxes; 3 vocabulários de motivo
+  const KEY = 'crm-externo-map:v8'; // v8: origem_confianca com 3 valores e chaves novas
   const D = window.CRM_DATA;
 
   let pins = [];
@@ -38,8 +38,14 @@
      concorrente'` e afins — chaves que não existem mais, e que apareceriam
      como motivo em branco no detalhe e na gerencial. Migrar meia-boca seria
      inventar o motivo que o vendedor fictício teria escolhido; descartar e
-     resemear é honesto. */
-  const STATE_V = 7;
+     resemear é honesto.
+     v8 (29/07): `origem_confianca` caiu de 4 para 3 valores e as CHAVES mudaram
+     (cnpja_puro→cnpj, cnpja_google→google, e "só Google" deixou de existir).
+     Estado v7 tem pins com `origin: 'cnpja_google'` — chave fora do enum, que
+     cairia no fallback e deixaria o pin sem pista nenhuma no mapa. Aqui migrar
+     é honesto (é renomeação, não invenção), e a tabela abaixo faz isso; a
+     versão sobe porque o shape do pin mudou de vocabulário. */
+  const STATE_V = 8;
 
   // Snapshot real e persistência antiga podem trazer o enum velho.
   const STATUS_LEGADO = {
@@ -47,10 +53,47 @@
     em_negociacao: 'td_encontrado',
     convertido:    'csc'          // conservador: cadastrado, compra não comprovada
   };
-  function migrateStatus(p) {
-    if (p && STATUS_LEGADO[p.status]) p.status = STATUS_LEGADO[p.status];
-    if (p && !D.STATUS[p.status]) p.status = 'sem_plano';
-    if (p && p.checkins == null) p.checkins = [];
+  // Origem: renomeação de 29/07. `google_puro` não tem para onde ir sem perder
+  // ou inventar — cai em `google` porque o sinal do Google existia (o que se
+  // perde é "não tinha CNPJ", e essa categoria deixou de existir por decisão).
+  const ORIGIN_LEGADO = {
+    cnpja_puro:   'cnpj',
+    cnpja_google: 'google',
+    google_puro:  'google'
+  };
+  /* `cadastrado` no vocabulário ANTIGO. O snapshot real em `private/data-real.json`
+     foi gerado antes da fatia de Tarefa: ele traz `isConverted`/`convertedAt`
+     (o antigo is_converted) e NÃO traz `cadastrado`/`dataCadastro`.
+     Sem reconstruir aqui, `cadastrado` ficava `undefined` em todos os 6.914 pins
+     — e desde 29/07 isso é a COR do pin, então o mapa real sairia 100% lilás com
+     os "Cadastrado" do Salesforce pintados de lead, violando o invariante
+     `status ∈ {csc, aquisicao} ⟺ cadastrado` ([[estabelecimento]] §5).
+     A informação é REAL, só está com outro nome — três fontes, em ordem:
+       1. `cadastrado` já preenchido (fictício e estado v8) — não mexe;
+       2. `isConverted` — vem de `status = 'Cadastrado'` no `salesforce.lead`;
+       3. o próprio status comercial, para dado de qualquer outra procedência.
+     `dataCadastro` só vem se o snapshot tiver `convertedAt` (nele é null): o
+     sheet então diz que é cliente sem afirmar desde quando — em vez de inventar
+     uma data. E `dataPrimeiraCompra` continua nulo de propósito: o
+     `salesforce.lead` não tem fonte de PEDIDO, então todo convertido para em
+     CSC (régua provisória — ver docs/snapshot-dado-real.md §6). */
+  function migrarRelacao(p) {
+    if (p.dataCadastro == null && p.convertedAt) p.dataCadastro = p.convertedAt;
+    if (p.cadastrado == null) {
+      p.cadastrado = !!(p.dataCadastro || p.isConverted ||
+        p.status === 'csc' || p.status === 'aquisicao');
+    }
+    if (p.dataPrimeiraCompra === undefined) p.dataPrimeiraCompra = null;
+  }
+
+  function migratePin(p) {
+    if (!p) return p;
+    if (STATUS_LEGADO[p.status]) p.status = STATUS_LEGADO[p.status];
+    if (!D.STATUS[p.status]) p.status = 'sem_plano';
+    if (ORIGIN_LEGADO[p.origin]) p.origin = ORIGIN_LEGADO[p.origin];
+    if (!D.ORIGINS[p.origin]) p.origin = 'cnpj';        // arredonda pra BAIXO
+    migrarRelacao(p);                                   // roda DEPOIS do status
+    if (p.checkins == null) p.checkins = [];
     return p;
   }
 
@@ -85,7 +128,7 @@
     } catch (e) { console.warn('Falha ao ler persistência:', e); }
 
     if (restored) {
-      pins = restored.pins.map(migrateStatus);
+      pins = restored.pins.map(migratePin);
       tarefas = Array.isArray(restored.tarefas) ? restored.tarefas : [];
       rotas = Array.isArray(restored.rotas) ? restored.rotas : [];
     } else {
@@ -123,7 +166,7 @@
   function useRealData(realPins) {
     if (!Array.isArray(realPins) || !realPins.length) return false;
     realMode = true;
-    pins = realPins.map(migrateStatus);
+    pins = realPins.map(migratePin);
 
     // O snapshot traz o NOME do vendedor, não um id da nossa tabela. Como a
     // decisão foi atribuir aos 3 fictícios, o nome real é descartado de

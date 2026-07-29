@@ -37,8 +37,9 @@ Aplica o shell do SPEC 00 §5: **topbar → quickbar → mapa (tela cheia) → b
 
 ## 3. Pins no mapa
 
-- **Marker** = `divIcon` 42×50px, âncora `[21,48]` (a ponta toca o solo).
-- **Mostra:** a **cor da origem** (`--pin`) + **dot branco** central + **badge `✓`** apenas para `validado_campo`. Pistas não-cromáticas repetidas do SPEC 00: `cnpja_puro` borda **tracejada**, `cnpja_google` borda **3px**.
+- **Marker** = `divIcon` **36×40px**, âncora `[18,38]` (a ponta toca o solo), corpo circular **28px**. *(Era 42×50 / corpo 34px até 29/07 — com 61 pontos clusterizados o pin dominava a base cartográfica.)*
+- **Mostra dois códigos ortogonais** (SPEC 00 §2.3): a **cor** (`--pin`) = **relação comercial** — azul `#2053CE` cliente, lilás `#A78BFA` lead —; e a **pista de forma** = **degrau de origem**: `cnpj` borda **tracejada 1.5px**, `google` badge **`G`**, `validado_campo` badge **`✓`**. Mais o **dot branco** central de 9px.
+- **Só a pista do degrau mais alto aparece.** A escada é aditiva (`cnpj` ⊂ `google` ⊂ `validado_campo`): um pin com `✓` também tem CNPJ e Google, e mostrar as três pistas juntas seria ruído. Corolário operacional: **check-in troca a pista, nunca a cor** — promover a `validado_campo` põe o `✓`, e o pin só fica azul quando o ERP disser que virou cliente.
 - **Estados:** `is-selected` (escala 1.22 + halo brand), `pin--moving` (halo), `pin--new` (animação `pinPop` para pins criados na sessão), `pin--temp` (pulso roxo — marcador de criação).
 - ⚠️ **Discrepância documentada (código × design):** o CSS prevê **emoji de tipologia** dentro do pin, mas o `map.js` atual desenha **só a cor da origem + dot** (marker limpo, diferenciado só por origem). Decisão em aberto: manter origin-only ou passar a renderizar o emoji de tipologia (`iconHtml` em `map.js`).
 - **Ao selecionar:** o mapa reposiciona (`panToShow`) deslocando o centro ~18% para cima, para o pin não ficar atrás do bottom sheet.
@@ -46,7 +47,15 @@ Aplica o shell do SPEC 00 §5: **topbar → quickbar → mapa (tela cheia) → b
 
 ## 4. Legenda (CAP-1)
 
-Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-filter: blur`) **colapsável** ("Origem & confiança"). Lista as 4 categorias na ordem `ORIGIN_ORDER`, cada uma com **cor + pista não-cromática + rótulo de confiabilidade**. É o componente que garante o CAP-1: distinguir a origem de um pin **sem clicar**.
+Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-filter: blur`) **colapsável**, titulado **"Legenda"**. Desde 29/07 tem **duas seções**, porque o pin passou a carregar dois códigos:
+
+- **`Cor · relação`** — as 2 entradas de `RELACAO_ORDER` (Cliente, Lead), cada uma com a sua cor.
+- **`Pista · origem & confiança`** — os 3 degraus de `ORIGIN_ORDER`, cada um com **pista + rótulo de confiabilidade**. As amostras aqui são desenhadas em **cinza neutro** de propósito: pintá-las faria a origem parecer ter cor de novo.
+- **Nota de procedência** (29/07) — rodapé âmbar: *"⚠️ Dados fictícios. Cor e pista são de demonstração — nenhum é cliente ou validação real."* Ela existe porque a cor passou a **parecer** um fato comercial ("este é cliente") e no dataset fictício não é: `cadastrado` vem do marcador `conv: 1` escrito à mão em 10 das 61 sementes.
+  **Em `body.real-mode` a nota TROCA de texto, não desaparece** — vira verde: *"✔ Procedência real. Cor vem de Cadastrado no Salesforce; pista, dos sinais de geolocalização."* Ali os dois campos são verdadeiros (177 dos 6.914 pins; ver [snapshot](../snapshot-dado-real.md) §6), e repetir "fictício" seria mentira ao contrário. É a mesma linguagem âmbar da `.sim-banner` — aviso de **procedência**, não de erro —, mas independente dela: a `sim-banner` fala das *atividades* e só existe no modo real.
+  ⚠️ A nota vive **dentro** do `legend__body`, então **colapsa junto com a legenda**. Mover para fora do body a deixaria permanente, ao custo de ocupar mapa sempre.
+
+É o componente que garante o CAP-1: distinguir origem **e** relação de um pin **sem clicar** — e agora também dizer **o quanto disso é verdade**.
 
 ## 5. Quickbar — filtros rápidos (CAP-2)
 
@@ -73,12 +82,13 @@ Acionado por **botão dentro do pin sheet** (não por toque solto no mapa). `sta
 
 ## 9. Dados exibidos (do Estabelecimento)
 
-No **marker** aparecem apenas: a **posição** (`geo`) e a **origem** (cor + pista + `✓`). Nome, qualidade, porte, notas etc. **não** vão ao marker — vivem no pin sheet ([[spec-02-pin-sheet]]) e na lista ([[spec-05-intel]]). Referência cruzada: coluna **"Onde aparece"** em [[estabelecimento]] §4 (linhas com `mapa` / `cor do pin`).
+No **marker** aparecem apenas: a **posição** (`geo`), a **origem** (pista de forma) e a **relação comercial** (`cadastrado`, na cor). Nome, qualidade, porte, notas etc. **não** vão ao marker — vivem no pin sheet ([[spec-02-pin-sheet]]) e na lista ([[spec-05-intel]]). Referência cruzada: coluna **"Onde aparece"** em [[estabelecimento]] §4 (linhas com `mapa` / `cor do pin`).
 
 ## 10. Decisões & casos de borda
 
 - **Sem exclusão de pin** (constraint) — filtrar apenas oculta.
 - **Zoom no topo-direito** para não colidir com os FABs.
-- **Marker origin-only** — emoji de tipologia não renderizado (ver §3); decisão em aberto.
+- ✅ **Decidido (29/07) — a cor do pin virou a relação comercial, e a origem virou pista de forma.** Antes: cor = origem, 4 categorias. O que se ganhou: nenhum degrau de origem depende de matiz (era o ponto fraco da CAP-1), e "já é cliente?" — a pergunta que o vendedor faz da calçada — ficou com o canal mais forte. O que se pagou: a categoria **"só Google"** deixou de existir (todo ponto vem da base de CNPJ, o Google enriquece), então a **inversão-tese ficou dormente**; e `status_cliente` vai disputar este canal quando chegar (SPEC 00 §2.5). Detalhe da escada em [[estabelecimento]] §5.
+- **Marker origin-only** — emoji de tipologia **ainda não renderizado** (ver §3); **decisão segue em aberto**. Nota de 29/07: com o pin em 28px e um selo de canto ocupado por `G`/`✓`, sobra pouco espaço para um terceiro glifo — o custo de fechar em "sim" subiu.
 - **Base cartográfica real** (não abstrata) — constraint de aceite (qualidade visual faz parte do gate).
 - ✅ **Corrigido (23/07):** o "Limpar" do painel (`clearAll` em `filters.js`) referenciava dimensões antigas (`potential`, `visitStatus`) e lançava erro; agora limpa `qualidade`/`porte`/`status` corretamente.

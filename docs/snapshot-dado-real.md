@@ -74,11 +74,18 @@ WHERE l.is_deleted = 0
   catering (`5620101-04`, `8230002`) → `marmitaria`; ambulante (`5612100`) → `lanchonete`; atacado/
   laticínios/frios (`4639701`, `4721103`, `1052000`) → `mercadinho`; motel/apart-hotel (`5510802-03`) →
   `hotel`; padaria/panificação/biscoitos (`1091101-02`, `4721102`, `1092900`) → `padaria`. CNAE nulo → `outro`.
-- **`origin` (escada de confiança):** `coordenadas_corrigidas_c = 1` (correção **humana** do pin) → `validado_campo`
-  — **não** usar `latitude_verificada_lead_c` (verificação automática; alimenta só o `geoVerificado` de exibição);
-  senão sinal Google (`gmaps_status_c` ≠ null **ou** `localizacao_verificada_google_c = 1`) + CNPJ → `cnpja_google`;
-  senão Google só → `google_puro`; senão → `cnpja_puro`. *(Nível 2/3 é aproximado até o `matching_log` da Fase 4.)*
+- **`origin` (escada de confiança — 3 degraus desde 29/07):** `coordenadas_corrigidas_c = 1` (correção
+  **humana** do pin) → `validado_campo` — **não** usar `latitude_verificada_lead_c` (verificação automática;
+  alimenta só o `geoVerificado` de exibição); senão sinal Google (`gmaps_status_c` ≠ null **ou**
+  `localizacao_verificada_google_c = 1`) → **`google`**; senão → **`cnpj`**.
   Calibração (23/07): corrigidas 1.673 · gmaps_status 999 · google_bool 476 · verificada 2.110.
+  > ⚠️ **A régua encolheu com o enum** (4 → 3 valores; ver [[objetos/estabelecimento]] §5). Duas saídas
+  > desapareceram e o `matchConfirmed` saiu da conta: `cnpja_google` **virou** `google` (é o mesmo caso — CNPJ
+  > enriquecido), e `google_puro` deixou de ter degrau próprio. Como no `salesforce.lead` **todo** registro tem
+  > CNPJ (MEI já sai no `WHERE`), o caso "Google sem CNPJ" não aparece na prática — a decisão só formalizou
+  > isso. Quem carregar snapshot gerado pelo transform antigo é migrado no cliente (`ORIGIN_LEGADO` em
+  > `js/state.js`), então nada cai no fallback. **A rigor o transform da Fase 3 ainda emite as chaves velhas
+  > — alinhar quando ele for tocado.**
 - **`porte`:** prefixo de `porte_c` → `me-*` = **ME**; `epp-*` = **EPP**; `demais` = **LTDA**. (MEI já excluído no `WHERE`.)
 - **`status` (funil — régua de cobertura do mês):** avaliar nesta ordem —
   1. `status = 'Cadastrado'` → **convertido**;
@@ -87,6 +94,17 @@ WHERE l.is_deleted = 0
   **Sem `em_negociacao`** (1º/2º/3º contato são do time *inside*, não do campo) e **sem `perdido`** por ora
   (Perdido cai em visitado/não-visitado pela régua).
 - **`geoVerificado`:** objeto `{lat,lng}` só quando `latitude_verificada_lead_c` ≠ null; senão `null`.
+- **`cadastrado` (= a COR do pin desde 29/07):** vem de `status = 'Cadastrado'` no `salesforce.lead` — **é sinal
+  real, não inferência nossa**. No snapshot atual isso está gravado com o nome antigo `isConverted` (o arquivo
+  foi gerado antes da fatia de Tarefa), então `js/state.js` reconstrói na carga (`migrarRelacao`): **177 dos
+  6.914** viram cliente (azul), o resto é lead (lilás). `dataCadastro` só existe onde há `convertedAt` — **15
+  dos 177** —, e nos outros o sheet diz que é cliente **sem afirmar desde quando**, em vez de inventar data.
+  `dataPrimeiraCompra` é **sempre nulo** de propósito (não há fonte de PEDIDO aqui), o que casa com a régua
+  provisória de todo convertido parar em **CSC**. Invariante `status ∈ {csc, aquisicao} ⟺ cadastrado`
+  verificado nos 6.914: **zero violações**.
+  > ⚠️ **Não confundir com o dataset fictício:** lá `cadastrado` é *inventado por design* (o marcador `conv: 1`
+  > está escrito à mão em 10 das 61 sementes de `js/data.js`) — como todo o resto daquele dataset. A cor só
+  > carrega verdade comercial no modo real.
 
 ## 4. Minimização / colunas descartadas
 

@@ -1,10 +1,11 @@
 /* =====================================================================
-   map.js — Mapa Leaflet + markers estilizados por origem/confiança.
+   map.js — Mapa Leaflet + markers.
    - Base cartográfica real (CARTO Positron, dados © OSM).
-   - Marker = cor (origem) + emoji (tipologia) + selo ✓ (validado em campo).
-     Distinção reforçada por cor + estilo de borda (colorblind-friendly).
+   - Marker (29/07) = COR da relação comercial (cliente × lead) + PISTA de
+     forma da origem/confiança (tracejado · G · ✓). São dois eixos ortogonais
+     em canais diferentes: nenhum depende de distinguir matiz (CAP-1).
    - Drag do marker persiste a nova coordenada (CAP-5).
-   - Legenda fixa das 4 categorias (CAP-1).
+   - Legenda fixa dos dois eixos (CAP-1).
    ===================================================================== */
 (function () {
   'use strict';
@@ -20,30 +21,35 @@
   let youMarker = null, youAccuracy = null;
   let onLocateFoundCb = null, onLocateErrorCb = null;
 
-  // Marker em formato padrão (sem emoji): diferenciação só pela ORIGEM
-  // (cor + estilo de borda + selo ✓), reforçada de forma não-cromática.
+  // Marker sem emoji de tipologia (decisão em aberto — SPEC 01 §3):
+  //   COR   = relação comercial (cliente × lead), via --pin
+  //   PISTA = degrau MAIS ALTO da origem: tracejado (cnpj) · G · ✓
+  // A pista do degrau alto substitui a do baixo — a escada é cumulativa, então
+  // um pin com ✓ também tem CNPJ e Google; mostrar as três seria ruído.
   function iconHtml(pin) {
     // Fallback defensivo: origem inesperada (dado real fora do enum) não pode
     // estourar o render — paridade com intel.js/funil.js.
-    const origin = D.ORIGINS[pin.origin] || { color: '#94a3b8', ink: '#334155' };
-    const badge = pin.origin === 'validado_campo'
-      ? '<span class="pin__badge" aria-hidden="true">✓</span>' : '';
+    const origin = D.ORIGINS[pin.origin] || { cue: '' };
+    const rel = D.relacaoDe(pin);
+    const badge = (origin.cue && origin.cue !== 'dashed')
+      ? '<span class="pin__badge" aria-hidden="true">' + origin.cue + '</span>' : '';
     const created = pin.createdByUser ? ' pin--new' : '';
     const moving = pin.id === moveId ? ' pin--moving' : '';
     return (
-      '<div class="pin pin--' + pin.origin + created + moving + '" style="--pin:' + origin.color + ';--pin-ink:' + origin.ink + '">' +
+      '<div class="pin pin--' + pin.origin + created + moving + '" style="--pin:' + rel.color + ';--pin-ink:' + rel.ink + '">' +
         '<div class="pin__body"><span class="pin__dot"></span>' + badge + '</div>' +
         '<div class="pin__tip"></div>' +
       '</div>'
     );
   }
 
+  // 36×40 (corpo 28px) — era 42×50/34px. Âncora = a ponta do tip toca o solo.
   function makeIcon(pin) {
     return L.divIcon({
       className: 'pin-wrap' + (pin.id === selectedId ? ' is-selected' : ''),
       html: iconHtml(pin),
-      iconSize: [42, 50],
-      iconAnchor: [21, 48]
+      iconSize: [36, 40],
+      iconAnchor: [18, 38]
     });
   }
 
@@ -95,22 +101,45 @@
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = function () {
       const div = L.DomUtil.create('div', 'legend');
-      let rows = '';
+      // Eixo 1 — a COR: relação comercial (cliente × lead).
+      let relRows = '';
+      D.RELACAO_ORDER.forEach(function (k) {
+        const r = D.RELACAO[k];
+        relRows +=
+          '<div class="legend__row">' +
+            '<span class="legend__dot" style="--pin:' + r.color + '"></span>' +
+            '<span class="legend__label">' + r.label + '</span>' +
+          '</div>';
+      });
+      // Eixo 2 — a PISTA: origem/confiança. Amostra em cinza NEUTRO de
+      // propósito: se pintasse, leria como se a origem tivesse cor de novo.
+      let origRows = '';
       D.ORIGIN_ORDER.forEach(function (k) {
         const o = D.ORIGINS[k];
-        const mark = k === 'validado_campo' ? '✓' : '';
-        rows +=
+        const mark = o.cue === 'dashed' ? '' : o.cue;
+        origRows +=
           '<div class="legend__row">' +
-            '<span class="legend__dot legend__dot--' + k + '" style="--pin:' + o.color + '">' + mark + '</span>' +
+            '<span class="legend__dot legend__dot--' + k + '" style="--pin:#94a3b8">' + mark + '</span>' +
             '<span class="legend__label">' + o.label + '</span>' +
             '<span class="legend__conf">' + o.confidence + '</span>' +
           '</div>';
       });
       div.innerHTML =
         '<button class="legend__toggle" type="button" aria-expanded="true">' +
-          '<span>Origem &amp; confiança</span><span class="legend__chev">▾</span>' +
+          '<span>Legenda</span><span class="legend__chev">▾</span>' +
         '</button>' +
-        '<div class="legend__body">' + rows + '</div>';
+        '<div class="legend__body">' +
+          '<div class="legend__sub">Cor · relação</div>' + relRows +
+          '<div class="legend__sub">Pista · origem &amp; confiança</div>' + origRows +
+          // Procedência dos DOIS códigos, na própria legenda que os ensina.
+          // Troca de texto em real-mode em vez de sumir: no dado real esses dois
+          // campos são verdadeiros (`status = 'Cadastrado'` e os sinais de
+          // geolocalização), e repetir "fictício" ali seria mentira ao contrário.
+          '<div class="legend__nota legend__nota--fic">⚠️ <strong>Dados fictícios.</strong> ' +
+            'Cor e pista são de demonstração — nenhum é cliente ou validação real.</div>' +
+          '<div class="legend__nota legend__nota--real">✔ <strong>Procedência real.</strong> ' +
+            'Cor vem de <em>Cadastrado</em> no Salesforce; pista, dos sinais de geolocalização.</div>' +
+        '</div>';
       L.DomEvent.disableClickPropagation(div);
       const btn = div.querySelector('.legend__toggle');
       btn.addEventListener('click', function () {

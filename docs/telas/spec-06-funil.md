@@ -44,7 +44,7 @@ Aba full-screen que **cobre o mapa** quando ativa (`body.view-funil`, z-index 25
 
 Compacto, no molde do card de lead ([[spec-05-intel]] §6.9 / SPEC 00 §6.9), mas enxuto:
 
-- **Dot de origem** (cor + pista não-cromática: `cnpja_puro` tracejado, `cnpja_google` 3px, `validado_campo` badge `✓`).
+- **Dot de origem/relação** — mesma gramática do marker desde 29/07 (SPEC 00 §2.3): a **cor** é a relação comercial (azul cliente × lilás lead) e a **pista** é o degrau de origem (`cnpj` tracejado · `google` glifo `G` · `validado_campo` glifo `✓`). Passou de 11px para **14px** porque agora carrega o glifo — em 11px ele transbordava. Efeito colateral bem-vindo: pelo invariante `status ∈ {csc, aquisicao} ⟺ cadastrado`, o **azul cai exatamente sobre as duas colunas comerciais** e o board mostra de longe onde acaba o esforço e começa o resultado.
 - **Emoji de tipologia + nome** (elipse se estourar).
 - **Cidade/UF** + **badge de qualidade** (Ouro/Prata/Bronze).
 - **Tag `💰 Venda realizada · aguardando pedido`** *(28/07, condicional)* — verde, largura cheia, embaixo de tudo.

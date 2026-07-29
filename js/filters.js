@@ -229,8 +229,12 @@
     const porteEntries = D.PORTE_ORDER.map(function (k) {
       return { key: k, label: D.PORTE[k].label };
     });
+    // O chip ensina a PISTA, não a cor: o de CNPJ nasce tracejado (CSS) e os
+    // outros dois trazem o glifo no rótulo — mesma gramática do marker.
     const origEntries = D.ORIGIN_ORDER.map(function (k) {
-      return { key: k, label: D.ORIGINS[k].label, cls: 'chip--origin chip--o-' + k };
+      const o = D.ORIGINS[k];
+      const glifo = (o.cue && o.cue !== 'dashed') ? o.cue + ' ' : '';
+      return { key: k, label: glifo + o.label, cls: 'chip--origin chip--o-' + k };
     });
     const statEntries = Object.keys(D.STATUS).map(function (k) {
       return { key: k, label: D.STATUS[k].label };

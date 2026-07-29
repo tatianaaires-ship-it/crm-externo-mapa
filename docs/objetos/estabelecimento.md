@@ -114,7 +114,7 @@ CREATE TABLE nota_estabelecimento (
 | 7 | `endereco` | text | Não | `fonte:sf` | sheet | consolidado de 6 colunas |
 | 8 | `geo_original` / `geo_verificado` | geography | Não | `fonte:sf` / `campo` | **mapa** | verificado: nulo até validar; monotônico |
 | 9 | `zona_id` | fk → [[zona]] | Não | `fonte:sf` | filtro · sheet | = `zona_2_c` |
-| 10 | `origem_confianca` | enum (4) | Não | **derivado** | **cor do pin** · sheet | §5 |
+| 10 | `origem_confianca` | enum (3) | Não | **derivado** | **pista do pin** (tracejado · `G` · `✓`) · sheet | §5; **deixou de ser a cor** em 29/07 |
 | 11 | `qualidade` | enum Ouro/Prata/Bronze | Não | **derivado** | filtro · sheet | de [[cnae_tier]] |
 | 12 | `porte` | enum | Não | `fonte:cnpja` | filtro · sheet | dimensão de filtro |
 | 13 | `status` | enum (8; **7 colunas**) | Sim | **derivado** (tarefa + ERP) | filtro · sheet | **nunca digitado**; três fontes, ERP prevalece; `sem_plano` fica fora do board — §5 |
@@ -128,7 +128,7 @@ CREATE TABLE nota_estabelecimento (
 
 | Campo | Tipo | Origem | Onde aparece | Notas |
 |---|---|---|---|---|
-| `cadastrado` | boolean | **derivado** (integração/ERP — futuro) | **filtro** · sheet | discriminador lead↔cliente; sticky; §5 |
+| `cadastrado` | boolean | **derivado** (integração/ERP — futuro) | **cor do pin** (29/07) · **filtro** · sheet | discriminador lead↔cliente; sticky; §5 |
 | `data_cadastro` | date | `fonte:erp` | sheet (se cliente) | quando virou cliente (ex-`converted_at`) |
 | `data_primeira_compra` | date | `fonte:erp` | sheet (se cliente) | — |
 | `data_ultima_compra` | date | `fonte:erp` | sheet (se cliente) | **dispara `status_cliente`** |
@@ -163,9 +163,11 @@ CREATE TABLE nota_estabelecimento (
 
   **Avanço monotônico na escada**; `perdido`/`desqualificado` são **saídas laterais** (não regressão) e guardam `status_anterior`, restaurado quando uma nova tarefa — ou um pedido — traz o ponto de volta.
 
-- **`cadastrado`** *(derivado)* — a verdade virá da **integração com o ERP/financeiro** (existe registro comercial?). Enquanto não há integração, no protótipo deriva de `data_cadastro IS NOT NULL`. **Sticky** por natureza: o registro comercial não desaparece se o cliente churnar.
+- **`cadastrado`** *(derivado)* — a verdade virá da **integração com o ERP/financeiro** (existe registro comercial?). Enquanto não há integração, no protótipo deriva de `data_cadastro IS NOT NULL`. **Sticky** por natureza: o registro comercial não desaparece se o cliente churnar. **Desde 29/07 é a COR do pin** (azul cliente × lilás lead) — e, por ser derivado do ERP, a cor continua nunca sendo digitada. Como o invariante `status ∈ {csc, aquisicao} ⟺ cadastrado` vale, no board do Funil o azul cai exatamente sobre as duas colunas comerciais.
 - **`qualidade`** — de `cnae_codigo` via [[cnae_tier]] (editável no Admin sem código). Recalculada quando o CNAE muda.
-- **`origem_confianca`** — eixo = **a localização do pin**. Escada (nível mais alto que alcançar): (1) **validado em campo (Máxima)** — monotônico; (2) **CNPJá+Google com match confirmado (Alta)**; (3) **Google puro (Média)**; (4) **CNPJá puro (Menor)**. Princípio: *na dúvida, arredonda pra BAIXO*. **Inversão-tese:** Google puro > CNPJá puro (fachada vista > cartório). Exceções: validação de campo sobe/grava; reclassificação manual permitida.
+- **`origem_confianca`** — eixo = **a localização do pin**. Escada **aditiva de 3 degraus** (nível mais alto que alcançar): (1) **validado em campo (Máxima)** — monotônico; (2) **Google (Média)** — o cadastro de CNPJ foi enriquecido com Google; (3) **CNPJ (Menor)** — o piso. Princípio: *na dúvida, arredonda pra BAIXO*. Exceções: validação de campo sobe/grava; reclassificação manual permitida.
+  > ⚠️ **Mudou em 29/07: eram 4 valores, viraram 3, e as chaves mudaram** (`cnpja_puro`→`cnpj`, `cnpja_google`→`google`). A categoria **"Google puro"** (ponto com Google e **sem** CNPJ) deixou de existir por decisão de produto: todo ponto nasce da base de CNPJ e o Google **enriquece** esse cadastro. Consequências: os degraus são cumulativos (`cnpj` ⊂ `google` ⊂ `validado_campo`), `match_confirmado` deixou de entrar na conta (não há mais dois degraus para ele separar), e a **inversão-tese "Google puro > CNPJá puro" ficou DORMENTE, não revogada** — sem a categoria, ela não tem sujeito; se um dia entrar ponto sem CNPJ, ela volta e vira o 4º degrau.
+  > **Isto NÃO é mais a cor do pin.** A origem virou **pista de forma** (tracejado · `G` · `✓`) e a cor passou a ser `cadastrado`. Ver [[spec-00-design-system]] §2.3 e [[spec-01-mapa]] §3.
 - **`status_cliente`** *(retenção)* — só quando `cadastrado`. Derivado dos dias desde `data_ultima_compra`: `ativo` → `em_risco` → `inativo`; volta a comprar após inativo = `reconquistado`. **É o sinal que expõe o fosso de retenção.** ⚠️ **Limiares a definir** (ex., do CRM-KA: risco após N dias sem compra).
 
 ## 6. O que NUNCA fica aqui

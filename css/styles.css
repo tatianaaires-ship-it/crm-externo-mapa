@@ -189,33 +189,40 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 8px 0 0 0 !important; padding: 2px 6px !important;
 }
 
-/* ---- Markers (cor = origem; emoji = tipologia; ✓ = validado) ---- */
+/* ---- Markers (29/07: COR = relação cliente×lead; PISTA = origem) ----
+   Corpo 28px em icon 36×40 (era 34px em 42×50) — pin mais discreto com 61
+   pontos clusterizados. Toda medida daqui está calibrada nesse 28. */
 .pin-wrap { background: none !important; border: none !important; }
-.pin { position: relative; width: 42px; height: 50px; }
+.pin { position: relative; width: 36px; height: 40px; }
 .pin__body {
-  width: 34px; height: 34px; margin: 0 auto; border-radius: 50%;
+  width: 28px; height: 28px; margin: 0 auto; border-radius: 50%;
   background: var(--pin); border: 2.5px solid #fff;
   box-shadow: 0 3px 8px rgba(15,23,42,.35);
   display: grid; place-items: center; position: relative; z-index: 2;
   transition: transform .12s;
 }
-.pin__dot { width: 11px; height: 11px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08); }
+.pin__dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08); }
 .pin__tip {
   width: 0; height: 0; margin: -3px auto 0;
-  border-left: 6px solid transparent; border-right: 6px solid transparent;
-  border-top: 10px solid var(--pin);
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 9px solid var(--pin);
   filter: drop-shadow(0 2px 1px rgba(15,23,42,.25));
 }
+/* Pista dos degraus altos: G (enriquecido com Google) e ✓ (validado em campo).
+   Selo BRANCO com anel na cor da relação — legível sobre azul e sobre lilás. */
 .pin__badge {
-  position: absolute; top: -5px; right: -5px; z-index: 3;
-  width: 16px; height: 16px; border-radius: 50%;
+  position: absolute; top: -4px; right: -4px; z-index: 3;
+  width: 15px; height: 15px; border-radius: 50%;
   background: #fff; color: var(--pin-ink); border: 1.5px solid var(--pin);
-  font-size: 10px; font-weight: 900; display: grid; place-items: center;
+  font-size: 9.5px; font-weight: 900; display: grid; place-items: center;
   line-height: 1;
 }
-/* Reforço não-cromático (colorblind): CNPJá puro = borda tracejada (incerto) */
-.pin--cnpja_puro .pin__body { border-style: dashed; }
-.pin--cnpja_google .pin__body { border-width: 3px; }
+/* Pista do degrau BAIXO: só CNPJ, sem enriquecimento = borda tracejada
+   (incerto). É o único degrau que não tem selo — a ausência também informa.
+   Tracejado AFINA para 1.5px: com 2.5px num corpo de 28px os traços ficam
+   curtos e grossos e o círculo lê como engrenagem, perdendo a silhueta de pin
+   (comparado nas 4 espessuras). Fino, lê como "pontilhado/provisório". */
+.pin--cnpj .pin__body { border-style: dashed; border-width: 1.5px; }
 
 .pin-wrap.is-selected { z-index: 1000 !important; }
 .pin-wrap.is-selected .pin__body { transform: scale(1.22); box-shadow: 0 0 0 4px rgba(32,83,206,.28), 0 6px 14px rgba(15,23,42,.4); }
@@ -243,6 +250,13 @@ body.is-dragging-pin .fab-locate, body.is-placing .fab-locate, body.is-moving .f
 .legend.is-collapsed .legend__chev { transform: rotate(-90deg); }
 .legend.is-collapsed .legend__body { display: none; }
 .legend__body { padding: 0 11px 9px; display: flex; flex-direction: column; gap: 6px; }
+/* Título de eixo: a legenda explica DOIS códigos (cor e pista), não um. */
+.legend__sub {
+  font-size: 9.5px; font-weight: 800; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+  padding-top: 3px; border-top: 1px solid var(--line);
+}
+.legend__sub:first-child { padding-top: 0; border-top: none; }
 .legend__row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
 .legend__dot {
   width: 15px; height: 15px; border-radius: 50%;
@@ -251,10 +265,24 @@ body.is-dragging-pin .fab-locate, body.is-placing .fab-locate, body.is-moving .f
   font-size: 9px; font-weight: 900; color: #fff; line-height: 1;
 }
 /* Mesmas pistas não-cromáticas dos markers, refletidas na legenda */
-.legend__dot--cnpja_puro { border-style: dashed; }
-.legend__dot--cnpja_google { border-width: 3px; }
+.legend__dot--cnpj { border-style: dashed; border-width: 1.5px; }
 .legend__label { flex: 1; color: var(--ink-2); }
 .legend__conf { color: var(--muted); font-size: 10.5px; font-weight: 600; }
+/* Nota de procedência da legenda. Âmbar igual à `.sim-banner`: mesma linguagem
+   de "aviso de procedência", não de erro. Duas variantes que se alternam por
+   modo — display explícito (nunca `[hidden]`, que não vence flex/grid). */
+.legend__nota {
+  margin-top: 3px; padding: 6px 7px; border-radius: 8px;
+  font-size: 10px; line-height: 1.35;
+  background: #fef3c7; border: 1px solid #fcd34d; color: #7c2d12;
+  max-width: 208px;
+}
+.legend__nota strong { color: #7c2d12; }
+.legend__nota--real { display: none; background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+.legend__nota--real strong { color: #065f46; }
+.legend__nota--real em { font-style: normal; font-weight: 700; }
+body.real-mode .legend__nota--fic { display: none; }
+body.real-mode .legend__nota--real { display: block; }
 
 /* ---- FAB ---- */
 .fab {
@@ -383,11 +411,9 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 }
 .chip:active { transform: scale(.96); }
 .chip.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
-.chip--origin.is-on { background: var(--co, var(--ink)); border-color: var(--co, var(--ink)); }
-.chip--o-cnpja_puro.is-on { --co: #8A94A6; }
-.chip--o-google_puro.is-on { --co: #2E7DF6; }
-.chip--o-cnpja_google.is-on { --co: #12B981; }
-.chip--o-validado_campo.is-on { --co: #7C3AED; }
+/* Origem não tem mais COR (29/07) — o chip ensina a PISTA: o de CNPJ é o único
+   tracejado, os outros dois trazem o glifo (G / ✓) no próprio rótulo. */
+.chip--o-cnpj { border-style: dashed; }
 
 /* ---- Pin sheet ---- */
 .sheet__scroll { overflow-y: auto; padding: 0 16px calc(24px + var(--sab)); }
@@ -419,6 +445,9 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
   background: var(--pin); color: #fff; font-size: 12.5px; font-weight: 700;
   padding: 4px 11px; border-radius: var(--r-pill);
 }
+/* Repete a pista do marker no sheet: o degrau "só CNPJ" é o tracejado.
+   `outline` (não `border`) para não empurrar o padding do pill. */
+.origin-card__badge--cnpj { outline: 1.5px dashed #fff; outline-offset: -4px; }
 .conf { display: inline-flex; gap: 4px; }
 .conf__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); }
 .conf__dot.is-on { background: var(--pin); }
@@ -725,8 +754,7 @@ body.view-intel .placing-banner { display: none !important; }
   background: var(--pin); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line-2);
   display: grid; place-items: center; color: #fff; font-size: 9px; font-weight: 900; line-height: 1;
 }
-.lead__dot--cnpja_puro { border-style: dashed; }
-.lead__dot--cnpja_google { border-width: 3px; }
+.lead__dot--cnpj { border-style: dashed; border-width: 1.5px; }
 .lead__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .lead__top, .lead__bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .lead__name { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1181,12 +1209,15 @@ body.view-funil .placing-banner { display: none !important; }
 }
 .funil-card.is-dragging { opacity: .35; }
 .funil-card__top { display: flex; align-items: center; gap: 6px; }
+/* 14px (era 11px): o dot passou a carregar o glifo da pista (G / ✓) e em 11px
+   ele transbordava — não havia font-size nem centralização aqui. */
 .funil-card__dot {
-  flex: 0 0 auto; width: 11px; height: 11px; border-radius: 50%;
+  flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%;
   background: var(--pin); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line-2);
+  display: grid; place-items: center;
+  font-size: 8px; font-weight: 900; color: #fff; line-height: 1;
 }
-.funil-card__dot--cnpja_puro { border-style: dashed; }
-.funil-card__dot--cnpja_google { border-width: 3px; }
+.funil-card__dot--cnpj { border-style: dashed; border-width: 1.5px; }
 .funil-card__name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .funil-card__sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .funil-card__zone { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -51,15 +51,16 @@
   }
 
   function cardHtml(p) {
-    const origin = D.ORIGINS[p.origin] || { color: '#94a3b8' };
+    const origin = D.ORIGINS[p.origin] || { cue: '' };
+    const rel = D.relacaoDe(p);                 // cor = cliente × lead (29/07)
     const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍', label: p.typology };
     const qual = D.QUALIDADE[p.qualidade] || { emoji: '', label: p.qualidade, color: '#64748b', ink: '#334155' };
     const stat = D.STATUS[p.status] || { label: p.status, color: '#64748b' };
-    const seal = p.origin === 'validado_campo' ? '✓' : '';
+    const seal = (origin.cue && origin.cue !== 'dashed') ? origin.cue : '';
     const cnpjLine = p.cnpj ? '<span class="lead__cnpj mono">' + esc(p.cnpj) + '</span>' : '';
     return (
       '<button type="button" class="lead" data-id="' + p.id + '">' +
-        '<span class="lead__dot lead__dot--' + p.origin + '" style="--pin:' + origin.color + '" aria-hidden="true">' + seal + '</span>' +
+        '<span class="lead__dot lead__dot--' + p.origin + '" style="--pin:' + rel.color + '" aria-hidden="true">' + seal + '</span>' +
         '<span class="lead__body">' +
           '<span class="lead__top">' +
             '<span class="lead__name">' + typ.emoji + ' ' + esc(p.name) + '</span>' +

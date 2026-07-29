@@ -482,15 +482,18 @@
   function renderPin() {
     const p = S.getById(currentId);
     if (!p) { close(); return; }
-    const origin = D.ORIGINS[p.origin];
+    const origin = D.ORIGINS[p.origin] || { label: p.origin, level: 0, cue: '', confidence: '—', desc: '' };
+    const rel = D.relacaoDe(p);                 // cor = cliente × lead (29/07)
     const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍', label: p.typology };
     const qual = D.QUALIDADE[p.qualidade] || { label: p.qualidade, emoji: '', color: '#64748b', ink: '#334155' };
     const stat = D.STATUS[p.status] || { label: p.status, color: '#64748b' };
     const porte = p.porte ? (D.PORTE[p.porte] || { label: p.porte }) : null;
 
-    // Escala de confiança (dots)
+    // Escala de confiança (dots) — 3 degraus desde 29/07, não 4.
     let dots = '';
-    for (let i = 1; i <= 4; i++) dots += '<span class="conf__dot' + (i <= origin.level ? ' is-on' : '') + '"></span>';
+    for (let i = 1; i <= D.ORIGIN_ORDER.length; i++) {
+      dots += '<span class="conf__dot' + (i <= origin.level ? ' is-on' : '') + '"></span>';
+    }
 
     // Notas — SEMPRE visíveis
     let notesHtml;
@@ -571,7 +574,7 @@
     sheetEl.querySelector('.sheet__scroll').innerHTML =
       '<div class="sheet__handle" aria-hidden="true"></div>' +
       '<header class="sheet__head">' +
-        '<div class="sheet__avatar" style="--pin:' + origin.color + '">' + PIN_SVG + '</div>' +
+        '<div class="sheet__avatar" style="--pin:' + rel.color + '">' + PIN_SVG + '</div>' +
         '<div class="sheet__titles">' +
           '<h2 class="sheet__name">' + esc(p.name) + '</h2>' +
           '<div class="sheet__sub">' + esc(typ.label) + ' · ' + esc(p.zone) +
@@ -580,9 +583,13 @@
         '<button type="button" class="sheet__close" id="btn-close-sheet" aria-label="Fechar">✕</button>' +
       '</header>' +
 
-      '<div class="origin-card" style="--pin:' + origin.color + ';--pin-ink:' + origin.ink + '">' +
+      // Cinza NEUTRO de propósito: a origem perdeu a cor (29/07) e tingir este
+      // card com a cor da relação faria a confiança parecer cromática de novo.
+      '<div class="origin-card" style="--pin:#64748b;--pin-ink:#334155">' +
         '<div class="origin-card__top">' +
-          '<span class="origin-card__badge">' + esc(origin.label) + '</span>' +
+          '<span class="origin-card__badge origin-card__badge--' + esc(p.origin) + '">' +
+            ((origin.cue && origin.cue !== 'dashed') ? origin.cue + ' ' : '') + esc(origin.label) +
+          '</span>' +
           '<span class="conf">' + dots + '</span>' +
         '</div>' +
         '<div class="origin-card__conf">Confiabilidade: <strong>' + origin.confidence + '</strong></div>' +

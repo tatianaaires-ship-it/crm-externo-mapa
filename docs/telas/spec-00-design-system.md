@@ -59,18 +59,30 @@ related:
 | Danger | `#dc2626` | Erro de campo, ação destrutiva |
 | Hint positivo | `#059669` sobre `#d1fae5` | Selo "validado em campo" no sheet |
 
-### 2.3 Origem / confiabilidade do pin — **load-bearing (CAP-1)**
+### 2.3 Os dois códigos do pin — **load-bearing (CAP-1)**
 
-A cor do pin = **de onde veio o dado**. A escala completa e a regra de derivação vivem em [[estabelecimento]] §5.
+⚠️ **Mudou em 29/07.** Até então a **cor** do pin era a origem, em 4 categorias. Agora são **dois eixos ortogonais, em canais diferentes**: a **cor** diz a *relação comercial*, a **pista de forma** diz a *origem/confiança*. O ganho é que a origem deixa de depender de distinguir matiz — nenhum degrau é só-cor —, e a leitura mais operacional do campo ("já é cliente?") ganha o canal mais forte. A escala completa e a regra de derivação vivem em [[estabelecimento]] §5.
 
-| Categoria | key CSS | Cor | Confiabilidade | Pista não-cromática |
-|---|---|---|---|---|
-| CNPJá puro | `cnpja_puro` | `#8A94A6` cinza | Menor | **borda tracejada** |
-| Google puro | `google_puro` | `#2E7DF6` azul | Média | — |
-| CNPJá + Google | `cnpja_google` | `#12B981` verde | Alta | **borda mais grossa (3px)** |
-| Validado em campo | `validado_campo` | `#7C3AED` roxo | Máxima | **badge `✓`** |
+**Eixo 1 — COR = relação comercial.** Deriva de `cadastrado` (do ERP), logo **continua nunca sendo digitada**.
 
-> A cor entra via variável `--pin`; o miolo do pin é um dot branco. As mesmas pistas se repetem na legenda e nos dots da lista (Inteligência). *(O emoji de tipologia é previsto no CSS mas **não é renderizado** no `map.js` atual — o marker é origin-only. Ver [[spec-01-mapa]] §3.)*
+| Relação | key | Cor | Quando |
+|---|---|---|---|
+| Cliente | `cliente` | `#2053CE` azul da marca | `cadastrado = true` (é quem está em CSC/Aquisição no funil) |
+| Lead | `lead` | `#A78BFA` lilás claro | qualquer outro |
+
+> Azul e lilás foram escolhidos porque o time **já lê lilás como "lead"**. O par carrega contraste forte de **luminosidade** (escuro × claro), então sobrevive em escala de cinza e no daltonismo — a cor não é a única diferença.
+
+**Eixo 2 — PISTA = origem / confiança.** Escada **aditiva** de 3 degraus (`cnpj` ⊂ `google` ⊂ `validado_campo`): todo ponto nasce da base de CNPJ, o Google enriquece, o campo confirma. O pin mostra **só a pista do degrau mais alto** que alcançou.
+
+| Degrau | key CSS | Confiabilidade | Pista (não-cromática) |
+|---|---|---|---|
+| CNPJ | `cnpj` | Menor | **borda tracejada 1.5px** — e é o único **sem** selo |
+| Google | `google` | Média | **badge `G`** no canto |
+| Validado em campo | `validado_campo` | Máxima | **badge `✓`** no canto |
+
+> A cor da relação entra via variável `--pin`; o miolo do pin é um dot branco; o selo é um círculo **branco** com anel `--pin` (legível sobre azul e sobre lilás). Os dois códigos se repetem na legenda (que passou a ter duas seções) e nos dots da lista (Inteligência) e do Funil. O **card de origem no sheet** é de propósito **cinza neutro** — tingi-lo com a cor da relação faria a confiança parecer cromática outra vez. *(O emoji de tipologia é previsto no CSS mas **não é renderizado** no `map.js` — o marker é origin-only. Ver [[spec-01-mapa]] §3.)*
+>
+> ⚠️ **A inversão-tese "Google puro > CNPJá puro" ficou DORMENTE, não revogada** — sem a categoria "só Google", ela não tem sujeito. Se um dia entrar ponto sem CNPJ, ela volta a valer e vira um 4º degrau.
 
 ### 2.4 Qualidade (Ouro/Prata/Bronze)
 
@@ -84,7 +96,9 @@ Derivada do CNAE (ver [[cnae_tier]]). Aparece como pill no sheet, badge na lista
 
 ### 2.5 Ciclo de vida do cliente — ⚠️ **a definir**
 
-Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco/inativo/reconquistado) chegarem à tela, precisarão de cores próprias (o CSS ainda não as tem). **Buraco marcado**, não preenchido — evitar colidir com o semáforo de origem/qualidade.
+Quando os campos comerciais do Estabelecimento (`status_cliente`: ativo/em risco/inativo/reconquistado) chegarem à tela, precisarão de cores próprias (o CSS ainda não as tem). **Buraco marcado**, não preenchido — evitar colidir com o semáforo de qualidade.
+
+⚠️ **Dívida aberta em 29/07:** a cor do pin agora é `cadastrado` (§2.3), que é o **degrau 0 dessa mesma escala** — `status_cliente` só existe para quem é cadastrado. Quando ele chegar, vai querer exatamente este canal, e a decisão será *"o azul de cliente se abre em N tons de saúde"* ou *"saúde vai para outro canal"*. Fica registrado como escolha consciente, não como colisão descoberta depois.
 
 ### 2.6 Status do funil e resultado da tarefa
 
@@ -187,10 +201,10 @@ Bottom nav de **4 abas**, nesta ordem: **🗺️ Mapa · 📋 Intel. · 📊 Fun
 ## 6. Componentes
 
 ### 6.1 Pin (componente-assinatura)
-Corpo circular 34px, borda branca 2.5px, cauda (tip) abaixo. `--pin` = cor da origem; dot branco central; badge `✓` = validado. *(Emoji de tipologia previsto no CSS, mas o protótipo atual renderiza só a cor da origem — ver [[spec-01-mapa]] §3.)* Estados: `is-selected` (escala 1.22 + halo brand), `--moving` (escala + halo), `--new` (animação `pinPop`), `--temp` (pulso roxo `pulse`). Pistas não-cromáticas: `cnpja_puro` borda tracejada, `cnpja_google` borda 3px.
+Corpo circular **28px**, borda branca 2.5px, cauda (tip) abaixo; `divIcon` **36×40**, âncora `[18,38]`. *(Era 34px em 42×50 até 29/07 — encolheu porque com 61 pontos clusterizados o pin dominava o mapa.)* `--pin` = **cor da relação** (cliente × lead); dot branco central de 9px; **selo de canto** 15px = pista do degrau de origem (`G` / `✓`). Estados: `is-selected` (escala 1.22 + halo brand), `--moving` (escala + halo), `--new` (animação `pinPop`), `--temp` (pulso roxo `pulse`). Pista do degrau baixo: `cnpj` **borda tracejada 1.5px** — afinada de 2.5px porque em 28px o traço grosso fazia o círculo ler como engrenagem e comia a silhueta de pin. Ver §2.3 e [[spec-01-mapa]] §3.
 
 ### 6.2 Chips de filtro / quickbar
-Pill com borda `--line-2`; ativo = fundo `--ink` texto branco. Variante origem pinta com a cor da categoria (`--co`). Atalho "Classificação" abre popover de tipologias; badge numérico mostra quantos ativos.
+Pill com borda `--line-2`; ativo = fundo `--ink` texto branco. Os chips de **origem** deixaram de ter cor própria (29/07) e passaram a **ensinar a pista**: o de CNPJ nasce com a borda tracejada, os outros dois trazem o glifo no rótulo (`G Google`, `✓ Validado em campo`). Atalho "Classificação" abre popover de tipologias; badge numérico mostra quantos ativos.
 
 ### 6.3 Botão Filtros
 `.filters-btn` — fundo `--brand`, pill, com badge branco de contagem. Abre o painel de filtros (bottom-sheet).

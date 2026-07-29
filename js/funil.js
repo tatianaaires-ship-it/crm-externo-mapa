@@ -36,14 +36,15 @@
   }
 
   function cardHtml(p) {
-    const origin = D.ORIGINS[p.origin] || { color: '#94a3b8' };
+    const origin = D.ORIGINS[p.origin] || { cue: '' };
+    const rel = D.relacaoDe(p);                 // cor = cliente × lead (29/07)
     const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍', label: p.typology };
     const qual = D.QUALIDADE[p.qualidade] || { emoji: '', label: p.qualidade, color: '#64748b', ink: '#334155' };
-    const seal = p.origin === 'validado_campo' ? '✓' : '';
+    const seal = (origin.cue && origin.cue !== 'dashed') ? origin.cue : '';
     return (
       '<div class="funil-card" draggable="false" data-id="' + esc(p.id) + '" data-status="' + esc(p.status) + '">' +
         '<div class="funil-card__top">' +
-          '<span class="funil-card__dot funil-card__dot--' + esc(p.origin) + '" style="--pin:' + origin.color + '" aria-hidden="true">' + seal + '</span>' +
+          '<span class="funil-card__dot funil-card__dot--' + esc(p.origin) + '" style="--pin:' + rel.color + '" aria-hidden="true">' + seal + '</span>' +
           '<span class="funil-card__name">' + typ.emoji + ' ' + esc(p.name) + '</span>' +
         '</div>' +
         '<div class="funil-card__sub">' +

@@ -10,31 +10,51 @@
 (function () {
   'use strict';
 
-  /* ---- Categorias de origem/confiança (companion origem-confiabilidade) ---- */
-  // Ordem = confiabilidade crescente (nível 1..4).
+  /* ---- Origem / confiança (CAP-1) — 3 degraus, ADITIVOS.
+          Decisão 29/07: a origem saiu da COR e passou a viver só em PISTA de
+          forma (a cor do pin virou a relação comercial — ver RELACAO abaixo).
+          A escada deixou de ter "Google puro": todo ponto nasce da base de CNPJ;
+          o Google ENRIQUECE esse cadastro; o campo confirma. Logo é cumulativa
+          (cnpj ⊂ google ⊂ validado_campo) e o pin exibe só a pista do degrau
+          MAIS ALTO que alcançou.
+          ⚠️ A inversão-tese "Google puro > CNPJá puro" fica DORMENTE, não
+          revogada: sem a categoria "só Google", ela não tem sujeito. Se um dia
+          entrar ponto sem CNPJ, ela volta a valer e vira o 4º degrau. ---- */
   const ORIGINS = {
-    cnpja_puro: {
-      key: 'cnpja_puro', label: 'CNPJá puro', short: 'CNPJá',
-      level: 1, confidence: 'Menor', color: '#8A94A6', ink: '#3d434f',
-      desc: 'Só base de CNPJ, sem cruzamento — endereço pode estar desatualizado.'
+    cnpj: {
+      key: 'cnpj', label: 'CNPJ', short: 'CNPJ',
+      level: 1, confidence: 'Menor', cue: 'dashed',
+      desc: 'Só base de CNPJ, sem enriquecimento — o endereço pode estar desatualizado.'
     },
-    google_puro: {
-      key: 'google_puro', label: 'Google puro', short: 'Google',
-      level: 2, confidence: 'Média', color: '#2E7DF6', ink: '#0b3a86',
-      desc: 'Só Google, sem CNPJ associado — localização provável, cadastro incompleto.'
-    },
-    cnpja_google: {
-      key: 'cnpja_google', label: 'CNPJá + Google', short: 'Cruzado',
-      level: 3, confidence: 'Alta', color: '#12B981', ink: '#065f42',
-      desc: 'CNPJ cruzado com Google — dois cruzamentos concordam.'
+    google: {
+      key: 'google', label: 'Google', short: 'Google',
+      level: 2, confidence: 'Média', cue: 'G',
+      desc: 'Cadastro de CNPJ enriquecido com Google — duas fontes concordam sobre a fachada.'
     },
     validado_campo: {
       key: 'validado_campo', label: 'Validado em campo', short: 'Campo',
-      level: 4, confidence: 'Máxima', color: '#7C3AED', ink: '#4c1d95',
+      level: 3, confidence: 'Máxima', cue: '✓',
       desc: 'Confirmado presencialmente pelo vendedor (check-in / correção).'
     }
   };
-  const ORIGIN_ORDER = ['cnpja_puro', 'google_puro', 'cnpja_google', 'validado_campo'];
+  const ORIGIN_ORDER = ['cnpj', 'google', 'validado_campo'];
+
+  /* ---- Relação comercial — é o que a COR do pin diz (decisão 29/07).
+          Deriva de `cadastrado` (existe registro comercial?), que já é derivado
+          do ERP — ou seja, a cor continua NUNCA sendo digitada.
+          Escolha das cores: azul da marca para cliente, lilás claro para lead
+          (é a cor com que o time já lê "lead"). O par carrega contraste de
+          LUMINOSIDADE forte (escuro × claro), então sobrevive em escala de
+          cinza e no daltonismo — a cor não é a única diferença.
+          ⚠️ Quando `status_cliente` (ativo/em risco/inativo) chegar, ele vai
+          querer este mesmo canal — ver SPEC 00 §2.5. ---- */
+  const RELACAO = {
+    cliente: { key: 'cliente', label: 'Cliente', color: '#2053CE', ink: '#12307c' },
+    lead:    { key: 'lead',    label: 'Lead',    color: '#A78BFA', ink: '#5b21b6' }
+  };
+  const RELACAO_ORDER = ['cliente', 'lead'];
+  // A cor de UM pin: cadastrado => cliente; senão => lead.
+  function relacaoDe(p) { return (p && p.cadastrado) ? RELACAO.cliente : RELACAO.lead; }
 
   /* ---- Tipologias (buyers de food service — contexto Praso) ---- */
   const TYPOLOGIES = {
@@ -421,18 +441,18 @@
     return b > a;
   }
 
-  // origem_confianca pela ESCADA (na dúvida, arredonda pra BAIXO).
-  // sinais: { fieldValidated, hasCnpj, hasGoogle, matchConfirmed }
+  // origem_confianca pela ESCADA de 3 degraus (na dúvida, arredonda pra BAIXO).
+  // sinais: { fieldValidated, hasGoogle }
   //  1) validado em campo (Máxima) — vence tudo e é monotônico.
-  //  2) CNPJá + Google (Alta) — exige match confirmado.
-  //  3) Google puro (Média)  >  4) CNPJá puro (Menor)  ← a tese do produto.
+  //  2) Google (Média) — o cadastro de CNPJ foi enriquecido com Google.
+  //  3) CNPJ (Menor) — o piso: todo ponto vem da base de CNPJ.
+  // `hasCnpj` e `matchConfirmed` deixaram de entrar na conta (29/07): sem a
+  // categoria "só Google" não há mais dois degraus para eles separarem.
   function deriveOrigemConfianca(sig) {
     sig = sig || {};
     if (sig.fieldValidated) return 'validado_campo';
-    if (sig.hasCnpj && sig.hasGoogle && sig.matchConfirmed) return 'cnpja_google';
-    if (sig.hasGoogle) return 'google_puro';
-    if (sig.hasCnpj) return 'cnpja_puro';
-    return 'cnpja_puro';
+    if (sig.hasGoogle) return 'google';
+    return 'cnpj';
   }
 
   /* ---- Sementes compactas do núcleo do lead.
@@ -441,89 +461,89 @@
           qualidade/origem/is_converted são DERIVADOS no buildSeed. ---- */
   const SEED = [
     // ===== Boa Viagem =====
-    { n: 'Padaria Maré Alta',            t: 'padaria',     z: 'Boa Viagem',    o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-10', note: 'Dono pediu tabela de congelados. Voltar 3ª de manhã.' },
+    { n: 'Padaria Maré Alta',            t: 'padaria',     z: 'Boa Viagem',    o: 'google',         s: 'td_encontrado', lv: '2026-07-10', note: 'Dono pediu tabela de congelados. Voltar 3ª de manhã.' },
     { n: 'Restaurante Peixe na Brasa',   t: 'restaurante', z: 'Boa Viagem',    o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-14', note: 'Fechou pedido de hortifruti semanal.' },
-    { n: 'Empório Setúbal',              t: 'mercadinho',  z: 'Boa Viagem',    o: 'cnpja_puro',     s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ parece antigo — confirmar fachada.', cnae: '4639701' },
-    { n: 'Sorveteria Polo Sul',          t: 'sorveteria',  z: 'Boa Viagem',    o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Café da Orla',                 t: 'cafeteria',   z: 'Boa Viagem',    o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-12', note: 'Interessado, mas travou no preço. Reabordar.' },
-    { n: 'Pizzaria Forno de Boa Viagem', t: 'pizzaria',    z: 'Boa Viagem',    o: 'google_puro',    s: 'sem_plano',  lv: null },
+    { n: 'Empório Setúbal',              t: 'mercadinho',  z: 'Boa Viagem',    o: 'cnpj',           s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ parece antigo — confirmar fachada.', cnae: '4639701' },
+    { n: 'Sorveteria Polo Sul',          t: 'sorveteria',  z: 'Boa Viagem',    o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Café da Orla',                 t: 'cafeteria',   z: 'Boa Viagem',    o: 'google',         s: 'visitado',      lv: '2026-05-12', note: 'Interessado, mas travou no preço. Reabordar.' },
+    { n: 'Pizzaria Forno de Boa Viagem', t: 'pizzaria',    z: 'Boa Viagem',    o: 'google',         s: 'sem_plano',  lv: null },
 
     // ===== Pina =====
     { n: 'Bar do Pina',                  t: 'bar',         z: 'Pina',          o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-09', note: 'Compra cerveja e petiscos toda semana.' },
-    { n: 'Marmitaria Sabor do Cais',     t: 'marmitaria',  z: 'Pina',          o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-06-28', cnae: '5620101' },
-    { n: 'Hortifruti Verde Pina',        t: 'hortifruti',  z: 'Pina',          o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
+    { n: 'Marmitaria Sabor do Cais',     t: 'marmitaria',  z: 'Pina',          o: 'google',         s: 'td_encontrado', lv: '2026-06-28', cnae: '5620101' },
+    { n: 'Hortifruti Verde Pina',        t: 'hortifruti',  z: 'Pina',          o: 'cnpj',           s: 'sem_plano',  lv: null },
 
     // ===== Recife Antigo =====
-    { n: 'Restaurante Marco Zero',       t: 'restaurante', z: 'Recife Antigo', o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-02', note: 'Chef quer amostra de defumados.' },
-    { n: 'Bar Paço Alfândega',           t: 'bar',         z: 'Recife Antigo', o: 'google_puro',    s: 'visitado',      lv: '2026-04-20' },
-    { n: 'Café Cais do Sertão',          t: 'cafeteria',   z: 'Recife Antigo', o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
+    { n: 'Restaurante Marco Zero',       t: 'restaurante', z: 'Recife Antigo', o: 'google',         s: 'td_encontrado', lv: '2026-07-02', note: 'Chef quer amostra de defumados.' },
+    { n: 'Bar Paço Alfândega',           t: 'bar',         z: 'Recife Antigo', o: 'google',         s: 'visitado',      lv: '2026-04-20' },
+    { n: 'Café Cais do Sertão',          t: 'cafeteria',   z: 'Recife Antigo', o: 'cnpj',           s: 'sem_plano',  lv: null },
 
     // ===== Boa Vista / Santo Amaro / Derby / Ilha do Leite =====
-    { n: 'Padaria Boa Vista Pão',        t: 'padaria',     z: 'Boa Vista',     o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-30', note: 'Comprou farinha 1x. Fazer follow-up mensal.' },
-    { n: 'Lanchonete Central',           t: 'lanchonete',  z: 'Boa Vista',     o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Açougue Santo Amaro',          t: 'acougue',     z: 'Santo Amaro',   o: 'cnpja_puro',     s: 'sem_plano',  lv: null,         note: 'CNPJ sem número — geolocalizar na visita.' },
+    { n: 'Padaria Boa Vista Pão',        t: 'padaria',     z: 'Boa Vista',     o: 'google',         s: 'visitado',      lv: '2026-05-30', note: 'Comprou farinha 1x. Fazer follow-up mensal.' },
+    { n: 'Lanchonete Central',           t: 'lanchonete',  z: 'Boa Vista',     o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Açougue Santo Amaro',          t: 'acougue',     z: 'Santo Amaro',   o: 'cnpj',           s: 'sem_plano',  lv: null,         note: 'CNPJ sem número — geolocalizar na visita.' },
     { n: 'Restaurante Derby Grill',      t: 'restaurante', z: 'Derby',         o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-15', note: 'Cliente âncora do bairro.' },
-    { n: 'Mercadinho Ilha do Leite',     t: 'mercadinho',  z: 'Ilha do Leite', o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-06-20' },
-    { n: 'Cafeteria do Hospital',        t: 'cafeteria',   z: 'Ilha do Leite', o: 'google_puro',    s: 'sem_plano',  lv: null },
+    { n: 'Mercadinho Ilha do Leite',     t: 'mercadinho',  z: 'Ilha do Leite', o: 'google',         s: 'td_encontrado', lv: '2026-06-20' },
+    { n: 'Cafeteria do Hospital',        t: 'cafeteria',   z: 'Ilha do Leite', o: 'google',         s: 'sem_plano',  lv: null },
 
     // ===== Espinheiro / Aflitos / Graças =====
-    { n: 'Padaria Espinheiro',           t: 'padaria',     z: 'Espinheiro',    o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-11', note: 'Quer testar linha de frios premium.' },
+    { n: 'Padaria Espinheiro',           t: 'padaria',     z: 'Espinheiro',    o: 'google',         s: 'td_encontrado', lv: '2026-07-11', note: 'Quer testar linha de frios premium.' },
     { n: 'Restaurante Villa Graças',     t: 'restaurante', z: 'Graças',        o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-08' },
-    { n: 'Bar dos Aflitos',              t: 'bar',         z: 'Aflitos',       o: 'google_puro',    s: 'visitado',      lv: '2026-03-15', note: 'Dono viajando, retornar em agosto.' },
-    { n: 'Cafeteria Graças',             t: 'cafeteria',   z: 'Graças',        o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Hortifruti Aflitos',           t: 'hortifruti',  z: 'Aflitos',       o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-05' },
-    { n: 'Pizzaria Espinheiro',          t: 'pizzaria',    z: 'Espinheiro',    o: 'google_puro',    s: 'sem_plano',  lv: null },
+    { n: 'Bar dos Aflitos',              t: 'bar',         z: 'Aflitos',       o: 'google',         s: 'visitado',      lv: '2026-03-15', note: 'Dono viajando, retornar em agosto.' },
+    { n: 'Cafeteria Graças',             t: 'cafeteria',   z: 'Graças',        o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Hortifruti Aflitos',           t: 'hortifruti',  z: 'Aflitos',       o: 'google',         s: 'visitado',      lv: '2026-06-05' },
+    { n: 'Pizzaria Espinheiro',          t: 'pizzaria',    z: 'Espinheiro',    o: 'google',         s: 'sem_plano',  lv: null },
 
     // ===== Madalena / Torre =====
     { n: 'Padaria Madalena',             t: 'padaria',     z: 'Madalena',      o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-13', note: 'Pediu antecipar entrega de véspera de feriado.' },
-    { n: 'Bar da Torre',                 t: 'bar',         z: 'Torre',         o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-01' },
-    { n: 'Marmitaria Torre',             t: 'marmitaria',  z: 'Torre',         o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Mercadinho Madalena',          t: 'mercadinho',  z: 'Madalena',      o: 'google_puro',    s: 'visitado',      lv: '2026-02-10', note: 'Sem giro no último trimestre. Reavaliar.' },
-    { n: 'Sorveteria Madalena Gelato',   t: 'sorveteria',  z: 'Madalena',      o: 'cnpja_google',   s: 'sem_plano',  lv: null },
+    { n: 'Bar da Torre',                 t: 'bar',         z: 'Torre',         o: 'google',         s: 'td_encontrado', lv: '2026-07-01' },
+    { n: 'Marmitaria Torre',             t: 'marmitaria',  z: 'Torre',         o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Mercadinho Madalena',          t: 'mercadinho',  z: 'Madalena',      o: 'google',         s: 'visitado',      lv: '2026-02-10', note: 'Sem giro no último trimestre. Reavaliar.' },
+    { n: 'Sorveteria Madalena Gelato',   t: 'sorveteria',  z: 'Madalena',      o: 'google',         s: 'sem_plano',  lv: null },
 
     // ===== Casa Forte / Casa Amarela =====
-    { n: 'Restaurante Casa Forte',       t: 'restaurante', z: 'Casa Forte',    o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-06-30', note: 'Aguardando aprovação do sócio.' },
+    { n: 'Restaurante Casa Forte',       t: 'restaurante', z: 'Casa Forte',    o: 'google',         s: 'td_encontrado', lv: '2026-06-30', note: 'Aguardando aprovação do sócio.' },
     { n: 'Padaria Jardim Casa Forte',    t: 'padaria',     z: 'Casa Forte',    o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-06' },
-    { n: 'Açougue Casa Amarela',         t: 'acougue',     z: 'Casa Amarela',  o: 'cnpja_puro',     s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ diverge do Google. Validar.' },
-    { n: 'Hortifruti Casa Amarela',      t: 'hortifruti',  z: 'Casa Amarela',  o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Lanchonete Casa Forte',        t: 'lanchonete',  z: 'Casa Forte',    o: 'cnpja_puro',     s: 'visitado',      lv: '2026-05-05' },
+    { n: 'Açougue Casa Amarela',         t: 'acougue',     z: 'Casa Amarela',  o: 'cnpj',           s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ diverge do Google. Validar.' },
+    { n: 'Hortifruti Casa Amarela',      t: 'hortifruti',  z: 'Casa Amarela',  o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Lanchonete Casa Forte',        t: 'lanchonete',  z: 'Casa Forte',    o: 'cnpj',           s: 'visitado',      lv: '2026-05-05' },
 
     // ===== Imbiribeira =====
-    { n: 'Restaurante Imbiribeira',      t: 'restaurante', z: 'Imbiribeira',   o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-25' },
-    { n: 'Padaria Imbiribeira Pão Quente', t: 'padaria',   z: 'Imbiribeira',   o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Bar do Aeroporto',             t: 'bar',         z: 'Imbiribeira',   o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
+    { n: 'Restaurante Imbiribeira',      t: 'restaurante', z: 'Imbiribeira',   o: 'google',         s: 'visitado',      lv: '2026-06-25' },
+    { n: 'Padaria Imbiribeira Pão Quente', t: 'padaria',   z: 'Imbiribeira',   o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Bar do Aeroporto',             t: 'bar',         z: 'Imbiribeira',   o: 'cnpj',           s: 'sem_plano',  lv: null },
 
     // ===== Olinda (metropolitana) =====
     { n: 'Restaurante Alto da Sé',       t: 'restaurante', z: 'Olinda',        o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-12', note: 'Ponto turístico, alto volume no fim de semana.' },
-    { n: 'Bar do Carmo',                 t: 'bar',         z: 'Olinda',        o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-06-29' },
-    { n: 'Padaria Quatro Cantos',        t: 'padaria',     z: 'Olinda',        o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Sorveteria Olinda',            t: 'sorveteria',  z: 'Olinda',        o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Hotel Pousada dos Milagres',   t: 'hotel',       z: 'Olinda',        o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-20', note: 'Café da manhã do hotel — potencial de padaria + frios.' },
+    { n: 'Bar do Carmo',                 t: 'bar',         z: 'Olinda',        o: 'google',         s: 'td_encontrado', lv: '2026-06-29' },
+    { n: 'Padaria Quatro Cantos',        t: 'padaria',     z: 'Olinda',        o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Sorveteria Olinda',            t: 'sorveteria',  z: 'Olinda',        o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Hotel Pousada dos Milagres',   t: 'hotel',       z: 'Olinda',        o: 'google',         s: 'visitado',      lv: '2026-05-20', note: 'Café da manhã do hotel — potencial de padaria + frios.' },
 
     // ===== Jaboatão (metropolitana) =====
-    { n: 'Mercadinho Piedade',           t: 'mercadinho',  z: 'Jaboatão',      o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Restaurante Praia de Piedade', t: 'restaurante', z: 'Jaboatão',      o: 'google_puro',    s: 'sem_plano',  lv: null },
+    { n: 'Mercadinho Piedade',           t: 'mercadinho',  z: 'Jaboatão',      o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Restaurante Praia de Piedade', t: 'restaurante', z: 'Jaboatão',      o: 'google',         s: 'sem_plano',  lv: null },
     { n: 'Hotel Piedade Praia',          t: 'hotel',       z: 'Jaboatão',      o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-07', note: 'Rede pequena, avaliar as outras 2 unidades.' },
 
     // ===== Fortaleza / CE =====
-    { n: 'Padaria Meireles',             t: 'padaria',     z: 'Meireles',           o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-10', note: 'Quer testar linha de frios. Voltar quinta de manhã.' },
+    { n: 'Padaria Meireles',             t: 'padaria',     z: 'Meireles',           o: 'google',         s: 'td_encontrado', lv: '2026-07-10', note: 'Quer testar linha de frios. Voltar quinta de manhã.' },
     { n: 'Restaurante Beira Mar',        t: 'restaurante', z: 'Meireles',           o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-13', note: 'Alto volume no fim de semana.' },
-    { n: 'Bar Praia de Iracema',         t: 'bar',         z: 'Praia de Iracema',   o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-22' },
-    { n: 'Cafeteria Aldeota',            t: 'cafeteria',   z: 'Aldeota',            o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Mercadinho Cocó',              t: 'mercadinho',  z: 'Cocó',               o: 'cnpja_puro',     s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ parece antigo — confirmar fachada.' },
-    { n: 'Pizzaria Varjota',             t: 'pizzaria',    z: 'Varjota',            o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Hortifruti do Centro',         t: 'hortifruti',  z: 'Centro (Fortaleza)', o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Sorveteria Aldeota',           t: 'sorveteria',  z: 'Aldeota',            o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-18' },
+    { n: 'Bar Praia de Iracema',         t: 'bar',         z: 'Praia de Iracema',   o: 'google',         s: 'visitado',      lv: '2026-06-22' },
+    { n: 'Cafeteria Aldeota',            t: 'cafeteria',   z: 'Aldeota',            o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Mercadinho Cocó',              t: 'mercadinho',  z: 'Cocó',               o: 'cnpj',           s: 'sem_plano',  lv: null,         note: 'Endereço do CNPJ parece antigo — confirmar fachada.' },
+    { n: 'Pizzaria Varjota',             t: 'pizzaria',    z: 'Varjota',            o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Hortifruti do Centro',         t: 'hortifruti',  z: 'Centro (Fortaleza)', o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Sorveteria Aldeota',           t: 'sorveteria',  z: 'Aldeota',            o: 'google',         s: 'visitado',      lv: '2026-05-18' },
 
     // ===== João Pessoa / PB =====
     { n: 'Restaurante Tambaú Mar',       t: 'restaurante', z: 'Tambaú',             o: 'validado_campo', s: 'td_encontrado', conv: 1,    lv: '2026-07-11', note: 'Fechou hortifruti semanal.' },
-    { n: 'Padaria Manaíra',              t: 'padaria',     z: 'Manaíra',            o: 'cnpja_google',   s: 'td_encontrado', lv: '2026-07-03' },
-    { n: 'Bar do Cabo Branco',           t: 'bar',         z: 'Cabo Branco',        o: 'google_puro',    s: 'sem_plano',  lv: null },
-    { n: 'Cafeteria Bessa',              t: 'cafeteria',   z: 'Bessa',              o: 'cnpja_google',   s: 'visitado',      lv: '2026-06-14' },
-    { n: 'Marmitaria Bancários',         t: 'marmitaria',  z: 'Bancários',          o: 'cnpja_puro',     s: 'sem_plano',  lv: null },
-    { n: 'Mercadinho Manaíra',           t: 'mercadinho',  z: 'Manaíra',            o: 'cnpja_puro',     s: 'sem_plano',  lv: null,         note: 'CNPJ sem número — geolocalizar na visita.' },
-    { n: 'Hotel Tambaú',                 t: 'hotel',       z: 'Tambaú',             o: 'cnpja_google',   s: 'visitado',      lv: '2026-05-25', note: 'Café da manhã — potencial de padaria + frios.' },
-    { n: 'Sorveteria Cabo Branco',       t: 'sorveteria',  z: 'Cabo Branco',        o: 'google_puro',    s: 'sem_plano',  lv: null }
+    { n: 'Padaria Manaíra',              t: 'padaria',     z: 'Manaíra',            o: 'google',         s: 'td_encontrado', lv: '2026-07-03' },
+    { n: 'Bar do Cabo Branco',           t: 'bar',         z: 'Cabo Branco',        o: 'google',         s: 'sem_plano',  lv: null },
+    { n: 'Cafeteria Bessa',              t: 'cafeteria',   z: 'Bessa',              o: 'google',         s: 'visitado',      lv: '2026-06-14' },
+    { n: 'Marmitaria Bancários',         t: 'marmitaria',  z: 'Bancários',          o: 'cnpj',           s: 'sem_plano',  lv: null },
+    { n: 'Mercadinho Manaíra',           t: 'mercadinho',  z: 'Manaíra',            o: 'cnpj',           s: 'sem_plano',  lv: null,         note: 'CNPJ sem número — geolocalizar na visita.' },
+    { n: 'Hotel Tambaú',                 t: 'hotel',       z: 'Tambaú',             o: 'google',         s: 'visitado',      lv: '2026-05-25', note: 'Café da manhã — potencial de padaria + frios.' },
+    { n: 'Sorveteria Cabo Branco',       t: 'sorveteria',  z: 'Cabo Branco',        o: 'google',         s: 'sem_plano',  lv: null }
   ];
 
   /* ---- Expansão determinística: coords jitteradas + campos derivados ---- */
@@ -559,7 +579,11 @@
       const meta = ZONE_META[r.z] || REC;
       const lat = +(c[0] + jitter(i * 3 + 1, 0.014)).toFixed(6);
       const lng = +(c[1] + jitter(i * 5 + 2, 0.014)).toFixed(6);
-      const hasCnpj = r.o !== 'google_puro';
+      // Desde 29/07 TODO ponto nasce da base de CNPJ (a categoria "só Google"
+      // deixou de existir), então razão social / CNPJ / porte nunca são nulos no
+      // seed. O caminho do nulo continua tratado no sheet — o dado real da
+      // Fase 3 pode trazer registro sem CNPJ.
+      const hasCnpj = true;
       const cnae = r.cnae || TYPOLOGY_CNAE[r.t] || null;
       const validado = r.o === 'validado_campo';
 
@@ -1144,6 +1168,9 @@
   window.CRM_DATA = {
     ORIGINS: ORIGINS,
     ORIGIN_ORDER: ORIGIN_ORDER,
+    RELACAO: RELACAO,
+    RELACAO_ORDER: RELACAO_ORDER,
+    relacaoDe: relacaoDe,
     TYPOLOGIES: TYPOLOGIES,
     QUALIDADE: QUALIDADE,
     QUALIDADE_ORDER: QUALIDADE_ORDER,
