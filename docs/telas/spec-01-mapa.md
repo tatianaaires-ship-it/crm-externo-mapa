@@ -59,9 +59,25 @@ Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-fil
 
 ## 5. Quickbar — filtros rápidos (CAP-2)
 
+A quickbar tem **três botões + Filtros** desde 29/07, e um deles não é da mesma natureza dos outros:
+
+- **🏆 Aquisição** — **PRESET, não dimensão.** Liga **quatro filtros de uma vez** para isolar *oportunidades reais de aquisição*: `porte ≠ MEI` · `qualidade ∈ {Ouro, Prata}` · `status do cliente ∈ {lead, csc, churn}` · `fase ∉ {perdido, desqualificado}`. **Dourado** (`#C9971B`) para se distinguir dos recortes; detalhe do componente no [[spec-00-design-system]] §6.
 - **🏷️ Classificação** → abre popover com todas as tipologias (multi-seleção); badge com a contagem de selecionadas.
-- **3 atalhos toggle:** **🥇 Ouro** · **📌 Não visitados 30+** · **✓ Validado em campo** (sincronizados com o painel completo).
+- **📌 Não visitados 30+** — atalho toggle, sincronizado com o painel completo.
 - **Filtros** → painel completo com todas as dimensões (detalhe em [[spec-03-filtros]]).
+
+> 🗑️ **Saíram da quickbar em 29/07: "🥇 Ouro" e "✓ Validado em campo".** Ouro foi absorvido pelo preset de Aquisição (ele já exige Ouro ou Prata); a origem é recorte de **procedência**, não de intenção de trabalho — quem quer olhar procedência abre o painel. Os dois **continuam no painel completo**, então nada deixou de ser filtrável.
+
+### 5.1 Como o preset se comporta
+
+- **Aplicar marca os chips do painel**, não esconde nada: dá para ver que `MEI` ficou de fora e mexer em qualquer um depois. O preset **não trava** nenhum filtro.
+- **O estado do botão é DERIVADO**, não guardado: ele está aceso se e somente se os quatro conjuntos são exatamente os do preset. Consequência boa — **mexer num chip do preset apaga o destaque sozinho**, em vez de deixar um botão aceso mentindo que o recorte ainda é aquele. Adicionar um filtro de **outra** dimensão (zona, tipologia) **não** apaga: essas não são dele.
+- **Desligar limpa só as quatro dimensões do preset.** Tipologia, zona, origem e última visita continuam como estavam — mínima surpresa.
+- **O badge de Filtros mostra 16**, não 1, quando o preset está ligado: são 16 chips ativos de verdade (5+2+3+6). Contar como "1" seria mentir sobre o que está aplicado.
+- ⚠️ **O modelo de filtro não tem negação** (conjunto vazio = tudo; cheio = só esses), então `≠ MEI` e `∉ {perdido, desqualificado}` são expressos como **lista-branca do complemento**. É justamente isso que faz o preset aparecer nos chips — uma regra de exclusão invisível não mostraria nada.
+- ✅ **Porte nulo virou filtrável — chip `Sem porte` (29/07).** A lista-branca escondia o **pin criado em campo**: o porte chega via CNPJá, então nasce nulo, e um lead achado na rua ficava fora de "Aquisição" — exatamente a lista onde ele deveria estar. Não era regra do preset (qualquer filtro de porte já fazia isso), mas o preset a tornou visível. Consertado com a **mesma solução do `Sem Zona`**: o vazio ganha nome e vira valor de primeira classe (`matches` compara `p.porte || 'SEM_PORTE'`). O preset **inclui** `Sem porte`, porque a intenção é *excluir MEI*, não *exigir porte conhecido*. Verificado: o lead da rua entra, e filtrar só `Sem porte` isola exatamente ele.
+  > O grupo de Porte tem então **7 chips**: as 6 faixas reais de `porte_c` + o balde. `PORTE_ORDER` (enum de **dado**, o que o seed sorteia) e `PORTE_FILTRO` (vocabulário do **filtro**) são listas separadas em `js/data.js` de propósito — juntá-las faria o seed atribuir "Sem porte" como se fosse uma faixa.
+- ℹ️ `fase` inclui `aquisicao` na lista-branca (a regra é "≠ perdido e ≠ desqualificado"), mas na prática nenhum pin em `aquisicao` passa: o filtro de status do cliente já corta `recorrente`, e pelo invariante `aquisicao ⟹ recorrente`. Redundante, não errado.
 - **Contador:** `result-pill` no topbar mostra "N locais"; badge no botão Filtros mostra nº de filtros ativos.
 - **Lógica:** **AND entre dimensões, OR dentro da dimensão**. O filtro **oculta** pins — **nunca deleta** (o pin nunca some). O **mesmo conjunto filtrado** alimenta a aba Inteligência ([[spec-05-intel]]), o Funil e as Atividades.
 - **Oito dimensões** (ordem do painel), com três mudanças em 29/07:
@@ -71,7 +87,7 @@ Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-fil
   | Tipologia | 12 | **data-driven** (o real traz `outro`) |
   | Última visita | 2 | `nao_30` · `recente` |
   | Qualidade | 3 | Ouro/Prata/Bronze |
-  | **Porte** | **6** | ⬆️ era 4; uma faixa por valor real de `porte_c`, `LTDA`→`DEMAIS` |
+  | **Porte** | **7** | ⬆️ era 4; 6 faixas reais de `porte_c` (`LTDA`→`DEMAIS`) + balde `Sem porte` |
   | Origem / confiança | 3 | chips ensinam a **pista** (§3), sem cor |
   | **Fase** | 8 | 🔤 **era "Status"** — renomeado para liberar o nome |
   | **Status do cliente** | **4** | 🆕 `lead` · `csc` · `recorrente` · `churn` |

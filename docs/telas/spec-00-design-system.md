@@ -94,6 +94,8 @@ Derivada do CNAE (ver [[cnae_tier]]). Aparece como pill no sheet, badge na lista
 | Prata | `#7E8CA0` |
 | Bronze | `#B06A3B` |
 
+> ℹ️ **O `#C9971B` ganhou um segundo uso em 29/07:** o botão de preset **🏆 Aquisição** na quickbar (§6.2b). A família semântica é a mesma — *alvo de valor* —, e o preset de fato exige Ouro **ou Prata**, então o dourado ali não significa "só ouro". Foi preferido a inventar um segundo dourado quase idêntico.
+
 ### 2.5 Ciclo de vida do cliente — 🟡 **chegou como filtro, ainda sem cor**
 
 `status_cliente` **entrou no mesmo dia (29/07)**, com o vocabulário da operação: **`lead` → `csc` → `recorrente` → `churn`** (o doc supunha `ativo/em_risco/inativo/reconquistado` — ver [[estabelecimento]] §5). Entrou como **dimensão de filtro**, rotulada **"Status do cliente"**, e **não** ganhou cor própria: os chips usam o `--ink` padrão como os demais.
@@ -206,7 +208,17 @@ Bottom nav de **4 abas**, nesta ordem: **🗺️ Mapa · 📋 Intel. · 📊 Fun
 Corpo circular **28px**, borda branca 2.5px, cauda (tip) abaixo; `divIcon` **36×40**, âncora `[18,38]`. *(Era 34px em 42×50 até 29/07 — encolheu porque com 61 pontos clusterizados o pin dominava o mapa.)* `--pin` = **cor da relação** (cliente × lead); dot branco central de 9px; **selo de canto** 15px = pista do degrau de origem (`G` / `✓`). Estados: `is-selected` (escala 1.22 + halo brand), `--moving` (escala + halo), `--new` (animação `pinPop`), `--temp` (pulso roxo `pulse`). Pista do degrau baixo: `cnpj` **borda tracejada 1.5px** — afinada de 2.5px porque em 28px o traço grosso fazia o círculo ler como engrenagem e comia a silhueta de pin. Ver §2.3 e [[spec-01-mapa]] §3.
 
 ### 6.2 Chips de filtro / quickbar
-Pill com borda `--line-2`; ativo = fundo `--ink` texto branco. Os chips de **origem** deixaram de ter cor própria (29/07) e passaram a **ensinar a pista**: o de CNPJ nasce com a borda tracejada, os outros dois trazem o glifo no rótulo (`G Google`, `✓ Validado em campo`). Atalho "Classificação" abre popover de tipologias; badge numérico mostra quantos ativos.
+Pill com borda `--line-2`; ativo = fundo `--ink` texto branco. Os chips de **origem** deixaram de ter cor própria (29/07) e passaram a **ensinar a pista**: o de CNPJ nasce com a borda tracejada, os outros dois trazem o glifo no rótulo (`G Google`, `✓ Validado em campo`). Os **baldes de vocabulário** — `Sem Zona` e `Sem porte` — vão em *itálico apagado* (`.chip--sem-valor`): são **ausência com nome**, não categoria, e não devem ler como os valores de verdade ao lado. Atalho "Classificação" abre popover de tipologias; badge numérico mostra quantos ativos.
+
+> ⚖️ **Padrão: o vazio ganha nome em vez de desaparecer** (29/07, duas vezes). Num filtro inclusivo (conjunto vazio = tudo; cheio = só esses), um campo nulo não casa chip nenhum e o pin **sai silenciosamente** de qualquer recorte daquela dimensão. Foi o que aconteceu com a zona e depois com o porte — no segundo caso escondendo justamente o **pin criado em campo**, cujo porte só chega quando o CNPJá responde. A regra que fica: **dimensão que aceita nulo precisa de balde explícito**, com chip próprio e estilo de balde.
+
+### 6.2b Botão de preset (`.quick--aq`) — **dourado**
+
+Variante da quickbar que **não é uma dimensão**: um toque liga **um conjunto** de filtros. Hoje existe um, **🏆 Aquisição** (regra em [[spec-01-mapa]] §5).
+
+- **Dourado `#C9971B`** — o **mesmo** da qualidade Ouro (§2.4), de propósito: um segundo dourado quase igual na tela seria pior que um dourado com dois usos da mesma família semântica — **"alvo de valor"**. Não colidem no mesmo lugar: o chip de Ouro vive no painel, e este botão na quickbar, de onde o "🥇 Ouro" saiu no mesmo dia.
+- **Estado por inversão de fundo, não por matiz:** desligado = `#fdf3d7` com borda `#e3c46a` e texto `#6d5200`; ligado = `#C9971B` sólido com texto `#2e2205` e anel `rgba(201,151,27,.22)`. É a mesma gramática claro→sólido dos outros chips. **Texto escuro, não branco** — branco sobre `#C9971B` dá ~2,6:1, insuficiente.
+- **Estado derivado, nunca guardado:** aceso ⟺ os conjuntos são exatamente os do preset. Mexer num filtro do preset apaga o botão sozinho; botão de preset que fica aceso depois de o usuário mexer é botão que mente.
 
 ### 6.3 Botão Filtros
 `.filters-btn` — fundo `--brand`, pill, com badge branco de contagem. Abre o painel de filtros (bottom-sheet).

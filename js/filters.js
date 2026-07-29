@@ -23,6 +23,67 @@
 
   let getSelectedId = function () { return null; };
 
+  /* =====================================================================
+     PRESET "Aquisição" (29/07) — oportunidades reais de aquisição.
+     Não é uma dimensão nova: é um ATALHO que liga QUATRO de uma vez. Depois de
+     aplicado, os chips do painel ficam marcados normalmente e podem ser
+     mexidos — o preset não trava nada.
+
+     ⚠️ O modelo de filtro é INCLUSIVO (conjunto vazio = tudo; conjunto cheio =
+     só esses) e não tem negação. Então "porte diferente de MEI" e "fase
+     diferente de perdido/desqualificado" são expressos como LISTA-BRANCA do
+     complemento — 5 dos 6 portes, 6 das 8 fases. É o que faz o preset aparecer
+     nos chips: dá para ver que MEI ficou de fora, o que uma regra de exclusão
+     invisível não mostraria.
+
+     Consequência de usar lista-branca: pin com `porte: null` sai do conjunto.
+     Isso atinge o pin CRIADO EM CAMPO (o porte chega via CNPJá, então nasce
+     nulo) — mas é o mesmo comportamento de qualquer filtro de porte hoje, não
+     uma regra nova do preset.
+     ===================================================================== */
+  function presetAquisicao() {
+    return {
+      // porte ≠ MEI — inclui `Sem porte`, porque a intenção é EXCLUIR MEI, não
+      // exigir que o porte já seja conhecido. É o que faz o lead criado na rua
+      // (porte nulo até o CNPJá responder) entrar na lista de aquisição.
+      porte: D.PORTE_FILTRO.filter(function (k) { return k !== 'MEI'; }),
+      // qualidade ∈ {Ouro, Prata}
+      qualidade: ['Ouro', 'Prata'],
+      // status do cliente ∈ {lead, csc, churn} — ou seja, quem ainda não é recorrente
+      statusCliente: ['lead', 'csc', 'churn'],
+      // fase ∉ {perdido, desqualificado}
+      status: D.STATUS_ORDER.filter(function (k) {
+        return k !== 'perdido' && k !== 'desqualificado';
+      })
+    };
+  }
+  const PRESET_DIMS = ['porte', 'qualidade', 'statusCliente', 'status'];
+
+  function mesmoConjunto(set, arr) {
+    if (set.size !== arr.length) return false;
+    return arr.every(function (v) { return set.has(v); });
+  }
+
+  /* O botão não guarda estado próprio: "ligado" é DERIVADO dos quatro
+     conjuntos. Assim, mexer num chip do painel apaga o destaque sozinho — sem
+     ficar um botão aceso mentindo que o recorte ainda é o do preset. */
+  function aquisicaoAtiva() {
+    const p = presetAquisicao();
+    return PRESET_DIMS.every(function (d) { return mesmoConjunto(filters[d], p[d]); });
+  }
+
+  function toggleAquisicao() {
+    const ligar = !aquisicaoAtiva();
+    const p = presetAquisicao();
+    PRESET_DIMS.forEach(function (d) {
+      filters[d].clear();
+      if (ligar) p[d].forEach(function (v) { filters[d].add(v); });
+    });
+    // Desligar limpa SÓ as quatro dimensões do preset — tipologia, zona, origem
+    // e última visita continuam como estavam. Mínima surpresa.
+    reapply();
+  }
+
   /* ---- Matching ---- */
   function daysSince(iso) {
     if (!iso) return Infinity;
@@ -36,7 +97,9 @@
     if (!setMatch(filters.typology, p.typology)) return false;
     if (!setMatch(filters.zone, p.zone)) return false;
     if (!setMatch(filters.qualidade, p.qualidade)) return false;
-    if (!setMatch(filters.porte, p.porte)) return false;
+    // Porte nulo é um VALOR filtrável desde 29/07 (`SEM_PORTE`), não uma
+    // ausência que some do filtro — senão o pin criado em campo desaparecia.
+    if (!setMatch(filters.porte, p.porte || D.SEM_PORTE)) return false;
     if (!setMatch(filters.origin, p.origin)) return false;
     if (!setMatch(filters.status, p.status)) return false;
     // `statusCliente` é derivado; se um pin chegar sem ele (dado real cru),
@@ -139,6 +202,13 @@
       el.classList.toggle('is-on', on);
       el.setAttribute('aria-pressed', String(on));
     });
+    // Botão "Aquisição": estado DERIVADO dos quatro conjuntos (ver toggleAquisicao).
+    const aq = document.getElementById('btn-aquisicao');
+    if (aq) {
+      const on = aquisicaoAtiva();
+      aq.classList.toggle('is-on', on);
+      aq.setAttribute('aria-pressed', String(on));
+    }
     // Botão "Classificação": ativo se houver tipologia selecionada, com contador.
     const cb = document.getElementById('btn-class');
     if (cb) {
@@ -214,7 +284,7 @@
      a supervisão ver a lista de zonas inteira em vez de só o que sobrou. */
   function zoneEntries() {
     return D.ZONA_ORDER.map(function (z) {
-      return { key: z, label: z, cls: z === D.SEM_ZONA ? 'chip--sem-zona' : '' };
+      return { key: z, label: z, cls: z === D.SEM_ZONA ? 'chip--sem-valor' : '' };
     });
   }
 
@@ -240,8 +310,10 @@
       const q = D.QUALIDADE[k];
       return { key: k, label: q.emoji + ' ' + q.label, cls: 'chip--qual chip--q-' + k };
     });
-    const porteEntries = D.PORTE_ORDER.map(function (k) {
-      return { key: k, label: D.PORTE[k].label };
+    // PORTE_FILTRO, não PORTE_ORDER: o painel inclui o balde `Sem porte`.
+    const porteEntries = D.PORTE_FILTRO.map(function (k) {
+      return { key: k, label: D.PORTE[k].label,
+               cls: k === D.SEM_PORTE ? 'chip--sem-valor' : '' };
     });
     const stCliEntries = D.STATUS_CLIENTE_ORDER.map(function (k) {
       return { key: k, label: D.STATUS_CLIENTE[k].label, cls: 'chip--stcli chip--sc-' + k };
@@ -278,17 +350,25 @@
   function buildQuick() {
     const host = document.getElementById('quick-filters');
     if (!host) return;
-    // Botão "Classificação" abre um popover com todas as tipologias (multi-seleção).
+    // "Aquisição" é PRESET, não dimensão: liga quatro de uma vez (ver PRESET_AQUISICAO).
+    // Vem primeiro e em dourado porque é o atalho de intenção, não um recorte.
     let html =
+      '<button type="button" class="quick quick--aq" id="btn-aquisicao" aria-pressed="false" ' +
+        'title="Oportunidades reais de aquisição — aplica quatro filtros de uma vez">' +
+        '🏆 Aquisição' +
+      '</button>';
+    // Botão "Classificação" abre um popover com todas as tipologias (multi-seleção).
+    html +=
       '<button type="button" class="quick quick--class" id="btn-class" aria-expanded="false" aria-haspopup="true">' +
         '<span>🏷️ Classificação</span>' +
         '<span class="quick__badge" id="class-badge"></span>' +
         '<span class="quick__chev" aria-hidden="true">▾</span>' +
       '</button>';
+    // 29/07: "🥇 Ouro" e "✓ Validado em campo" saíram da quickbar (seguem no
+    // painel completo). Ouro virou parte do preset de Aquisição, e a origem é
+    // recorte de procedência — não de intenção de trabalho.
     const quicks = [
-      { dim: 'qualidade', val: 'Ouro', label: '🥇 Ouro' },
-      { dim: 'lastVisit', val: 'nao_30', label: '📌 Não visitados 30+' },
-      { dim: 'origin', val: 'validado_campo', label: '✓ Validado em campo' }
+      { dim: 'lastVisit', val: 'nao_30', label: '📌 Não visitados 30+' }
     ];
     quicks.forEach(function (q) {
       html += '<button type="button" class="quick" data-quick="1" data-qdim="' + q.dim +
@@ -296,6 +376,7 @@
     });
     host.innerHTML = html;
     host.addEventListener('click', function (ev) {
+      if (ev.target.closest('#btn-aquisicao')) { toggleAquisicao(); return; }
       if (ev.target.closest('#btn-class')) { toggleClass(); return; }
       const btn = ev.target.closest('[data-quick]');
       if (!btn) return;

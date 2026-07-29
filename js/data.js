@@ -133,9 +133,24 @@
     ME_EI:  { key: 'ME_EI',  label: 'ME-EI Não MEI', full: 'Microempresa / EI não optante pelo MEI',  sf: 'me-ei-nao_mei' },
     EPP:    { key: 'EPP',    label: 'EPP',           full: 'Empresa de pequeno porte (LTDA)',         sf: 'epp-ltda' },
     EPP_EI: { key: 'EPP_EI', label: 'EPP-EI',        full: 'Empresa de pequeno porte (EI)',           sf: 'epp-ei' },
-    DEMAIS: { key: 'DEMAIS', label: 'DEMAIS',        full: 'Demais (LTDA / S.A.)',                    sf: 'demais' }
+    DEMAIS: { key: 'DEMAIS', label: 'DEMAIS',        full: 'Demais (LTDA / S.A.)',                    sf: 'demais' },
+    // Balde do FILTRO, não faixa de dado — ver SEM_PORTE abaixo.
+    SEM_PORTE: { key: 'SEM_PORTE', label: 'Sem porte', full: 'Porte ainda não conhecido', sf: null }
   };
+  /* Duas ordens de propósito diferente:
+     · PORTE_ORDER  = o enum de DADO (as 6 faixas reais de `porte_c`). É o que o
+       seed sorteia e o que pode ser gravado num pin.
+     · PORTE_FILTRO = o vocabulário do FILTRO, que ganha o balde `SEM_PORTE`.
+     Misturar os dois faria o seed atribuir "Sem porte" como se fosse uma faixa. */
   const PORTE_ORDER = ['MEI', 'ME', 'ME_EI', 'EPP', 'EPP_EI', 'DEMAIS'];
+  const SEM_PORTE = 'SEM_PORTE';
+  /* `SEM_PORTE` (29/07) — porte NULO passou a ser filtrável. Antes, pin sem
+     porte não casava nenhum chip e desaparecia de qualquer filtro de porte;
+     quem mais sofria era o pin CRIADO EM CAMPO, cujo porte chega via CNPJá e
+     por isso nasce nulo. Um lead achado na rua ficava fora de "Aquisição" —
+     exatamente a lista onde ele deveria estar. Mesma solução do `Sem Zona`:
+     o vazio ganha nome e vira valor de primeira classe no filtro. */
+  const PORTE_FILTRO = PORTE_ORDER.concat([SEM_PORTE]);
 
   /* ---- Vendedores fictícios. Não há auth por usuário até a Fase 4: o
           `responsavel` da tarefa é DERIVADO (herda o do pin; se nulo, o criador
@@ -1285,6 +1300,8 @@
     QUALIDADE_ORDER: QUALIDADE_ORDER,
     PORTE: PORTE,
     PORTE_ORDER: PORTE_ORDER,
+    PORTE_FILTRO: PORTE_FILTRO,
+    SEM_PORTE: SEM_PORTE,
     STATUS: STATUS,
     STATUS_ORDER: STATUS_ORDER,
     STATUS_BOARD: STATUS_BOARD,

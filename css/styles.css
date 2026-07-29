@@ -123,6 +123,22 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--ink); color: #fff; border-color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
+/* "Aquisição" (29/07) — PRESET, não dimensão: liga quatro filtros de uma vez.
+   Dourado para se distinguir dos recortes, que são brancos → tinta. Reusa o
+   `#C9971B` da qualidade Ouro (SPEC 00 §2.4) de propósito: um segundo dourado
+   quase igual na tela seria pior que um dourado com dois usos da mesma família
+   ("alvo de valor"). Não colidem no mesmo lugar — o chip de Ouro vive no painel
+   e este botão na quickbar, de onde o "🥇 Ouro" saiu.
+   Estado não depende só de matiz: claro → SÓLIDO é a mesma inversão de fundo
+   que os outros chips fazem, e o texto escuro mantém contraste (branco sobre
+   #C9971B daria ~2,6:1, insuficiente). */
+.quick--aq {
+  background: #fdf3d7; border-color: #e3c46a; color: #6d5200; font-weight: 700;
+}
+.quick--aq.is-on {
+  background: #C9971B; border-color: #a87c12; color: #2e2205;
+  box-shadow: 0 0 0 3px rgba(201,151,27,.22), var(--shadow-sm);
+}
 .filters-btn {
   flex: 0 0 auto; position: relative;
   display: flex; align-items: center; gap: 6px;
@@ -414,9 +430,9 @@ body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
 /* Origem não tem mais COR (29/07) — o chip ensina a PISTA: o de CNPJ é o único
    tracejado, os outros dois trazem o glifo (G / ✓) no próprio rótulo. */
 .chip--o-cnpj { border-style: dashed; }
-/* "Sem Zona" é o balde do vocabulário fechado, não uma zona — fica em itálico
-   e apagado para não ler como as 15 de verdade. */
-.chip--sem-zona { font-style: italic; color: var(--muted); }
+/* Baldes de vocabulário — `Sem Zona` e `Sem porte`: itálico e apagados, para
+   não lerem como valor de verdade. São ausência com nome, não categoria. */
+.chip--sem-valor { font-style: italic; color: var(--muted); }
 
 /* ---- Pin sheet ---- */
 .sheet__scroll { overflow-y: auto; padding: 0 16px calc(24px + var(--sab)); }
