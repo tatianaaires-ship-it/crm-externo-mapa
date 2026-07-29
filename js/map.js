@@ -17,6 +17,13 @@
   let clusterGroup = null;
   let selectedId = null;
   let moveId = null;
+  /* Pin REVELADO (29/07) — o ponto que a busca achou mas os filtros escondem.
+     Vive FORA do clusterGroup, como o pin em modo mover: assim ele aparece no
+     mapa sem entrar em `matches`/`getFiltered`, então o pill "N locais", o
+     badge de filtros, o Funil, a Inteligência e as Atividades continuam
+     dizendo a verdade sobre o recorte. É o "pin momentâneo": exceção visível
+     no mapa, não mudança no filtro. */
+  let revealId = null;
   let onSelectCb = null;
   let youMarker = null, youAccuracy = null;
   let onLocateFoundCb = null, onLocateErrorCb = null;
@@ -35,8 +42,11 @@
       ? '<span class="pin__badge" aria-hidden="true">' + origin.cue + '</span>' : '';
     const created = pin.createdByUser ? ' pin--new' : '';
     const moving = pin.id === moveId ? ' pin--moving' : '';
+    // Anel tracejado: pista PERMANENTE de que este ponto está fora do recorte.
+    // O toast avisa uma vez e some; o anel fica enquanto a exceção existir.
+    const reveal = pin.id === revealId ? ' pin--revelado' : '';
     return (
-      '<div class="pin pin--' + pin.origin + created + moving + '" style="--pin:' + rel.color + ';--pin-ink:' + rel.ink + '">' +
+      '<div class="pin pin--' + pin.origin + created + moving + reveal + '" style="--pin:' + rel.color + ';--pin-ink:' + rel.ink + '">' +
         '<div class="pin__body"><span class="pin__dot"></span>' + badge + '</div>' +
         '<div class="pin__tip"></div>' +
       '</div>'
@@ -164,6 +174,11 @@
     pins.forEach(function (pin) {
       keep[pin.id] = true;
       if (pin.id === moveId) return; // o pin em movimento tem marker próprio no mapa (startMove)
+      /* O pin revelado também tem marker próprio, fora do cluster. Se ele
+         VOLTOU a caber no filtro (o usuário limpou/alargou), a revelação perdeu
+         a razão de existir: dispensa e deixa o fluxo normal recriá-lo, senão
+         ficaria com o anel de exceção sem ser exceção. */
+      if (pin.id === revealId) { dispensarRevelado(); }
       let marker = markersById[pin.id];
       if (!marker) {
         // draggable:false por padrão — só o pin em modo mover vira arrastável (startMove).
@@ -179,11 +194,46 @@
     // Remove markers que saíram do filtro (NÃO é exclusão de pin — só ocultação visual).
     const toRemove = [];
     Object.keys(markersById).forEach(function (id) {
-      if (!keep[id] && id !== moveId) { toRemove.push(markersById[id]); delete markersById[id]; }
+      // `revealId` sobrevive à limpeza: ele existe justamente por NÃO estar no
+      // conjunto filtrado, então seria removido a cada render.
+      if (!keep[id] && id !== moveId && id !== revealId) {
+        toRemove.push(markersById[id]); delete markersById[id];
+      }
     });
     if (toRemove.length) clusterGroup.removeLayers(toRemove);
     if (toAdd.length) clusterGroup.addLayers(toAdd);   // lote + chunkedLoading = rápido p/ milhares
   }
+
+  /* ---- Pin revelado: mostrar um ponto que os filtros escondem ----
+     Existe para o valor central do mapa: ACHAR o ponto. Uma busca que não mostra
+     o que achou porque um filtro está ligado não serve — e mexer no filtro por
+     baixo seria pior, destruiria o recorte que a pessoa montou. Então o pin
+     entra como EXCEÇÃO VISÍVEL: marker próprio fora do cluster, com anel
+     tracejado, sem tocar em `matches` nem nas contagens. */
+  function revelar(id) {
+    const p = window.CRM_STATE.getById(id);
+    if (!p || !map) return false;
+    dispensarRevelado();
+    revealId = id;
+    // Se já havia marker (caso raro: acabou de sair do filtro), tira do cluster
+    // para não ficarem dois no mesmo ponto.
+    const existente = markersById[id];
+    if (existente) { clusterGroup.removeLayer(existente); delete markersById[id]; }
+    const mk = L.marker([p.lat, p.lng], { icon: makeIcon(p), draggable: false, keyboard: false });
+    attachMarkerEvents(mk, p);
+    mk.addTo(map);            // direto no mapa: fora do cluster, fora do filtro
+    markersById[id] = mk;
+    return true;
+  }
+
+  // Remove o marker de exceção. Não mexe no pin: ele nunca some do dado.
+  function dispensarRevelado() {
+    if (!revealId) return;
+    const mk = markersById[revealId];
+    if (mk) { map.removeLayer(mk); delete markersById[revealId]; }
+    revealId = null;
+  }
+  function getRevelado() { return revealId; }
 
   // ---- Modo mover (CAP-5, acionado por botão dentro do pin) ----
   function startMove(id) {
@@ -234,6 +284,12 @@
   }
 
   function setSelected(id) {
+    /* Fim da exceção. `setSelected` é o sinal que já existe: o sheet chama com
+       `null` ao fechar e com outro id ao trocar de pin. Nos dois casos a
+       revelação cumpriu o papel (levar até AQUELE ponto) e sai — é o que faz
+       dela um pin MOMENTÂNEO em vez de estado pendurado no mapa.
+       Selecionar o próprio revelado não dispensa, senão ele sumiria no toque. */
+    if (revealId && id !== revealId) dispensarRevelado();
     const prev = selectedId;
     selectedId = id;
     // Atualiza só os dois markers afetados (cluster-safe: a maioria nem está no DOM).
@@ -326,6 +382,9 @@
     onSelect: function (fn) { onSelectCb = fn; },
     focus: focus,
     fitTo: fitTo,
+    revelar: revelar,
+    dispensarRevelado: dispensarRevelado,
+    getRevelado: getRevelado,
     panToShow: panToShow,
     startMove: startMove,
     endMove: endMove,

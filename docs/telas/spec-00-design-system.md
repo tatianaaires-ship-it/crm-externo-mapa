@@ -283,6 +283,12 @@ Lupa fechada → **campo de largura cheia** que substitui os chips (`.quickbar.i
 
 **Dropdown de sugestões** (`.qsug`) — abre abaixo do campo, **dentro da quickbar** para herdar o stacking dela (z 39) e cair sobre mapa, FABs e banners sem z-index próprio. `max-height: 46dvh` com rolagem. Item = emoji da tipologia · nome · `bairro · cidade · CNPJ` · dot da relação/origem (§2.3). Teto de **8** com rodapé *"Mostrando 8 de N"* — **teto silencioso mentiria** sobre o tamanho do resultado. Regra em [[spec-01-mapa]] §5.2.
 
+**Item fora do recorte** (`.qsug__item--oculto` + `.qsug__tag`): fundo `#fffbeb` e etiqueta `fora do filtro` em `#fde68a`/`#7c2d12`. **Âmbar, não Danger** — é ressalva de procedência, como a `.sim-banner` e a nota da legenda, não erro.
+
+**Pin revelado** (`.pin--revelado`): anel externo `#f59e0b` + halo — o ponto está no mapa apesar de os filtros o esconderem. O anel é **externo** de propósito: o tracejado da **borda** já é a pista de origem `cnpj` (§2.3), e dois códigos na mesma superfície se confundiriam.
+
+> ⚖️ **Padrão: revelar em vez de mexer no filtro** (29/07). Quando a tela precisa mostrar algo que o recorte esconde, a saída **não** é alterar os filtros por baixo — isso destrói o recorte que a pessoa montou, que é justamente o que ela quer de volta depois. A saída é uma **exceção visível e temporária**: fora do `matches` (para pill, badge e as outras abas seguirem verdadeiros), com pista permanente na tela, e com fim claro (aqui: fechar o sheet ou trocar de pin).
+
 > ⚙️ **Lista que se redesenha a cada tecla escuta `pointerdown`, não `click`.** No toque, o `blur` do input dispara antes do `click`, e o item já foi removido do DOM: a escolha se perde. Vale para qualquer autocomplete deste app. E vale a regra geral do §6 — **delegação**, nunca listener por item.
 
 ### 6.10 Segmented control (`.seg`)

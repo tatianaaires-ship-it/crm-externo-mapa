@@ -308,9 +308,15 @@
      As duas coisas convivem: o mapa já filtrou e reenquadrou; tocar num item
      leva ao ponto e abre o sheet.
 
-     ⚠️ A lista sai do CONJUNTO FILTRADO, não de todos os pins. Sugerir um pin
-     que os outros filtros escondem levaria a abrir o sheet de um ponto que não
-     está no mapa — o app diria duas coisas ao mesmo tempo.
+     ⚠️ **A lista varre TODOS os pins, não o conjunto filtrado** (corrigido no
+     mesmo dia). A primeira versão respeitava os filtros, e isso matava o valor
+     central do mapa: com qualquer chip ligado, buscar um ponto conhecido não o
+     achava — e a pessoa não tem como saber que a culpa era de um filtro. ACHAR
+     é função da busca; FILTRAR é função do filtro.
+     O ponto fora do recorte vem marcado na lista e, ao ser escolhido, entra no
+     mapa como **exceção visível** (`CRM_MAP.revelar`): marker fora do cluster,
+     com anel tracejado. Nada disso mexe em `matches` — o pill, o badge e as
+     outras três abas continuam dizendo a verdade sobre o recorte.
      ===================================================================== */
   const SUG_TETO = 8;
 
@@ -328,13 +334,24 @@
 
   function sugestoes() {
     const q = D.norm(filters.q).trim();
-    if (!q) return { itens: [], total: 0 };
-    const todos = getFiltered().slice().sort(function (a, b) {
+    if (!q) return { itens: [], total: 0, ocultos: 0 };
+    // TODOS os pins — só o termo decide quem entra na lista.
+    const todos = S.getAll().filter(function (p) { return D.matchBusca(p, filters.q); });
+    /* Ordena SÓ por relevância, sem empurrar os ocultos para o fim: se eles
+       fossem para baixo, cairiam abaixo do teto de 8 e a correção não teria
+       servido para nada — o ponto que a pessoa procura costuma ser exatamente
+       o que o filtro escondeu. */
+    todos.sort(function (a, b) {
       const d = scoreSug(a, q) - scoreSug(b, q);
       if (d !== 0) return d;
       return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
     });
-    return { itens: todos.slice(0, SUG_TETO), total: todos.length };
+    const itens = todos.slice(0, SUG_TETO);
+    return {
+      itens: itens,
+      total: todos.length,
+      ocultos: todos.filter(function (p) { return !matches(p); }).length
+    };
   }
 
   function renderSug() {
@@ -346,7 +363,9 @@
       host.innerHTML = '';
       return;
     }
-    const { itens, total } = sugestoes();
+    // UMA chamada só: `sugestoes()` varre os 6.914 pins do dado real, e isso
+    // roda a cada tecla — chamar duas vezes no mesmo render dobrava o trabalho.
+    const { itens, total, ocultos } = sugestoes();
     if (!total) {
       host.innerHTML = '<div class="qsug__vazio">Nenhum estabelecimento para ' +
         '“' + escAttr(filters.q) + '”.</div>';
@@ -362,11 +381,16 @@
       const meta = D.BAIRRO_META[p.bairro];
       const cidade = meta ? meta.city + '/' + meta.uf : (p.zone || '');
       const sub = [p.bairro || p.zone, cidade, p.cnpj].filter(Boolean).join(' · ');
+      // Marca quem os filtros escondem: a pessoa precisa saber que aquele ponto
+      // não está no mapa AGORA, senão o resultado da escolha surpreende.
+      const oculto = !matches(p);
       html +=
-        '<button type="button" class="qsug__item" role="option" data-sug="' + escAttr(p.id) + '">' +
+        '<button type="button" class="qsug__item' + (oculto ? ' qsug__item--oculto' : '') +
+          '" role="option" data-sug="' + escAttr(p.id) + '">' +
           '<span class="qsug__emoji" aria-hidden="true">' + typ.emoji + '</span>' +
           '<span class="qsug__body">' +
-            '<span class="qsug__nome">' + escAttr(p.name) + '</span>' +
+            '<span class="qsug__nome">' + escAttr(p.name) +
+              (oculto ? '<span class="qsug__tag">fora do filtro</span>' : '') + '</span>' +
             '<span class="qsug__sub">' + escAttr(sub) + '</span>' +
           '</span>' +
           '<span class="qsug__dot qsug__dot--' + escAttr(p.origin) + '" style="--pin:' +
@@ -375,9 +399,15 @@
     });
     // Teto NUNCA silencioso: com 6.914 pins um termo curto casa centenas, e
     // mostrar 8 sem dizer quantos sobraram leria como "só existem estes".
-    if (total > itens.length) {
-      html += '<div class="qsug__mais">Mostrando ' + itens.length + ' de <strong>' +
-        total + '</strong> — refine o termo, ou veja todos no mapa e na Inteligência.</div>';
+    if (total > itens.length || ocultos) {
+      let rod = '';
+      if (total > itens.length) {
+        rod = 'Mostrando ' + itens.length + ' de <strong>' + total + '</strong>';
+      }
+      if (ocultos) {
+        rod += (rod ? ' · ' : '') + '<strong>' + ocultos + '</strong> fora do filtro atual';
+      }
+      html += '<div class="qsug__mais">' + rod + '</div>';
     }
     host.innerHTML = html;
     host.classList.add('is-open');
@@ -388,7 +418,22 @@
      continuar com o mapa filtrado ao termo esconderia a vizinhança dele, que é
      justamente o que se quer ver ao chegar. */
   function escolherSug(id) {
+    const p = S.getById(id);
+    // Precisa ser lido ANTES de fechar a busca: fechar limpa o termo, e sem o
+    // termo o ponto pode voltar a caber no filtro — a pergunta mudaria.
+    const oculto = p && !matches(p);
+
     fecharBusca();
+
+    /* Ponto que os filtros escondem entra como EXCEÇÃO VISÍVEL, sem tocar no
+       filtro: mexer nos chips por baixo destruiria o recorte que a pessoa
+       montou, e é o recorte que ela vai querer de volta depois. */
+    if (oculto && window.CRM_MAP && window.CRM_MAP.revelar) {
+      window.CRM_MAP.revelar(id);
+      if (window.CRM_TOAST) {
+        window.CRM_TOAST('Fora dos filtros atuais — mostrando só este ponto.');
+      }
+    }
     // `false` = sem animação: pode ser outra capital, e salto longo animado
     // desorienta (mesmo argumento do fitTo).
     if (window.CRM_MAP) window.CRM_MAP.focus(id, 17, false);

@@ -180,6 +180,17 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--surface-2); border-top: 1px solid var(--line);
 }
 .qsug__vazio { padding: 14px 12px; font-size: 12.5px; color: var(--muted); }
+/* Item que os filtros escondem: aparece na lista (achar é a função da busca),
+   mas MARCADO — escolher um ponto oculto tem consequência diferente, e o
+   resultado não pode surpreender. Fundo âmbar, a linguagem de "aviso de
+   procedência" do app (§2.2), nunca Danger: não é erro, é ressalva. */
+.qsug__item--oculto { background: #fffbeb; }
+.qsug__item--oculto:active { background: #fef3c7; }
+.qsug__tag {
+  display: inline-block; margin-left: 6px; vertical-align: 1px;
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  color: #7c2d12; background: #fde68a; border-radius: var(--r-pill); padding: 1px 6px;
+}
 .quick {
   flex: 0 0 auto;
   border: 1px solid var(--line-2); background: var(--surface);
@@ -312,6 +323,15 @@ button { font-family: inherit; cursor: pointer; }
 .pin-wrap.is-selected { z-index: 1000 !important; }
 .pin-wrap.is-selected .pin__body { transform: scale(1.22); box-shadow: 0 0 0 4px rgba(32,83,206,.28), 0 6px 14px rgba(15,23,42,.4); }
 .pin--moving .pin__body { transform: scale(1.14); box-shadow: 0 0 0 5px rgba(32,83,206,.3), 0 8px 16px rgba(15,23,42,.4); }
+/* Pin REVELADO pela busca: está no mapa apesar dos filtros o esconderem.
+   Anel âmbar tracejado = pista PERMANENTE da exceção (o toast avisa uma vez e
+   some). Âmbar, não Danger: é ressalva de procedência, não erro. Não usa o
+   tracejado da BORDA, que já é a pista de origem `cnpj` — a exceção mora num
+   anel externo, para os dois códigos não se confundirem. */
+.pin--revelado .pin__body {
+  box-shadow: 0 0 0 3px #f59e0b, 0 0 0 6px rgba(245,158,11,.28), 0 3px 8px rgba(15,23,42,.35);
+}
+.pin--revelado .pin__tip { filter: drop-shadow(0 2px 2px rgba(245,158,11,.9)); }
 .pin--new .pin__body { animation: pinPop .5s ease; }
 @keyframes pinPop { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 .pin--temp .pin__body { animation: pulse 1.3s ease-in-out infinite; }

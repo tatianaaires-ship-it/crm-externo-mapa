@@ -101,8 +101,18 @@ Enquanto o filtro responde *"quais pins casam"*, a lista responde *"é este"*. A
 - **Item:** emoji da tipologia · **nome** · `bairro · cidade/UF · CNPJ` · **dot da relação/origem** (mesma gramática do marker — §3), tudo em uma linha com *ellipsis*.
 - **Ranking por relevância:** quem **começa** com o termo vem antes de quem só o contém, e **nome** antes de **razão social**; CNPJ por último. Sem isso, digitar "pad" podia trazer um restaurante cujo nome contém "padaria" antes da "Padaria Maré Alta". Usa a **mesma** normalização do `matchBusca` (`CRM_DATA.norm`, exposta para não haver duas versões divergindo).
 - **Teto de 8, nunca silencioso:** o rodapé diz *"Mostrando 8 de N"*. Com 6.914 pins um termo curto casa centenas; mostrar 8 sem dizer quantos sobraram leria como *"só existem estes"*.
-- **A lista sai do CONJUNTO FILTRADO**, não de todos os pins. Sugerir um ponto que os outros filtros escondem levaria a abrir o sheet de um pin que **não está no mapa** — o app diria duas coisas ao mesmo tempo.
+- ⭐ **A lista varre TODOS os pins, inclusive os que os filtros escondem** — e é o ponto mais importante desta seção. A primeira versão respeitava o filtro, e isso **matava o valor central do mapa**: com qualquer chip ligado, buscar um ponto conhecido não o achava, e a pessoa não tem como saber que a culpa era de um filtro. **Achar** é função da busca; **filtrar** é função do filtro. O item oculto vem **marcado** (`fora do filtro`, fundo âmbar) e o rodapé conta quantos são.
 - **Escolher LIMPA a busca** (fecha a barra, e fechar limpa pela regra acima), depois foca em zoom 17, abre o sheet e aplica `panToShow` para o pin não ficar atrás dele. Limpar é deliberado: você escolheu **um** ponto, e seguir com o mapa filtrado ao termo esconderia justamente a vizinhança que se quer ver ao chegar.
+
+#### Pin REVELADO — a exceção visível (`pin--revelado`)
+
+Escolher um ponto que os filtros escondem faz ele **aparecer no mapa** (`CRM_MAP.revelar`). É o "pin momentâneo": um marker próprio **fora do clusterGroup**, exatamente como o pin em modo mover (§7) já fazia.
+
+- **Não toca no filtro.** Não entra em `matches` nem em `getFiltered`, então o pill `N locais`, o badge de Filtros, o Funil, a Inteligência e as Atividades **continuam dizendo a verdade** sobre o recorte. Medido: com `Qualidade = Ouro` ligado, revelar um ponto Prata mantém o pill em `5 locais` e o badge em `1`.
+- **Mexer nos chips por baixo seria pior.** Destruiria o recorte que a pessoa montou — e é esse recorte que ela vai querer de volta depois de olhar o ponto.
+- **Pista permanente:** anel **âmbar tracejado** em volta do corpo. Âmbar é a linguagem de *aviso de procedência* do app (nunca Danger — não é erro, é ressalva), e o anel fica **externo** de propósito: o tracejado da **borda** já é a pista de origem `cnpj` (§3), e os dois códigos não podem se confundir. Um **toast** avisa uma vez; o anel fica enquanto a exceção existir.
+- **Quando termina:** ao **fechar o sheet** ou ao **selecionar outro pin** — os dois casos chegam por `setSelected`, que o sheet já chamava. É o que a faz *momentânea* em vez de estado pendurado no mapa.
+- **Se o ponto voltar a caber no filtro** (a pessoa limpou ou alargou), o `render` **dispensa a revelação** e deixa o fluxo normal recriar o marker: senão ele ficaria com o anel de exceção sem ser exceção, e haveria dois markers no mesmo ponto. Verificado — sem duplicata.
 - **`Enter` escolhe a primeira** — atalho de quem já sabe o que quer. **Tocar no mapa fecha a lista sem limpar o termo**: quem toca no mapa quer ver o mapa, que já está filtrado.
 - ⚙️ **Dois detalhes de implementação que são armadilha:** a lista usa **delegação** (redesenha a cada tecla, e listener por item morreria no render seguinte) e escuta **`pointerdown`, não `click`** — no toque o `blur` do input chega antes do `click`, e o item já teria sido removido: a escolha se perdia. O dropdown vive **dentro da quickbar** para herdar o stacking dela (z 39) e cair sobre mapa, FABs e banners sem z-index próprio.
 
@@ -147,7 +157,7 @@ No **marker** aparecem apenas: a **posição** (`geo`), a **origem** (pista de f
 
 ## 10. Decisões & casos de borda
 
-- **Sem exclusão de pin** (constraint) — filtrar apenas oculta.
+- **Sem exclusão de pin** (constraint) — filtrar apenas oculta. ➕ **E o oculto pode ser trazido de volta pontualmente** (29/07): a busca revela um ponto escondido sem mexer no filtro (§5.2). O invariante continua intacto — o filtro só oculta, e agora dá para furar o véu num ponto por vez, de forma visível.
 - **Zoom no topo-direito** para não colidir com os FABs.
 - ✅ **Decidido (29/07) — a cor do pin virou a relação comercial, e a origem virou pista de forma.** Antes: cor = origem, 4 categorias. O que se ganhou: nenhum degrau de origem depende de matiz (era o ponto fraco da CAP-1), e "já é cliente?" — a pergunta que o vendedor faz da calçada — ficou com o canal mais forte. O que se pagou: a categoria **"só Google"** deixou de existir (todo ponto vem da base de CNPJ, o Google enriquece), então a **inversão-tese ficou dormente**. Detalhe da escada em [[estabelecimento]] §5.
   > ✅ **A disputa pelo canal da cor já aconteceu — no mesmo dia.** `status_cliente` chegou horas depois (§5) e **não** levou a cor: entrou como filtro de 4 valores, e a cor do pin **segue binária**, porque `lead` é exatamente o lilás e `csc`/`recorrente`/`churn` são exatamente o azul — dar paleta própria criaria dois códigos de cor para a mesma informação. Abrir o azul em três tons continua em aberto ([[spec-00-design-system]] §2.5).
