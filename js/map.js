@@ -245,10 +245,15 @@
     });
   }
 
-  function focus(id, zoom) {
+  /* `animar` é opcional e default TRUE — assim o caminho antigo (abrir lead da
+     Inteligência) segue exatamente como era no aparelho. A busca passa `false`:
+     escolher da lista é SALTO DE CONTEXTO (o ponto pode estar em outra capital),
+     e é o único caminho testável aqui, onde animação do Leaflet não roda. */
+  function focus(id, zoom, animar) {
     const p = window.CRM_STATE.getById(id);
     if (!p) return;
-    map.setView([p.lat, p.lng], zoom || Math.max(map.getZoom(), 16), { animate: true });
+    map.setView([p.lat, p.lng], zoom || Math.max(map.getZoom(), 16),
+      { animate: animar !== false });
   }
 
   /* Enquadra o conjunto (usado pela busca — CRM_FILTERS.enquadrarNaBusca).

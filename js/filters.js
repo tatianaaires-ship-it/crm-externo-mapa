@@ -244,6 +244,7 @@
       // Termo buscado com a barra fechada seria filtro invisível: mantém aberta.
       if (on) abrirBusca(false);
     }
+    renderSug();   // as sugestões acompanham o conjunto filtrado
     // Botão "Aquisição": estado DERIVADO dos quatro conjuntos (ver toggleAquisicao).
     const aq = document.getElementById('btn-aquisicao');
     if (aq) {
@@ -299,6 +300,101 @@
   function enquadrarNaBusca() {
     if (!filters.q.trim() || !window.CRM_MAP || !window.CRM_MAP.fitTo) return;
     window.CRM_MAP.fitTo(getFiltered());
+  }
+
+  /* =====================================================================
+     SUGESTÕES da busca (29/07) — o atalho para UM pin.
+     Enquanto o filtro responde "quais pins casam", a lista responde "é este".
+     As duas coisas convivem: o mapa já filtrou e reenquadrou; tocar num item
+     leva ao ponto e abre o sheet.
+
+     ⚠️ A lista sai do CONJUNTO FILTRADO, não de todos os pins. Sugerir um pin
+     que os outros filtros escondem levaria a abrir o sheet de um ponto que não
+     está no mapa — o app diria duas coisas ao mesmo tempo.
+     ===================================================================== */
+  const SUG_TETO = 8;
+
+  // Relevância: quem começa com o termo vem antes de quem só o contém, e nome
+  // vem antes de razão social. É o que a pessoa espera ao digitar as primeiras
+  // letras; sem isso "Padaria Maré" pode aparecer depois de "Restaurante ... Padaria".
+  function scoreSug(p, q) {
+    const nome = D.norm(p.name), rz = D.norm(p.razaoSocial);
+    if (nome.indexOf(q) === 0) return 0;
+    if (nome.indexOf(q) > 0) return 1;
+    if (rz.indexOf(q) === 0) return 2;
+    if (rz.indexOf(q) > 0) return 3;
+    return 4;                       // casou por CNPJ
+  }
+
+  function sugestoes() {
+    const q = D.norm(filters.q).trim();
+    if (!q) return { itens: [], total: 0 };
+    const todos = getFiltered().slice().sort(function (a, b) {
+      const d = scoreSug(a, q) - scoreSug(b, q);
+      if (d !== 0) return d;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+    });
+    return { itens: todos.slice(0, SUG_TETO), total: todos.length };
+  }
+
+  function renderSug() {
+    const host = document.getElementById('qsug');
+    if (!host) return;
+    const aberta = document.getElementById('quickbar');
+    if (!aberta || !aberta.classList.contains('is-searching') || !filters.q.trim()) {
+      host.classList.remove('is-open');
+      host.innerHTML = '';
+      return;
+    }
+    const { itens, total } = sugestoes();
+    if (!total) {
+      host.innerHTML = '<div class="qsug__vazio">Nenhum estabelecimento para ' +
+        '“' + escAttr(filters.q) + '”.</div>';
+      host.classList.add('is-open');
+      return;
+    }
+    let html = '';
+    itens.forEach(function (p) {
+      const typ = D.TYPOLOGIES[p.typology] || { emoji: '📍' };
+      const origin = D.ORIGINS[p.origin] || { cue: '' };
+      const rel = D.relacaoDe(p);
+      const glifo = (origin.cue && origin.cue !== 'dashed') ? origin.cue : '';
+      const meta = D.BAIRRO_META[p.bairro];
+      const cidade = meta ? meta.city + '/' + meta.uf : (p.zone || '');
+      const sub = [p.bairro || p.zone, cidade, p.cnpj].filter(Boolean).join(' · ');
+      html +=
+        '<button type="button" class="qsug__item" role="option" data-sug="' + escAttr(p.id) + '">' +
+          '<span class="qsug__emoji" aria-hidden="true">' + typ.emoji + '</span>' +
+          '<span class="qsug__body">' +
+            '<span class="qsug__nome">' + escAttr(p.name) + '</span>' +
+            '<span class="qsug__sub">' + escAttr(sub) + '</span>' +
+          '</span>' +
+          '<span class="qsug__dot qsug__dot--' + escAttr(p.origin) + '" style="--pin:' +
+            rel.color + '" aria-hidden="true">' + glifo + '</span>' +
+        '</button>';
+    });
+    // Teto NUNCA silencioso: com 6.914 pins um termo curto casa centenas, e
+    // mostrar 8 sem dizer quantos sobraram leria como "só existem estes".
+    if (total > itens.length) {
+      html += '<div class="qsug__mais">Mostrando ' + itens.length + ' de <strong>' +
+        total + '</strong> — refine o termo, ou veja todos no mapa e na Inteligência.</div>';
+    }
+    host.innerHTML = html;
+    host.classList.add('is-open');
+  }
+
+  /* Escolher: fecha a busca (o que LIMPA o termo, pela regra da barra), e só
+     depois foca e abre. Limpar de propósito — você escolheu UM ponto, e
+     continuar com o mapa filtrado ao termo esconderia a vizinhança dele, que é
+     justamente o que se quer ver ao chegar. */
+  function escolherSug(id) {
+    fecharBusca();
+    // `false` = sem animação: pode ser outra capital, e salto longo animado
+    // desorienta (mesmo argumento do fitTo).
+    if (window.CRM_MAP) window.CRM_MAP.focus(id, 17, false);
+    if (window.CRM_PIN) window.CRM_PIN.open(id);
+    // Desloca o centro para o pin não ficar atrás do sheet que acabou de subir.
+    if (window.CRM_MAP && window.CRM_MAP.panToShow) window.CRM_MAP.panToShow(id);
   }
 
   /* ---- Construção da UI ---- */
@@ -529,7 +625,32 @@
         const v = inp.value;
         t = setTimeout(function () { setBusca(v, true); }, 220);
       });
+      // Enter escolhe a primeira sugestão — o atalho de quem já sabe o que quer.
+      inp.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const primeira = sugestoes().itens[0];
+        if (primeira) escolherSug(primeira.id);
+      });
     }
+    /* Lista de sugestões: DELEGAÇÃO, porque ela se redesenha a cada tecla e um
+       listener por item morreria no próximo render (regra do SPEC 00 §6).
+       `pointerdown` e não `click`: no toque, o `blur` do input chega antes do
+       click e o item já teria sido removido — a escolha se perdia. */
+    const sug = document.getElementById('qsug');
+    if (sug) sug.addEventListener('pointerdown', function (ev) {
+      const it = ev.target.closest('[data-sug]');
+      if (!it) return;
+      ev.preventDefault();
+      escolherSug(it.getAttribute('data-sug'));
+    });
+    /* Tocar no mapa fecha a lista, mas NÃO limpa o termo: quem toca no mapa
+       quer ver o mapa (que já está filtrado), não perder a busca. */
+    const mapEl = document.getElementById('map');
+    if (mapEl) mapEl.addEventListener('pointerdown', function () {
+      const s = document.getElementById('qsug');
+      if (s) s.classList.remove('is-open');
+    });
 
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;

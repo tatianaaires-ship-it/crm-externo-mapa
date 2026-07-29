@@ -1347,6 +1347,9 @@
     deriveOrigemConfianca: deriveOrigemConfianca,
     isoPlus: isoPlus,
     matchBusca: matchBusca,
+    // Exposta para o ranking de sugestões da busca (filters.js) usar a MESMA
+    // normalização do `matchBusca`. Duas versões divergiriam com o tempo.
+    norm: norm,
     sugereTipoVisita: sugereTipoVisita,
     RAIO_PRESENCIAL_KM: RAIO_PRESENCIAL_KM,
     deriveTipoCheckin: deriveTipoCheckin,

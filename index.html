@@ -52,6 +52,10 @@
                placeholder="Nome, razão social ou CNPJ…" aria-label="Buscar estabelecimento no mapa" />
         <button id="btn-busca-fechar" class="qsearch__x" aria-label="Fechar busca">✕</button>
       </div>
+      <!-- Sugestões da busca (29/07). Vivem DENTRO da quickbar para herdar o
+           stacking dela (z 39) e cair sobre o mapa, os FABs e os banners sem
+           z-index próprio. Tocar num item leva ao pin e o abre. -->
+      <div class="qsug" id="qsug" role="listbox" aria-label="Resultados da busca"></div>
       <button id="btn-filters" class="filters-btn" aria-haspopup="true">
         <span class="filters-btn__icon" aria-hidden="true">≡</span>
         <span>Filtros</span>

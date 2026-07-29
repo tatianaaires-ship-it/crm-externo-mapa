@@ -61,7 +61,7 @@ Control fixo no **canto inferior-esquerdo** — card translúcido (`backdrop-fil
 
 A quickbar tem **busca + três botões + Filtros** desde 29/07, e dois deles não são da mesma natureza dos outros:
 
-- **🔎 Busca** — fechada é uma **lupa**; ao tocar, a barra vira um **campo de largura cheia** (`.quickbar.is-searching` esconde os chips) com `×` para fechar. Busca por **nome fantasia · razão social · CNPJ** — ver §5.2.
+- **🔎 Busca** — fechada é uma **lupa**; ao tocar, a barra vira um **campo de largura cheia** (`.quickbar.is-searching` esconde os chips) com `×` para fechar, e um **dropdown de sugestões** abre abaixo. Busca por **nome fantasia · razão social · CNPJ** — ver §5.2.
 - **🏆 Aquisição** — **PRESET, não dimensão.** Liga **quatro filtros de uma vez** para isolar *oportunidades reais de aquisição*: `porte ≠ MEI` · `qualidade ∈ {Ouro, Prata}` · `status do cliente ∈ {lead, csc, churn}` · `fase ∉ {perdido, desqualificado}`. **Dourado** (`#C9971B`) para se distinguir dos recortes; detalhe do componente no [[spec-00-design-system]] §6.
 - **🏷️ Classificação** → abre popover com todas as tipologias (multi-seleção); badge com a contagem de selecionadas.
 - **📌 Não visitados 30+** — atalho toggle, sincronizado com o painel completo.
@@ -94,7 +94,19 @@ Campos: **nome fantasia · razão social · CNPJ** (por dígitos, então `14066`
 
 **O mapa REENQUADRA nos resultados** (`CRM_MAP.fitTo`, `padding 56`, `maxZoom 16`). Sem isso a busca-como-filtro é inútil aqui: os casamentos podem estar em Fortaleza enquanto a viewport está no Recife, e a tela fica vazia sem dizer por quê. Só enquadra quem **digitou** (mexer num chip não rouba o enquadramento) e só **com resultado** — nunca desenquadra para o vazio.
 
-> ⚠️ **`fitTo` usa `animate: false` de propósito.** Busca é **salto de contexto**, não navegação contínua: animar um pan de ~430 km desorienta em vez de situar. E é o único caminho verificável — no Browser pane o `transitionend` nunca dispara (o pane não compõe frames), então **toda** animação do Leaflet fica presa no estado inicial. Medido: com `animate: true` o mapa não saía do lugar em nenhum dos casos. *Isso é limitação do ambiente de teste, não do Leaflet* — o `focus()` (§7, usado ao abrir um lead da Intel) é animado desde sempre e roda no Android; **não foi tocado** justamente porque não há como testá-lo aqui.
+#### Sugestões (`.qsug`) — o atalho para UM pin
+
+Enquanto o filtro responde *"quais pins casam"*, a lista responde *"é este"*. As duas coisas convivem: o mapa já filtrou e reenquadrou; tocar num item **leva ao ponto e abre o sheet**.
+
+- **Item:** emoji da tipologia · **nome** · `bairro · cidade/UF · CNPJ` · **dot da relação/origem** (mesma gramática do marker — §3), tudo em uma linha com *ellipsis*.
+- **Ranking por relevância:** quem **começa** com o termo vem antes de quem só o contém, e **nome** antes de **razão social**; CNPJ por último. Sem isso, digitar "pad" podia trazer um restaurante cujo nome contém "padaria" antes da "Padaria Maré Alta". Usa a **mesma** normalização do `matchBusca` (`CRM_DATA.norm`, exposta para não haver duas versões divergindo).
+- **Teto de 8, nunca silencioso:** o rodapé diz *"Mostrando 8 de N"*. Com 6.914 pins um termo curto casa centenas; mostrar 8 sem dizer quantos sobraram leria como *"só existem estes"*.
+- **A lista sai do CONJUNTO FILTRADO**, não de todos os pins. Sugerir um ponto que os outros filtros escondem levaria a abrir o sheet de um pin que **não está no mapa** — o app diria duas coisas ao mesmo tempo.
+- **Escolher LIMPA a busca** (fecha a barra, e fechar limpa pela regra acima), depois foca em zoom 17, abre o sheet e aplica `panToShow` para o pin não ficar atrás dele. Limpar é deliberado: você escolheu **um** ponto, e seguir com o mapa filtrado ao termo esconderia justamente a vizinhança que se quer ver ao chegar.
+- **`Enter` escolhe a primeira** — atalho de quem já sabe o que quer. **Tocar no mapa fecha a lista sem limpar o termo**: quem toca no mapa quer ver o mapa, que já está filtrado.
+- ⚙️ **Dois detalhes de implementação que são armadilha:** a lista usa **delegação** (redesenha a cada tecla, e listener por item morreria no render seguinte) e escuta **`pointerdown`, não `click`** — no toque o `blur` do input chega antes do `click`, e o item já teria sido removido: a escolha se perdia. O dropdown vive **dentro da quickbar** para herdar o stacking dela (z 39) e cair sobre mapa, FABs e banners sem z-index próprio.
+
+> ⚠️ **`fitTo` usa `animate: false` de propósito.** Busca é **salto de contexto**, não navegação contínua: animar um pan de ~430 km desorienta em vez de situar. E é o único caminho verificável — no Browser pane o `transitionend` nunca dispara (o pane não compõe frames), então **toda** animação do Leaflet fica presa no estado inicial. Medido: com `animate: true` o mapa não saía do lugar em nenhum dos casos. *Isso é limitação do ambiente de teste, não do Leaflet* — o `focus()` (§7, usado ao abrir um lead da Intel) é animado desde sempre e roda no Android. Ele ganhou um **3º parâmetro opcional `animar`, default `true`**, para o caminho antigo seguir idêntico; só a escolha de sugestão passa `false`, pelo mesmo motivo do `fitTo` (o ponto pode estar em outra capital).
 - **Contador:** `result-pill` no topbar mostra "N locais"; badge no botão Filtros mostra nº de filtros ativos.
 - **Lógica:** **AND entre dimensões, OR dentro da dimensão**. O filtro **oculta** pins — **nunca deleta** (o pin nunca some). O **mesmo conjunto filtrado** alimenta a aba Inteligência ([[spec-05-intel]]), o Funil e as Atividades.
 - **Oito dimensões** (ordem do painel), com três mudanças em 29/07:

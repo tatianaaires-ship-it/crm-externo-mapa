@@ -281,6 +281,10 @@ Lupa fechada → **campo de largura cheia** que substitui os chips (`.quickbar.i
 - A lupa fica **acesa** (`--ink`, como qualquer chip ativo) quando há termo, e **termo ativo reabre a barra sozinho**: barra fechada com busca ativa seria **filtro invisível** — o erro que a gaveta "Mais" da §6.12 cometeu e que foi revertido.
 - **Fechar limpa o termo.** `Esc` fecha e limpa. Já o `Limpar` do painel zera a busca mas **deixa a barra aberta e vazia**: o botão de limpar aparece justamente quando a busca não achou nada, e fechar o campo tiraria o teclado de baixo do dedo de quem quer corrigir o termo.
 
+**Dropdown de sugestões** (`.qsug`) — abre abaixo do campo, **dentro da quickbar** para herdar o stacking dela (z 39) e cair sobre mapa, FABs e banners sem z-index próprio. `max-height: 46dvh` com rolagem. Item = emoji da tipologia · nome · `bairro · cidade · CNPJ` · dot da relação/origem (§2.3). Teto de **8** com rodapé *"Mostrando 8 de N"* — **teto silencioso mentiria** sobre o tamanho do resultado. Regra em [[spec-01-mapa]] §5.2.
+
+> ⚙️ **Lista que se redesenha a cada tecla escuta `pointerdown`, não `click`.** No toque, o `blur` do input dispara antes do `click`, e o item já foi removido do DOM: a escolha se perde. Vale para qualquer autocomplete deste app. E vale a regra geral do §6 — **delegação**, nunca listener por item.
+
 ### 6.10 Segmented control (`.seg`)
 Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (Gerencial · Agenda — [[spec-07-atividades]] §4).
 
