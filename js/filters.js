@@ -438,8 +438,14 @@
     // desorienta (mesmo argumento do fitTo).
     if (window.CRM_MAP) window.CRM_MAP.focus(id, 17, false);
     if (window.CRM_PIN) window.CRM_PIN.open(id);
-    // Desloca o centro para o pin não ficar atrás do sheet que acabou de subir.
-    if (window.CRM_MAP && window.CRM_MAP.panToShow) window.CRM_MAP.panToShow(id);
+    /* ⚠️ Sem `panToShow` aqui, de propósito. Ele desloca o centro ~18% para o
+       pin não ficar atrás do sheet — mas o sheet ocupa 86dvh: medido em 390×844,
+       ele cobre de y=118 até o fim, e topbar+quickbar comem os primeiros 108px.
+       Sobram 10px de mapa livre, então NÃO existe posição em que o pin apareça
+       com o sheet aberto; deslocar só descentraliza. Deixando o pin no CENTRO,
+       ele está no lugar mais natural no instante em que o sheet fecha — que é
+       quando a pessoa quer vê-lo. (`panToShow` segue valendo para quem toca num
+       pin no mapa: lá já se sabe onde ele está.) */
   }
 
   /* ---- Construção da UI ---- */

@@ -284,12 +284,13 @@
   }
 
   function setSelected(id) {
-    /* Fim da exceção. `setSelected` é o sinal que já existe: o sheet chama com
-       `null` ao fechar e com outro id ao trocar de pin. Nos dois casos a
-       revelação cumpriu o papel (levar até AQUELE ponto) e sai — é o que faz
-       dela um pin MOMENTÂNEO em vez de estado pendurado no mapa.
-       Selecionar o próprio revelado não dispensa, senão ele sumiria no toque. */
-    if (revealId && id !== revealId) dispensarRevelado();
+    /* Fim da exceção — mas NÃO no fechamento do sheet.
+       ⚠️ Corrigido: antes qualquer `setSelected` diferente do revelado o
+       dispensava, inclusive o `null` que o sheet manda ao fechar. Como o sheet
+       ocupa 86dvh e cobre o mapa, fechar é justamente o gesto de "quero VER o
+       pin" — e o pin sumia na hora. O ponto de todo o recurso é o contrário
+       disso. Então: só troca de pin (id não-nulo e diferente) dispensa. */
+    if (revealId && id != null && id !== revealId) dispensarRevelado();
     const prev = selectedId;
     selectedId = id;
     // Atualiza só os dois markers afetados (cluster-safe: a maioria nem está no DOM).
