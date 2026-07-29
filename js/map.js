@@ -166,6 +166,24 @@
     // Arraste NÃO fica ligado nos markers do cluster (só no pin em modo mover — startMove).
   }
 
+  /* ---- Reposicionamento: só mexe em quem mudou de lugar ----
+     Dentro do clusterGroup, `setLatLng` força remoção + reinserção no índice
+     espacial e recálculo de cluster. Chamá-lo em TODO pin a cada render custava
+     411ms com 6.914 pins parados — e o render roda a cada `reapply()`, ou seja,
+     a cada toque de chip de filtro. Com o guard: 1,2ms.
+     A coordenada em cache vive no próprio marker (some junto com ele). Cache
+     ausente ⇒ reposiciona: a dúvida sempre erra para o lado de atualizar. */
+  function lembrarPos(marker, pin) {
+    marker.__lat = pin.lat;
+    marker.__lng = pin.lng;
+  }
+
+  function posicionar(marker, pin) {
+    if (marker.__lat === pin.lat && marker.__lng === pin.lng) return;
+    lembrarPos(marker, pin);
+    marker.setLatLng([pin.lat, pin.lng]);
+  }
+
   // Render completo do conjunto filtrado (via cluster group).
   function render(pins, selId) {
     if (selId !== undefined) selectedId = selId;
@@ -183,11 +201,15 @@
       if (!marker) {
         // draggable:false por padrão — só o pin em modo mover vira arrastável (startMove).
         marker = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: false, keyboard: false });
+        lembrarPos(marker, pin);
         attachMarkerEvents(marker, pin);
         markersById[pin.id] = marker;
         toAdd.push(marker);
       } else {
-        marker.setLatLng([pin.lat, pin.lng]);
+        posicionar(marker, pin);
+        // setIcon fica sem cache de propósito: custa 4,6ms com 6.914 pins, e
+        // `makeIcon` lê selectedId/moveId/revealId além do pin — um cache por
+        // pin daria ícone errado ao selecionar.
         marker.setIcon(makeIcon(pin));
       }
     });
@@ -220,6 +242,7 @@
     const existente = markersById[id];
     if (existente) { clusterGroup.removeLayer(existente); delete markersById[id]; }
     const mk = L.marker([p.lat, p.lng], { icon: makeIcon(p), draggable: false, keyboard: false });
+    lembrarPos(mk, p);
     attachMarkerEvents(mk, p);
     mk.addTo(map);            // direto no mapa: fora do cluster, fora do filtro
     markersById[id] = mk;
@@ -247,6 +270,7 @@
     const existing = markersById[id];
     if (existing) clusterGroup.removeLayer(existing);
     const mv = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: true, autoPan: true, keyboard: false });
+    lembrarPos(mv, pin);
     mv.on('click', function () { if (onSelectCb) onSelectCb(id); });
     mv.on('dragstart', function () { document.body.classList.add('is-dragging-pin'); });
     mv.on('dragend', function (e) {
@@ -276,6 +300,7 @@
     const pin = id && window.CRM_STATE.getById(id);
     if (pin) {
       const m = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: false, keyboard: false });
+      lembrarPos(m, pin);   // nasce já na coordenada nova: o render seguinte não mexe
       attachMarkerEvents(m, pin);
       markersById[id] = m;
       clusterGroup.addLayer(m);

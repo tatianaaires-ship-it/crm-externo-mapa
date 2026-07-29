@@ -890,6 +890,12 @@ body.view-intel .placing-banner, body.view-intel .checkin-banner { display: none
   display: flex; align-items: stretch; gap: 11px; text-align: left;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
   box-shadow: var(--shadow-sm); padding: 11px 12px; transition: transform .1s, box-shadow .15s;
+  /* A aba fica em display:none com o DOM montado — revelar custava 1.455ms de
+     layout com 6.914 itens. Pular o que está fora da viewport: 123ms.
+     85px é a altura real e uniforme do item; `auto` faz o navegador memorizar
+     a medida verdadeira depois do primeiro render. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 85px;
 }
 .lead:active { transform: scale(.99); box-shadow: var(--shadow-md); }
 .lead__dot {
@@ -1349,8 +1355,15 @@ body.view-funil .placing-banner, body.view-funil .checkin-banner { display: none
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
   box-shadow: var(--shadow-sm); padding: 9px 10px; cursor: grab;
   display: flex; flex-direction: column; gap: 5px; touch-action: pan-y; user-select: none;
+  /* Mesma razão do `.lead`: revelar o Kanban custava 1.074ms → 97ms.
+     O card varia de altura (62/98/111px) conforme tem venda e zona; 98px é a
+     estimativa inicial, e `auto` corrige com a medida real depois. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 98px;
 }
-.funil-card.is-dragging { opacity: .35; }
+/* `content-visibility: visible` — o card em arraste precisa estar sempre
+   renderizado; o pulo esconderia justamente o que está saindo da coluna. */
+.funil-card.is-dragging { opacity: .35; content-visibility: visible; }
 .funil-card__top { display: flex; align-items: center; gap: 6px; }
 /* 14px (era 11px): o dot passou a carregar o glifo da pista (G / ✓) e em 11px
    ele transbordava — não havia font-size nem centralização aqui. */
@@ -1377,6 +1390,11 @@ body.view-funil .placing-banner, body.view-funil .checkin-banner { display: none
 .funil-ghost {
   position: fixed; z-index: 62; pointer-events: none; margin: 0;
   box-shadow: var(--shadow-lg); transform: rotate(1.5deg); opacity: .96;
+  /* O ghost é clone do card e carrega a classe `.funil-card` junto, logo herda
+     o `content-visibility: auto` dela. Recém-inserido no body, ele poderia
+     levar um frame para ser julgado relevante e piscar como caixa vazia de
+     98px — no gesto que menos pode falhar. Aqui é sempre renderizado. */
+  content-visibility: visible;
 }
 @media (min-width: 620px) {
   .funil-col { width: 260px; }
