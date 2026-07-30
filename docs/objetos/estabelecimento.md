@@ -121,7 +121,7 @@ CREATE TABLE nota_estabelecimento (
 | 12 | `porte` | enum (**6**) | Não | `fonte:cnpja` / `fonte:sf` (`porte_c`) | filtro · sheet | 29/07: 4→6 faixas, uma por valor real de `porte_c`; `LTDA` virou `DEMAIS` — §5 |
 | 13 | `status` | enum (8; **7 colunas**) | Sim | **derivado** (tarefa + ERP) | filtro · sheet | **nunca digitado**; três fontes, ERP prevalece; `sem_plano` fica fora do board — §5. ⚠️ **Rotulado "Fase" na tela** desde 29/07 (a chave segue `status`) |
 | 13b | `status_anterior` | enum | Não | `auto` | — | etapa de origem antes de `perdido`/`desqualificado`; usada para **voltar** |
-| 14 | `motivo_status` | text | Não | **derivado** | sheet | cache do `motivo_perda`/`motivo_desqualificacao` da última [[tarefa]] concluída |
+| 14 | `motivo_status` | text | Não | **derivado** | sheet | cache do `motivo_perda`/`motivo_desqualificacao` da última [[tarefa]] concluída. **Existe só enquanto o pin está numa lateral** — sair de lá o apaga (§5); motivo de **não venda** nunca entra aqui (é do evento, não do estado) |
 | 15 | `ultima_visita` | date | Não | check-in | filtro · sheet | — |
 | 16 | `vendedor_responsavel_id` | fk → [[vendedor]] | Não | `fonte:sf` | (RLS) · sheet | alvo de RLS |
 | 17 | `telefone` | text | Não | `fonte:sf`/`google` | sheet (ligar/WhatsApp) · form:expandir | **fictício** |
@@ -164,6 +164,9 @@ CREATE TABLE nota_estabelecimento (
   **Invariante:** `status ∈ {csc, aquisicao}` ⟺ `cadastrado = true`. Os dois campos dizem a mesma verdade em granularidades diferentes — `cadastrado` é o booleano de filtro, `status` é a posição no funil.
 
   **Avanço monotônico na escada**; `perdido`/`desqualificado` são **saídas laterais** (não regressão) e guardam `status_anterior`, restaurado quando uma nova tarefa — ou um pedido — traz o ponto de volta.
+
+  > ⚖️ **Transição recusada não escreve nada — e a saída da lateral é um ato só** (30/07). Voltar de uma lateral é *restaurar `status_anterior` e então aplicar o status novo*; se o segundo passo é recusado (regressão na escada, ERP prevalecendo), o **primeiro não pode ter acontecido**. Era o bug: agendar num `perdido` restaurava o pin para `visitado` e **depois** recusava o `visita_planejada`, deixando o ponto fora da lateral, sem `status_anterior`, com o `motivo_status` da perda ainda colado, e a função dizendo que nada mudou — logo nem `status_cliente` era rederivado. Ou a transição inteira acontece, ou nada acontece.
+  > ⚖️ **Sair da lateral apaga `motivo_status`.** Ele é o motivo da **saída**: mantido num pin de volta ao funil, viraria *"Perdido (preço alto)"* escrito num ponto em *Visitado*. Limpar mora no mesmo lugar que escreve `status`, então vale para as duas portas de volta — tarefa concluída e arraste no Funil.
 
 - **`cadastrado`** *(derivado)* — a verdade virá da **integração com o ERP/financeiro** (existe registro comercial?). Enquanto não há integração, no protótipo deriva de `data_cadastro IS NOT NULL`. **Sticky** por natureza: o registro comercial não desaparece se o cliente churnar. **Desde 29/07 é a COR do pin** (azul cliente × lilás lead) — e, por ser derivado do ERP, a cor continua nunca sendo digitada. Como o invariante `status ∈ {csc, aquisicao} ⟺ cadastrado` vale, no board do Funil o azul cai exatamente sobre as duas colunas comerciais.
 - **`qualidade`** — de `cnae_codigo` via [[cnae_tier]] (editável no Admin sem código). Recalculada quando o CNAE muda.

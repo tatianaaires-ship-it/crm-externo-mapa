@@ -316,18 +316,29 @@
       return true;
     }
 
-    // Voltando de uma lateral: restaura a etapa de origem antes de aplicar.
-    if (atualFam === 'lateral') {
-      p.status = p.statusAnterior || 'sem_plano';
-      p.statusAnterior = null;
-      if (p.status === novo) return true;
-    }
+    /* Voltando de uma lateral, quem vale na comparação é a ETAPA DE ORIGEM — mas
+       nada é escrito antes de saber que a transição vale.
+       ⚠️ **Corrigido em 30/07.** A restauração acontecia aqui e o `return false`
+       vinha depois, então uma transição RECUSADA já tinha mexido no pin: agendar
+       num `perdido` (que não avança para `visita_planejada`) tirava o pin da
+       lateral pela metade — status de volta em `visitado`, `motivo_status` da
+       perda ainda colado, `statusAnterior` perdido, e a função dizendo que nada
+       mudou (logo `statusCliente` nem era rederivado). Escrita só depois da
+       decisão: ou a transição inteira acontece, ou nada acontece. */
+    const base = (atualFam === 'lateral') ? (p.statusAnterior || 'sem_plano') : p.status;
 
     // Cancelar o plano é a única reversão permitida na escada.
-    const cancelandoPlano = (novo === 'sem_plano' && p.status === 'visita_planejada');
-    if (!cancelandoPlano && !D.statusAvanca(p.status, novo)) return false;
+    const cancelandoPlano = (novo === 'sem_plano' && base === 'visita_planejada');
+    // `base === novo` é a volta pura para a etapa de origem: nada a avançar.
+    if (base !== novo && !cancelandoPlano && !D.statusAvanca(base, novo)) return false;
 
     p.status = novo;
+    /* Sair da lateral apaga o que só explicava a lateral. `motivo_status` é o
+       motivo da SAÍDA (estabelecimento.md §5): num pin de volta ao funil ele
+       vira mentira — "Perdido (preço)" escrito num ponto em Visitado. Mora aqui
+       porque este é o único lugar que escreve `status`, e as duas portas de
+       volta (tarefa concluída e arraste no Funil) passam por dentro. */
+    if (atualFam === 'lateral') { p.statusAnterior = null; p.motivoStatus = null; }
     return true;
   }
 
@@ -467,7 +478,14 @@
       criadoPor: D.VENDEDOR_SESSAO
     };
     tarefas.push(t);
-    applyStatus(p, 'visita_planejada');
+    /* Agendar NÃO tira o pin da lateral (tarefa.md §5): voltar de `perdido`/
+       `desqualificado` exige tarefa CONCLUÍDA — constatação de campo, com autor e
+       data. Um plano não constata nada, e a tarefa fica lá, planejada, esperando
+       o check-out que vai mover o pin. A guarda é EXPLÍCITA em vez de confiar na
+       escada: um lateral sem `statusAnterior` (dado antigo, snapshot real) cairia
+       em `sem_plano`, de onde `visita_planejada` é avanço legítimo — e o pin
+       voltaria ao funil por um agendamento. */
+    if ((D.STATUS[p.status] || {}).family !== 'lateral') applyStatus(p, 'visita_planejada');
     emit();
     return t;
   }

@@ -513,6 +513,11 @@
                 : (formAg.data < hoje ? 'O dia já passou' : null);
 
     const jaTem = S.planejadasDoPin(p.id).length;
+    // Ponto em saída lateral: agendar NÃO o tira de lá (state.agendarTarefa) —
+    // voltar exige tarefa concluída. A nota abaixo do form tem que dizer isso,
+    // senão promete um movimento de funil que não vai acontecer.
+    const lateral = (D.STATUS[p.status] || {}).family === 'lateral'
+      ? (D.STATUS[p.status] || {}).label : null;
 
     sheetEl.querySelector('.sheet__scroll').innerHTML =
       subHead('Agendar visita', p.name, 'pin') +
@@ -547,11 +552,15 @@
       '</div>' +
 
       // Agendar move o funil — quem lê isto está a um toque de mexer no board.
-      (jaTem
-        ? '<p class="sform-nota">Este ponto já tem ' + jaTem +
-          (jaTem === 1 ? ' atividade planejada' : ' atividades planejadas') + '.</p>'
-        : '<p class="sform-nota">Agendar coloca <strong>' + esc(p.name) +
-          '</strong> no funil, em <strong>Visita planejada</strong>.</p>') +
+      // Menos numa lateral: ali o pin FICA onde está, e a nota diz o que tira.
+      (lateral
+        ? '<p class="sform-nota">Este ponto está <strong>' + esc(lateral) +
+          '</strong> e <strong>continua</strong> — agendar não o tira de lá. Ele volta ao funil quando esta visita for <strong>concluída</strong>.</p>'
+        : jaTem
+          ? '<p class="sform-nota">Este ponto já tem ' + jaTem +
+            (jaTem === 1 ? ' atividade planejada' : ' atividades planejadas') + '.</p>'
+          : '<p class="sform-nota">Agendar coloca <strong>' + esc(p.name) +
+            '</strong> no funil, em <strong>Visita planejada</strong>.</p>') +
 
       '<button type="button" id="btn-ag-ok" class="btn btn--checkin btn--block"' +
         (falta ? ' disabled' : '') + '>' +
@@ -946,8 +955,11 @@
     atualizaBotaoConc();
   }
 
-  // Agendar: cria a tarefa planejada e põe o pin no funil (tarefa.md §5).
+  // Agendar: cria a tarefa planejada e põe o pin no funil (tarefa.md §5) — a
+  // menos que ele esteja numa lateral, de onde só tarefa CONCLUÍDA o tira.
   function agendar() {
+    const antes = S.getById(formAg.pinId);
+    const eraLateral = !!antes && (D.STATUS[antes.status] || {}).family === 'lateral';
     const t = S.agendarTarefa({
       pinId: formAg.pinId,
       tipo: formAg.tipo,
@@ -960,7 +972,9 @@
     irPara('pin');
     if (window.CRM_TOAST) {
       const q = t.data.slice(8) + '/' + t.data.slice(5, 7) + (t.hora ? ' às ' + t.hora : '');
-      window.CRM_TOAST('Agendada para ' + q + ' — o pin entrou no funil.');
+      window.CRM_TOAST('Agendada para ' + q + (eraLateral
+        ? ' — o pin volta ao funil quando ela for concluída.'
+        : ' — o pin entrou no funil.'));
     }
   }
 
