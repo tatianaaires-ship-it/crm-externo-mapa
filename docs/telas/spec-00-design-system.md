@@ -157,7 +157,10 @@ Derivada do CNAE (ver [[cnae_tier]]). Aparece como pill no sheet, badge na lista
 
 ## 5. App Shell — estrutura
 
-Layout em coluna, `height: 100dvh`, `overflow: hidden` (o app não rola; o conteúdo interno rola). O mapa é `flex: 1` e **tudo mais flutua sobre ele**.
+Layout em coluna, `height: 100dvh`, **`overflow: clip`** (o app não rola; o conteúdo interno rola). O mapa é `flex: 1` e **tudo mais flutua sobre ele**.
+
+> 🔧 **`clip`, não `hidden` (30/07) — e a diferença era um bug.** Os sheets fechados moram **abaixo** do fim do `#app` (`position: absolute` + `transform: translateY(101%)`), e transform **entra na área rolável**: com `overflow: hidden` o `#app` era um contêiner de scroll de `1318px` numa janela de `720px` — ~600px de nada embaixo. O usuário não podia rolar (é isso que `hidden` faz), mas `scrollIntoView`/`focus()` **de dentro do app podia**: o drill da Gerencial (§6, `vaiPraTabela`) rolava o `#app` inteiro, a topbar subia e o **painel de filtros fechado aparecia sob a bottom nav** — sem gesto que desfizesse, só recarregando. `overflow: clip` corta igual e **não cria scroller**, então `scrollTop` fica travado em 0 e o `scrollIntoView` só mexe no contêiner que devia mexer (`.ativ-body`). A linha `overflow: hidden` fica antes, como fallback para navegador sem `clip` (Chrome 90+ / Safari 16+ — dentro do alvo Android PWA).
+> ⚖️ **Regra que fica: contêiner que só existe para cortar usa `clip`, não `hidden`.** `hidden` é um scroller que finge não ser — e basta um `focus()` interno para o app inteiro sair de lugar. Só use `hidden` onde o scroll programático é desejado.
 
 ```text
 ┌───────────────────────────────────────────┐
