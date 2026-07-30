@@ -93,11 +93,12 @@ Campos: **nome fantasia · razão social · CNPJ** (por dígitos, então `14066`
 
 **A busca é uma DIMENSÃO DE FILTRO** (`CRM_FILTERS.q`), não um recorte local. Consequências, todas deliberadas:
 
-- **Vale nas quatro abas.** Antes a Intel filtrava a lista por conta própria: ela prometia "o mesmo conjunto filtrado do mapa" e mostrava outro. Agora a caixa da Intel **escreve na mesma dimensão**, então digitar lá filtra o mapa, o Funil e as Atividades. ⚠️ **É mudança de comportamento na Intel** — o ganho é o app parar de se contradizer. Verificado em 4 termos: mapa e Intel dão a mesma contagem.
-- **Conta no badge de Filtros** (+1) e as duas caixas espelham o mesmo valor, com guarda de valor igual — escrever num input que já tem o texto mata a posição do cursor de quem está digitando.
+- **Vale nas quatro abas.** Antes a Intel filtrava a lista por conta própria: ela prometia "o mesmo conjunto filtrado do mapa" e mostrava outro. Agora a busca é uma só, então digitar filtra o mapa, a Intel, o Funil e as Atividades. ⚠️ **É mudança de comportamento na Intel** — o ganho é o app parar de se contradizer. Verificado em 4 termos: mapa e Intel dão a mesma contagem.
+- 🔧 **Correção 30/07 — a Intel perdeu a caixa própria: é UMA caixa, não duas.** A quickbar aparece também na aba Inteligência, então abrir a lupa lá empilhava **dois campos de busca** na tela (o da quickbar em cima, o `.intel-search` embaixo) para um controle só. O `.intel-search` saiu do HTML, do CSS e do `intel.js`; a busca da Intel **é** a da quickbar, aberta pela lupa. Consequência colateral: buscando pela Intel o mapa agora **reenquadra** (o `enquadrar: false` daquela caixa morreu com ela) — o que é o certo, já que o toque num resultado leva ao mapa.
+- **Conta no badge de Filtros** (+1) e a caixa espelha o valor de `filters.q`, com guarda de valor igual — escrever num input que já tem o texto mata a posição do cursor de quem está digitando.
 - **Fechar a barra LIMPA o termo**, e termo ativo **reabre** a barra sozinho: barra fechada com busca ativa seria **filtro invisível** — o mesmo erro da gaveta "Mais" que já foi revertida na aba Atividades.
 - **`Esc` fecha e limpa.** O `Limpar` do painel zera a busca junto (é dimensão), mas **deixa a barra aberta e vazia**: o "Limpar filtros" do estado vazio aparece justamente quando a busca não achou nada, e fechar o campo tiraria de baixo do dedo de quem quer corrigir o termo.
-- **`debounce` de 220 ms** nas duas caixas — cada tecla re-filtra 4 abas e reenquadra o mapa.
+- **`debounce` de 220 ms** na caixa — cada tecla re-filtra 4 abas e reenquadra o mapa.
 
 **O mapa REENQUADRA nos resultados** (`CRM_MAP.fitTo`, `padding 56`, `maxZoom 16`). Sem isso a busca-como-filtro é inútil aqui: os casamentos podem estar em Fortaleza enquanto a viewport está no Recife, e a tela fica vazia sem dizer por quê. Só enquadra quem **digitou** (mexer num chip não rouba o enquadramento) e só **com resultado** — nunca desenquadra para o vazio.
 

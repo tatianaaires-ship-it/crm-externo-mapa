@@ -271,7 +271,8 @@ Sobe de baixo, borda superior 3px `--brand`, **sem scrim bloqueante** (o mapa e 
 Linha com dot de origem (mesmas pistas do pin), nome, sub, CNPJ e badge de qualidade. Toque foca o pin correspondente no mapa.
 
 > **Busca de estabelecimento — uma só para o produto** (`CRM_DATA.matchBusca`, 28/07): **nome fantasia · razão social · CNPJ**, acento-insensível nos nomes e **por dígitos** no CNPJ (`14066` acha `14.066.645/0001-46`). Usada pela Inteligência **e** pela barra de filtros da aba Atividades (§6.12) — busca que se comporta diferente em duas telas do mesmo app é bug de produto, não variação. Rótulo `Buscar`, placeholder que **nomeia os três campos**: campo de busca que não diz o que aceita faz o usuário testar.
-> ✅ **Levada às últimas consequências em 29/07: a busca virou DIMENSÃO DE FILTRO** (`CRM_FILTERS.q`) e ganhou uma caixa na quickbar do Mapa. As duas caixas — Mapa e Inteligência — escrevem no **mesmo** lugar, então a busca vale nas **quatro abas** e conta no badge de Filtros. Era o passo que faltava: a Intel prometia "o mesmo conjunto filtrado do mapa" e, buscando por conta própria, mostrava outro. Detalhe em [[spec-01-mapa]] §5.2.
+> ✅ **Levada às últimas consequências em 29/07: a busca virou DIMENSÃO DE FILTRO** (`CRM_FILTERS.q`) e ganhou uma caixa na quickbar do Mapa. A busca vale nas **quatro abas** e conta no badge de Filtros. Era o passo que faltava: a Intel prometia "o mesmo conjunto filtrado do mapa" e, buscando por conta própria, mostrava outro. Detalhe em [[spec-01-mapa]] §5.2.
+> 🔧 **30/07 — e a Intel deixou de ter caixa própria (`.intel-search` removido).** A quickbar aparece nessa aba, então a lupa aberta dava **duas caixas empilhadas** para um controle só. Regra que fica: **dimensão de filtro compartilhada tem UM controle na tela** — se a barra do controle já está visível na aba, a aba não repete o campo.
 
 ### 6.2c Campo de busca da quickbar (`.qsearch`)
 

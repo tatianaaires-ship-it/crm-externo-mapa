@@ -276,13 +276,11 @@
       el.classList.toggle('is-on', on);
       el.setAttribute('aria-pressed', String(on));
     });
-    /* As DUAS caixas de busca refletem o mesmo `filters.q`. Guarda de valor
+    /* A caixa da quickbar é a ÚNICA, e reflete `filters.q`. Guarda de valor
        igual: escrever num input que já tem o valor mata a posição do cursor
        enquanto a pessoa digita. */
-    ['map-search', 'intel-search'].forEach(function (id) {
-      const el = document.getElementById(id);
-      if (el && el.value !== filters.q) el.value = filters.q;
-    });
+    const cx = document.getElementById('map-search');
+    if (cx && cx.value !== filters.q) cx.value = filters.q;
     const lupa = document.getElementById('btn-busca');
     if (lupa) {
       const on = !!filters.q.trim();

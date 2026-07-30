@@ -12,7 +12,7 @@
 
   const D = window.CRM_DATA;
 
-  let listEl, searchEl, countEl, emptyEl;
+  let listEl, countEl, emptyEl;
   let lastList = [];        // último conjunto filtrado recebido do mapa
   // (a busca virou dimensão de filtro compartilhada — ver buscaAtual)
   let showMap = function () {}; // callback: volta pra aba do mapa
@@ -159,18 +159,6 @@
     if (listEl) listEl.scrollTop = 0; // e o scroll volta ao topo
   }
 
-  /* Escreve na dimensão compartilhada — o `reapply` volta para cá via refresh().
-     `enquadrar: false`: quem digita aqui está olhando a LISTA, e mexer no
-     enquadramento do mapa por trás seria efeito colateral invisível. */
-  let deb = null;
-  function onSearch() {
-    clearTimeout(deb);
-    const v = searchEl.value || '';
-    deb = setTimeout(function () {
-      if (window.CRM_FILTERS) window.CRM_FILTERS.setBusca(v, false);
-    }, 220);
-  }
-
   function openLead(id) {
     showMap();                       // volta pra aba do mapa
     // pequeno atraso p/ o mapa recalcular tamanho antes de focar
@@ -182,12 +170,10 @@
 
   function init(opts) {
     listEl = document.getElementById('intel-list');
-    searchEl = document.getElementById('intel-search');
     countEl = document.getElementById('intel-count');
     emptyEl = document.getElementById('intel-empty');
     showMap = (opts && opts.showMap) || showMap;
 
-    if (searchEl) searchEl.addEventListener('input', onSearch);
     // `listEl` vem do getElementById e é estável — armar uma vez aqui basta.
     if (listEl) listEl.addEventListener('scroll', onScroll, { passive: true });
     if (listEl) listEl.addEventListener('click', function (e) {

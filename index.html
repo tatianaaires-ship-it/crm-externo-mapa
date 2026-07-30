@@ -184,11 +184,9 @@
 
       <!-- Aba Inteligência (lista de leads) — cobre o mapa quando ativa -->
       <section id="intel-view" class="intel-view" aria-label="Inteligência de leads">
-        <div class="intel-search">
-          <span class="intel-search__ico" aria-hidden="true">🔎</span>
-          <input id="intel-search" type="search" enterkeyhint="search"
-                 placeholder="Buscar por nome, razão social ou CNPJ…" autocomplete="off" />
-        </div>
+        <!-- Sem caixa de busca própria (30/07): a quickbar aparece nesta aba e a
+             busca dela já é a MESMA dimensão de filtro (`CRM_FILTERS.q`). Duas
+             caixas empilhadas na tela eram duas casas para um controle só. -->
         <div class="intel-head">
           <span id="intel-count" class="intel-count">—</span>
           <span class="intel-head__hint">mesmos filtros do mapa</span>

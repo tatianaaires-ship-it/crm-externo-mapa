@@ -864,16 +864,8 @@ body.view-intel .intel-view { display: flex; }
 body.view-intel .fab, body.view-intel .fab-locate,
 body.view-intel .placing-banner, body.view-intel .checkin-banner { display: none !important; }
 
-.intel-search {
-  flex: 0 0 auto; position: relative; padding: 10px 12px 8px;
-  background: var(--surface); border-bottom: 1px solid var(--line);
-}
-.intel-search__ico { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: .6; }
-.intel-search input {
-  width: 100%; border: 1px solid var(--line-2); border-radius: var(--r-pill);
-  padding: 11px 14px 11px 38px; font-size: 16px; color: var(--ink); background: var(--surface-2);
-}
-.intel-search input:focus { outline: none; border-color: var(--brand); background: var(--surface); box-shadow: 0 0 0 3px var(--brand-050); }
+/* A aba não tem caixa de busca própria (30/07): a busca desta aba é a da
+   quickbar, que aparece aqui também. Os estilos `.intel-search` saíram junto. */
 
 .intel-head {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
