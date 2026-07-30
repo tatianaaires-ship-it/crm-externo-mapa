@@ -58,7 +58,7 @@ O sheet do pin tem **cinco telas**, não cinco lugares — tudo dentro do mesmo 
 
 1. **Pin** — o que já existia, com o histórico enxugado a 3.
 2. **Lista** (`Ver todas ›`) — todas as atividades do ponto, em dois grupos: **Planejadas** e **Realizadas**. Cabeçalho com voltar, título `Atividades` e o **nome do ponto** por baixo, para não se perder de quem é a lista.
-3. **Detalhe** (toque numa atividade) — a ficha da [[tarefa]]: data · situação · responsável · **rota** · tipo de check-in · check-in/check-out com duração · **distância no check-in** · resultado · motivo · próxima ação · comentário.
+3. **Detalhe** (toque numa atividade) — a ficha da [[tarefa]]: data · situação · responsável · **rota** · tipo de check-in · check-in/check-out com duração · **distância no check-in** · resultado · motivo · comentário. ⚠️ **`próxima ação` saiu daqui em 30/07** junto com o campo (§3, item 4).
 4. **Conclusão** (§3) — o check-out. Entra pelo botão do pin **ou** pelo detalhe da atividade, e volta para a tela do pin ao concluir.
 5. **Agendar** (§2.1) — o plano. Entra pelo `＋ Agendar` do bloco e volta ao pin.
 
@@ -90,6 +90,8 @@ Pede **só o que é digitado**, nesta ordem:
 > ⚖️ **O sheet diz o que agendar faz ao funil**, na linha antes do botão: *"Agendar coloca {ponto} no funil, em Visita planejada"* — ou, se já houver plano, quantas planejadas o ponto tem. Quem está a um toque de mexer no board deve saber disso **antes** do toque, não descobrir pelo Funil depois.
 
 > ⚖️ **Agendar já move o funil.** Criar a atividade promove o pin de `sem_plano` para **Visita planejada** — é assim que ele **entra no board** do Funil ([[estabelecimento]] §5). **Cancelar** a última atividade planejada devolve o pin a `sem_plano` e ele sai do board. É a única transição reversível do funil, e vale confirmar no cancelamento por isso.
+
+> 🚪 **Desde 30/07 há DUAS portas para agendar, e esta é a de planejar do zero.** A outra é o **check-out** (§3, item 4), que marca a volta **no instante em que o vendedor sabe qual ela é** — em vez de fechar a visita, sair do sheet e reabrir o pin para agendar. Mesmos campos, mesma escrita (`agendarTarefa`); o que muda é só o `default` de **dia** (aqui **hoje**, lá **vazio** — no check-out o vendedor está no ponto agora, então "hoje" seria sugestão errada) e o **tipo sugerido** (lá é o da **próxima** visita, não o desta).
 
 ### 2.3 Check-in em qualquer pin, com o tipo já sugerido (CAP-6 revisada)
 
@@ -156,7 +158,7 @@ São duas peças de uma coisa só — **a faixa é o sintoma e é a saída**:
 
 > ⚖️ **E o formulário foi refeito no fim do dia 28/07 (Tatiana), na maior mudança que o check-out já teve.** O **chip de resultado saiu**: o vendedor não escolhe mais um rótulo de desfecho — ele responde **o que aconteceu**, em quatro caixas, e o `resultado` passa a ser **derivado** disso ([[tarefa]] §5). Entraram `Vendeu?`, o vocabulário de **não venda** e as **notas da visita**; os dois vocabulários de motivo foram trocados pelos da operação. O que motivou tudo: *"por que não saiu pedido?"* não tinha onde ser respondido, e é a pergunta que a supervisão mais faz.
 
-O momento em que a atividade **vira dado** e o funil se move. Cinco campos, nesta ordem:
+O momento em que a atividade **vira dado** e o funil se move. Cinco campos, nesta ordem — e, desde 30/07, o último deles **cria a próxima tarefa**:
 
 0. **Tipo da visita** — pré-marcado com o que a tarefa já tem (do plano ou da sugestão). É aqui que o vendedor confirma **o que a visita foi**, porque agora ele sabe (§2.3).
 
@@ -192,9 +194,16 @@ O momento em que a atividade **vira dado** e o funil se move. Cinco campos, nest
 > ⚖️ **Três (i), não dois.** A confusão real não é só *desqualificar × perder* — é **não venda × perda**: uma é o desfecho desta **visita**, a outra é a **negociação** morrer. O (i) abre e fecha no toque, um por vez, inline (tooltip que depende de hover não existe no celular).
 
 3. **Notas da visita** (opcional) — textarea. O campo `notas` existia no modelo desde 27/07 e **só o sheet de agendar o escrevia**: não havia onde o vendedor contar o que rolou. A dica lembra que a nota **do ponto** é outra e vive no pin.
-4. **Próxima ação** (opcional, sempre visível): texto de uma linha + data. ⚠️ **Deixou de alimentar a Agenda em 28/07** (§4.2) — sugestão dentro de um calendário lê como compromisso marcado. Continua no registro da atividade e na tabela da gerencial, e **nunca virou tarefa**.
+4. **Próxima visita** (opcional) — um checkbox `Agendar próxima visita` que, ligado, **revela** o mini-form de agendar: **tipo** (chips, pré-marcado) · **dia** (obrigatório, hoje ou depois) · **hora** (opcional) · **anotação** (opcional). Concluir passa a ser **dois atos num toque**: a atividade fecha e a próxima nasce **planejada**, na Agenda.
 
-**O botão diz o que falta.** Enquanto o formulário está incompleto ele fica desabilitado e o rótulo é a instrução — `Escolha o motivo da não venda` / `Escolha o motivo da perda` / `Escolha o motivo da desqualificação` → `Descreva o motivo` → `✓ Concluir atividade`. Botão que recusa em silêncio faz o usuário achar que a tela travou; e validação que só aparece **depois** do toque obriga a errar primeiro.
+> 🔄 **Substituiu a `Próxima ação` em 30/07 (Tatiana), e o motivo é o buraco que ela virou.** Era texto de uma linha + data que **não criava tarefa**, e sua única superfície — as `Sugestões` da Agenda — **saiu em 28/07** (§4.2). Sobrou campo que o vendedor escrevia e ninguém lia: a tela dizia *"aparece na gerencial como sugestão"* e a tabela da gerencial **nunca** mostrou a coluna. Agendar de verdade responde à mesma intenção (*"o que faço depois"*) com o objeto que a operação já tem — e resolve a assimetria de o vendedor só poder marcar a volta pelo `＋ Agendar` do pin, nunca no momento em que ele sabe o que a volta é. **O campo `proxima_acao`/`proxima_acao_data` morreu** ([[tarefa]] §4).
+> ⚖️ **Nasce desligado, e o dia só é cobrado se ligar.** Agendar é opcional — check-out que exige compromisso empurra o vendedor a marcar data no chute. Ligado, o botão passa a dizer `Escolha o dia da próxima visita` / `O dia da próxima visita já passou`: a Agenda mostra só de hoje em diante, então dia no passado nasceria como compromisso invisível (mesma regra da tela 5, §2.1).
+> ⚖️ **O tipo vem sugerido, mas não é a sugestão do check-in.** `D.sugereTipoVisita` olha o histórico **realizado**, e aqui a visita que acabou de acontecer ainda é `planejada` — num ponto nunca visitado ela diria "1ª visita" outra vez. Depois de ir, o que vem é **follow-up**; em cliente (`csc`/`aquisicao`), **recorrência**.
+> ⚖️ **Com Perda ou Desqualificar o bloco SOME**, e no lugar dele fica a nota *"Com Perdido não se agenda daqui — o ponto está saindo do funil. Se ele voltar, agende pelo pin."* Marcar a saída lateral e o retorno na mesma tela é a tela se contradizendo; e a tarefa nova tiraria o pin da lateral que ele **acabou de** escolher. Mesma lógica que faz o motivo de não venda desaparecer (item 2). Marcar a lateral também **desliga** o rascunho: bloco escondido com agendamento ligado por baixo criaria uma visita que ninguém viu nascer.
+> ⚖️ **A ordem é concluir → agendar, e ela importa.** Concluir move o funil pelo `resultado`; agendar só faz o pin **entrar** (`visita_planejada`) se ele estivesse fora, porque a escada é monotônica ([[estabelecimento]] §5). Então a tarefa nova **não rebaixa** quem avançou: quem fechou em *TD encontrado* fica em TD encontrado, com uma planejada pendurada. Se o agendamento falhar, a conclusão continua valendo e **o toast avisa** — o vendedor não pode ficar contando com uma visita que não existe.
+> 📣 **Um toast, dois fatos:** `Atividade concluída — Bar do Aeroporto → TD encontrado · próxima visita 05/08 às 10:30.`
+
+**O botão diz o que falta.** Enquanto o formulário está incompleto ele fica desabilitado e o rótulo é a instrução — `Escolha o motivo da não venda` / `Escolha o motivo da perda` / `Escolha o motivo da desqualificação` → `Descreva o motivo` → `Escolha o dia da próxima visita` → `✓ Concluir atividade`. Botão que recusa em silêncio faz o usuário achar que a tela travou; e validação que só aparece **depois** do toque obriga a errar primeiro.
 
 - **Trocar o desfecho zera o motivo.** O vocabulário de `perdido` não é o de `desqualificado` nem o de não venda ([[tarefa]] §4) — manter a escolha anterior guardaria um motivo do enum errado.
 - **`outro` mostra o texto no pin, não a palavra "Outro".** O `motivo_status` do estabelecimento passa a exibir o que o vendedor escreveu — "Outro" não informa nada a quem abre o pin depois.
@@ -293,7 +302,7 @@ Antes era uma pilha de cards de atividade agrupada por dia, com `Atrasadas` no t
 >
 > ⚠️ **O que isto custa, explicitamente:** a tarefa planejada de data passada **só existe** na tabela da gerencial, e lá **sem marca própria** de atraso — ela aparece porque a tabela lista todas as planejadas do período, não porque a tela sinalize a dívida. A tabela obedece ao filtro de período, então com `Hoje` selecionado a atrasada de ontem não aparece em lugar nenhum do app. **Isso é o comportamento pedido, não uma lacuna a consertar** — e é a razão de estar escrito aqui: um leitor futuro que "descobrir" essa ausência precisa saber que ela é intencional antes de reintroduzir o bloco.
 
-> ⚖️ **As `Sugestões` (`proxima_acao_data`) saíram da Agenda.** Elas eram "não-tarefas" num calendário — exatamente o tipo de item que alguém lê como compromisso marcado. O campo continua no modelo e na tabela da gerencial; a Agenda ficou só com compromisso real.
+> ⚖️ **As `Sugestões` (`proxima_acao_data`) saíram da Agenda.** Elas eram "não-tarefas" num calendário — exatamente o tipo de item que alguém lê como compromisso marcado. A Agenda ficou só com compromisso real. ⛔ **E em 30/07 o campo saiu do modelo também** (§3, item 4): sem superfície, ele era escrita sem leitura. A continuidade virou **tarefa planejada**, agendada no próprio check-out — que é compromisso real e por isso **entra** na Agenda.
 
 **Criar rota ou atividade daqui ainda não existe.** O FAB da aba com seletor buscável de pin segue prometido e não implementado (§9) — e agora ele tem duas formas a resolver: criar **avulsa** (um pin) e **montar rota** (N pins, o que cria N tarefas planejadas). Agendar pelo sheet do pin cria sempre uma **avulsa**. Toda tarefa tem `estabelecimento_id` obrigatório; não há atividade órfã.
 
@@ -416,7 +425,7 @@ O snapshot **não traz atividade nenhuma**. Sem simular, quem entra pelo porteir
 
 ## 7. Dados exibidos
 
-Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_desqualificacao`, `proxima_acao`(+data), `responsavel_id`, `atrasada`, `duracao_min` (só na gerencial). Do [[estabelecimento]]: `nome_fantasia`, `tipologia` (emoji), cidade/zona — o suficiente para identificar o pin no card. Referência cruzada: coluna **"Onde aparece"** em [[tarefa]] §4.
+Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_desqualificacao`, `responsavel_id`, `atrasada`, `duracao_min` (só na gerencial). Do [[estabelecimento]]: `nome_fantasia`, `tipologia` (emoji), cidade/zona — o suficiente para identificar o pin no card. Referência cruzada: coluna **"Onde aparece"** em [[tarefa]] §4.
 
 ## 8. Estados
 
@@ -457,7 +466,7 @@ Da [[tarefa]]: `tipo`, `data`, `status`, `resultado`, `motivo_perda`/`motivo_des
 - **O sheet é a 4ª tela do pin-sheet, não um sheet sobre o sheet** (§2.2). Empilhar dois bottom sheets exigiria segundo backdrop e nova camada de z-index para uma tela que sempre pertence a **um** ponto.
 - **Presencial × remoto é DISTÂNCIA, não presença de check-in** ([[tarefa]] §5, corrigido em 28/07). Sem check-in a atividade fica **não realizada** e `tipo_checkin` é nulo; com check-in, o raio de **`0,5 km`** — o critério que a operação da Praso já usa — separa quem estava na porta de quem registrou de longe. A versão anterior — `remoto` = concluída sem check-in — fazia a gerencial contar como *realizada remota* uma visita que ninguém tinha feito.
 - **Não se conclui sem check-in** (§3). Consequência no seed: as ~60 "remotas sem check-in" viraram **planejadas em data passada** (§5.5), e a taxa de execução caiu de 84% para 77% — que é o número honesto.
-- **`proxima_acao_data` não tem mais superfície na Agenda** (§4.2) — segue no modelo e na tabela da gerencial. Sugestão dentro de um calendário lê como compromisso.
+- ~~**`proxima_acao_data` não tem mais superfície na Agenda**~~ → **o campo morreu** (30/07, §3 item 4). Tirado da Agenda em 28/07, ele ficou **sem nenhum leitor** — a tela prometia a tabela da gerencial, que nunca o mostrou. No lugar entrou **agendar a próxima visita no check-out**, que cria [[tarefa]] planejada de verdade. Registrado porque é o padrão: *campo sem superfície não é registro, é escrita que ninguém lê* — ou ganha leitor, ou sai.
 - **O sheet do pin virou três telas** (§2.2), não uma tela longa. Empilhar lista completa + detalhe dentro do sheet mantém o vendedor no contexto do ponto; abrir tela cheia por atividade perderia o pin de vista.
 - **Atividade realizada não tem ação** — é registro. Corrigir um desfecho errado exige concluir uma **nova** atividade, que é o mesmo caminho da requalificação (§3.1). Não há edição retroativa.
 - **Recorrência não gera nada** na Fase 2: é só um valor de `tipo`. A agenda não se autopreenche.

@@ -463,7 +463,6 @@
       // Desfecho — tudo nasce vazio e só o check-out preenche (spec-07 §3).
       resultado: null, tdEncontrado: false, vendaDeclarada: false,
       motivoNaoVenda: null, motivoPerda: null, motivoDesqualificacao: null, motivoTexto: null,
-      proximaAcao: null, proximaAcaoData: null,
       notas: (data.notas && data.notas.trim()) || null,
       criadoPor: D.VENDEDOR_SESSAO
     };
@@ -604,8 +603,11 @@
     t.motivoPerda = (r.motivo === 'perda') ? motLateral : null;
     t.motivoDesqualificacao = (r.motivo === 'desqualificacao') ? motLateral : null;
     t.motivoTexto = (motEfetivo === 'outro') ? String(out.motivoTexto).trim() : null;
-    t.proximaAcao = (out.proximaAcao && out.proximaAcao.trim()) || null;
-    t.proximaAcaoData = out.proximaAcaoData || null;
+    /* `proxima_acao` (+ data) morreu em 30/07: era texto que não virava tarefa e
+       cuja única superfície (as Sugestões da Agenda) saiu em 28/07. A
+       continuidade agora é uma TAREFA de verdade, agendada pelo mesmo sheet de
+       check-out — quem chama concluir e quer marcar a volta chama
+       `agendarTarefa` depois (js/pin.js). */
     // A nota da ATIVIDADE (≠ nota do ponto). Até 28/07 só o agendar a escrevia;
     // o check-out é o momento em que há o que contar.
     if (out.notas != null) t.notas = (String(out.notas).trim() || null);

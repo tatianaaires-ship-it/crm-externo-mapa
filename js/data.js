@@ -967,8 +967,6 @@
         motivoPerda: t.motivoPerda || null,
         motivoDesqualificacao: t.motivoDesqualificacao || null,
         motivoTexto: null,
-        proximaAcao: t.proximaAcao || null,
-        proximaAcaoData: t.proximaAcaoData || null,
         notas: t.notas || null,
         criadoPor: pin.vendedorId
       });
@@ -983,7 +981,7 @@
         resultado: resultado,
         motivoPerda: e.motivoPerda, motivoDesqualificacao: e.motivoDesqualificacao,
         motivoNaoVenda: e.motivoNaoVenda, tdEncontrado: e.tdEncontrado,
-        proximaAcao: e.proximaAcao, proximaAcaoData: e.proximaAcaoData, notas: e.notas
+        notas: e.notas
       });
     }
 
@@ -993,12 +991,13 @@
       const st = p.status;
 
       // Já houve trabalho de campo: gera a atividade que produziu esse estado.
+      /* ⚠️ Estas duas semeavam `proximaAcao` ("Levar tabela de preços") até
+         30/07. O campo morreu: a continuidade virou TAREFA agendada no
+         check-out, e tarefa planejada este seed já produz mais abaixo. */
       if (st === 'visitado') {
-        realizada(p, 'primeira_visita', p.lastVisit || isoPlus(-20), 'sem_avanco',
-          { proximaAcao: 'Levar tabela de preços', proximaAcaoData: isoPlus(3 + (i % 9)) });
+        realizada(p, 'primeira_visita', p.lastVisit || isoPlus(-20), 'sem_avanco');
       } else if (st === 'td_encontrado') {
-        realizada(p, 'primeira_visita', p.lastVisit || isoPlus(-25), 'td_encontrado',
-          { proximaAcao: 'Fechar proposta com o dono', proximaAcaoData: isoPlus(2 + (i % 7)) });
+        realizada(p, 'primeira_visita', p.lastVisit || isoPlus(-25), 'td_encontrado');
         // Follow-up recente reforça o volume da visão gerencial.
         if (i % 2 === 0) realizada(p, 'follow_up', isoPlus(-(3 + (i % 10))), 'td_encontrado');
       } else if (st === 'csc' || st === 'aquisicao') {

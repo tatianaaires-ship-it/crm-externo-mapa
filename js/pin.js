@@ -24,7 +24,12 @@
     return { tarefaId: tarefaId, tipo: tipo,
              tdEncontrado: false, vendaDeclarada: false, desqualificar: false, perda: false,
              motivoNaoVenda: '', motivo: '', motivoTexto: '',
-             notas: '', prox: '', proxData: '', ajuda: null };
+             notas: '',
+             /* AGENDAR A PRÓXIMA no próprio check-out (30/07) — substituiu
+                `próxima ação`, que era texto + data e não virava tarefa. Nasce
+                desligado: agendar é opcional, e o dia só é cobrado se ligar. */
+             agendar: false, agTipo: null, agData: '', agHora: '', agNotas: '',
+             ajuda: null };
   }
   /* Rascunho do sheet de AGENDAR (§2.1). Mesmo motivo de viver fora do render:
      cada toque de chip re-renderiza. `pinId` amarra o rascunho ao ponto. */
@@ -203,8 +208,6 @@
         // o dono" e "perdido sem achar ninguém" são coisas diferentes.
         (feita ? infoRow('TD encontrado', t.tdEncontrado ? 'Sim' : 'Não') : '') +
         (mot ? infoRow(motLbl, esc(mot)) : '') +
-        (t.proximaAcao ? infoRow('Próxima ação', esc(t.proximaAcao) +
-          (t.proximaAcaoData ? '<small class="info__desc">' + fmtDate(t.proximaAcaoData) + '</small>' : '')) : '') +
       '</section>' +
       // A mesma `notas` tem dois significados conforme o momento: antes de ir é
       // a anotação do agendamento; depois, o que o vendedor contou da visita.
@@ -225,6 +228,48 @@
     wireSheet();
   }
 
+  function hojeISO() { return new Date().toISOString().slice(0, 10); }
+
+  /* O TIPO da PRÓXIMA visita não sai de `D.sugereTipoVisita`: ela olha o
+     histórico REALIZADO, e aqui a visita que acabou de acontecer ainda é
+     `planejada` — num ponto nunca visitado ela sugeriria "1ª visita" outra vez.
+     Depois de ir, o que vem é follow-up; em cliente, recorrência. */
+  function sugereProximoTipo(p) {
+    return (p && (p.status === 'csc' || p.status === 'aquisicao')) ? 'recorrencia' : 'follow_up';
+  }
+
+  /* O que falta para concluir, numa função: o rótulo do botão é recalculado
+     também no `input` (digitar não re-renderiza, senão o foco morre), e duas
+     cópias da regra divergiriam na primeira mexida. */
+  function faltaConclusao() {
+    const r = D.RESULTADO[D.deriveResultado(form)];
+    const tabelaMotivo = r.motivo
+      ? (r.motivo === 'perda' ? D.MOTIVO_PERDA : D.MOTIVO_DESQUALIFICACAO) : null;
+    const pedeNaoVenda = !r.motivo && !form.vendaDeclarada;
+    const motEfetivo = tabelaMotivo ? form.motivo : (pedeNaoVenda ? form.motivoNaoVenda : '');
+
+    if (tabelaMotivo && !form.motivo) {
+      return r.motivo === 'perda' ? 'Escolha o motivo da perda' : 'Escolha o motivo da desqualificação';
+    }
+    if (pedeNaoVenda && !form.motivoNaoVenda) return 'Escolha o motivo da não venda';
+    if (motEfetivo === 'outro' && !form.motivoTexto.trim()) return 'Descreva o motivo';
+    // Agendar é opcional; ligado, o dia passa a ser obrigatório — e no futuro,
+    // porque a Agenda só mostra de hoje em diante (mesma regra da tela 5).
+    if (form.agendar && !r.motivo) {
+      if (!form.agData) return 'Escolha o dia da próxima visita';
+      if (form.agData < hojeISO()) return 'O dia da próxima visita já passou';
+    }
+    return null;
+  }
+
+  function atualizaBotaoConc() {
+    const ok = sheetEl.querySelector('#btn-conc-ok');
+    if (!ok) return;
+    const falta = faltaConclusao();
+    ok.disabled = !!falta;
+    ok.textContent = falta || '✓ Concluir atividade';
+  }
+
   /* ---- Tela 4: CONCLUSÃO (check-out) — SPEC 07 §3 -----------------------
      O momento em que a atividade vira dado e o funil se move. Era três
      `window.prompt` em sequência (a parte mais feia do protótipo); virou sheet
@@ -235,7 +280,10 @@
        2. RESULTADO — obrigatório, 4 chips na ordem fixa do enum.
        3. MOTIVO — aparece só em Perdido/Desqualificar, vocabulário fechado;
           `outro` revela o campo de texto. Não dá pra concluir sem ele.
-       4. PRÓXIMA AÇÃO — opcional, texto + data. Não cria tarefa.
+       4. PRÓXIMA VISITA — opcional; ligada, AGENDA de verdade (cria a tarefa
+          planejada, do mesmo jeito que a tela 5). Era `próxima ação`, texto +
+          data que não virava tarefa e cuja única superfície — as Sugestões da
+          Agenda — saiu em 28/07: sobrou campo escrito que ninguém lia.
      O botão fica desabilitado enquanto falta algo, e diz o que falta: botão
      que recusa em silêncio faz o usuário achar que a tela travou. ---- */
   function renderConclusao() {
@@ -258,14 +306,7 @@
     const motEfetivo = tabelaMotivo ? form.motivo : (pedeNaoVenda ? form.motivoNaoVenda : '');
 
     // O que ainda falta — vira o rótulo do botão, não um erro depois do toque.
-    let falta = null;
-    if (tabelaMotivo && !form.motivo) {
-      falta = r.motivo === 'perda' ? 'Escolha o motivo da perda' : 'Escolha o motivo da desqualificação';
-    } else if (pedeNaoVenda && !form.motivoNaoVenda) {
-      falta = 'Escolha o motivo da não venda';
-    } else if (motEfetivo === 'outro' && !form.motivoTexto.trim()) {
-      falta = 'Descreva o motivo';
-    }
+    const falta = faltaConclusao();
 
     const chip = function (attr, val, sel, label, cor) {
       return '<button type="button" class="chip' + (cor ? ' chip--res' : '') +
@@ -390,13 +431,53 @@
         '<span class="sform-hint">Fica no registro desta atividade — a nota do <strong>ponto</strong> é outra, e vive no pin.</span>' +
       '</div>' +
 
-      '<div class="sform-campo">' +
-        '<span class="sform-lbl">Próxima ação <em>opcional</em></span>' +
-        '<input type="text" id="conc-prox" class="sform-inp" maxlength="120" ' +
-          'placeholder="Ex.: voltar com a tabela nova" value="' + esc(form.prox) + '" />' +
-        '<input type="date" id="conc-prox-data" class="sform-inp sform-inp--data" value="' + esc(form.proxData) + '" />' +
-        '<span class="sform-hint">Aparece na gerencial como sugestão — <strong>não cria tarefa</strong>.</span>' +
-      '</div>' +
+      /* PRÓXIMA VISITA — agenda de verdade (30/07). Com saída lateral o bloco
+         SOME: marcar Perda/Desqualificar e agendar retorno na mesma tela é a
+         tela se contradizendo, e a tarefa nova tiraria o pin da lateral que ele
+         acabou de escolher. Volta pelo `＋ Agendar` do pin, se for o caso. */
+      (r.motivo
+        ? '<div class="sform-campo">' +
+            '<span class="sform-lbl">Próxima visita</span>' +
+            '<p class="sform-nota">Com <strong>' + esc(r.label) +
+              '</strong> não se agenda daqui — o ponto está saindo do funil. Se ele voltar, agende pelo pin.</p>' +
+          '</div>'
+        : '<div class="sform-campo">' +
+            '<span class="sform-lbl">Próxima visita <em>opcional</em></span>' +
+            '<div class="sform-check-row">' +
+              '<button type="button" class="sform-check' + (form.agendar ? ' is-on' : '') + '"' +
+                ' role="checkbox" data-cag="1" aria-checked="' + (form.agendar ? 'true' : 'false') + '">' +
+                '<span class="sform-check__box" aria-hidden="true"></span>' +
+                '<span class="sform-check__lbl">Agendar próxima visita</span>' +
+              '</button>' +
+            '</div>' +
+            (form.agendar
+              ? '<div class="sform-sub">' +
+                  '<div class="sform-campo">' +
+                    '<span class="sform-lbl">Tipo</span>' +
+                    '<div class="sform-chips">' + D.TAREFA_TIPO_ORDER.map(function (k) {
+                      const tp = D.TAREFA_TIPO[k];
+                      return chip('data-agtipo', k, k === form.agTipo, tp.emoji + ' ' + esc(tp.label));
+                    }).join('') + '</div>' +
+                  '</div>' +
+                  '<div class="sform-campo">' +
+                    '<span class="sform-lbl">Dia <em>obrigatório</em></span>' +
+                    '<input type="date" id="conc-ag-data" class="sform-inp sform-inp--data" ' +
+                      'min="' + hojeISO() + '" value="' + esc(form.agData) + '" />' +
+                  '</div>' +
+                  '<div class="sform-campo">' +
+                    '<span class="sform-lbl">Hora <em>opcional</em></span>' +
+                    '<input type="time" id="conc-ag-hora" class="sform-inp sform-inp--data" value="' + esc(form.agHora) + '" />' +
+                    '<span class="sform-hint">Sem hora, entra como <strong>dia inteiro</strong> no topo do dia, na Agenda.</span>' +
+                  '</div>' +
+                  '<div class="sform-campo">' +
+                    '<span class="sform-lbl">Anotação <em>opcional</em></span>' +
+                    '<input type="text" id="conc-ag-notas" class="sform-inp" maxlength="120" ' +
+                      'placeholder="Ex.: voltar com a tabela nova" value="' + esc(form.agNotas) + '" />' +
+                    '<span class="sform-hint">É o único texto que o card da Agenda mostra.</span>' +
+                  '</div>' +
+                '</div>'
+              : '<span class="sform-hint">Cria uma <strong>atividade planejada</strong> neste ponto — vira compromisso na Agenda, não lembrete.</span>') +
+          '</div>') +
 
       '<button type="button" id="btn-conc-ok" class="btn btn--checkin btn--block"' +
         (falta ? ' disabled' : '') + '>' +
@@ -785,10 +866,17 @@
     }
     if (view !== 'conclusao') return;
     if (e.target.closest('#btn-conc-ok')) return concluir();
-    const el = e.target.closest('[data-ctipo],[data-cflag],[data-ajuda]');
+    const el = e.target.closest('[data-ctipo],[data-cflag],[data-ajuda],[data-cag],[data-agtipo]');
     if (!el || !sheetEl.contains(el)) return;
 
-    if (el.dataset.ajuda) {
+    if (el.dataset.cag) {
+      form.agendar = !form.agendar;
+      // Ligar já traz o tipo sugerido — ninguém deveria abrir o bloco e ter que
+      // classificar do zero uma visita que o histórico já descreve.
+      if (form.agendar && !form.agTipo) form.agTipo = sugereProximoTipo(S.getById(currentId));
+    } else if (el.dataset.agtipo) {
+      form.agTipo = el.dataset.agtipo;
+    } else if (el.dataset.ajuda) {
       // O (i) abre e fecha no mesmo toque — um por vez.
       form.ajuda = (form.ajuda === el.dataset.ajuda) ? null : el.dataset.ajuda;
     } else if (el.dataset.ctipo) {
@@ -807,6 +895,9 @@
       form.perda          = n.perda;
       // Trocar de desfecho invalida o motivo da lateral: o vocabulário é outro.
       if (k !== 'tdEncontrado') { form.motivo = ''; form.motivoTexto = ''; }
+      // Saída lateral desliga o agendamento — o bloco some da tela, e rascunho
+      // ligado por baixo agendaria uma visita que ninguém vê ser criada.
+      if (n.perda || n.desqualificar) form.agendar = false;
     }
     render();
   }
@@ -833,9 +924,11 @@
     if (view !== 'conclusao') return;
     const el = e.target;
     // Texto e textarea: rascunho sem re-render (o foco morreria a cada tecla).
-    if (el.id === 'conc-prox') { form.prox = el.value; return; }
-    if (el.id === 'conc-prox-data') { form.proxData = el.value; return; }
     if (el.id === 'conc-notas') { form.notas = el.value; return; }
+    if (el.id === 'conc-ag-notas') { form.agNotas = el.value; return; }
+    if (el.id === 'conc-ag-hora') { form.agHora = el.value; return; }
+    // O dia da próxima visita manda no botão: ligado o bloco, ele é obrigatório.
+    if (el.id === 'conc-ag-data') { form.agData = el.value; return atualizaBotaoConc(); }
 
     /* Os selects, ao contrário, PRECISAM re-renderizar: escolher `Outro` revela
        o campo de texto. `input` e `change` chegam os dois aqui — o guard de
@@ -850,11 +943,7 @@
 
     if (el.id !== 'conc-mot-txt') return;
     form.motivoTexto = el.value;
-    const ok = sheetEl.querySelector('#btn-conc-ok');
-    if (!ok) return;
-    const pronto = !!el.value.trim();
-    ok.disabled = !pronto;
-    ok.textContent = pronto ? '✓ Concluir atividade' : 'Descreva o motivo';
+    atualizaBotaoConc();
   }
 
   // Agendar: cria a tarefa planejada e põe o pin no funil (tarefa.md §5).
@@ -875,11 +964,16 @@
     }
   }
 
-  // Fecha a atividade: o tipo confirmado entra junto, é o mesmo ato.
+  /* Fecha a atividade: o tipo confirmado entra junto, é o mesmo ato — e, se o
+     vendedor ligou a próxima visita, ela é AGENDADA aqui, depois de concluir.
+     A ordem importa: concluir move o funil pelo resultado, e agendar só faz o
+     pin ENTRAR (`visita_planejada`) se ele estivesse fora — a escada é
+     monotônica, então a tarefa nova não rebaixa quem avançou. */
   function concluir() {
     const t = S.getTarefa(form.tarefaId);
     if (!t) return irPara('pin');
     const vendeu = form.vendaDeclarada;
+    const querAgendar = form.agendar && !!form.agData;
     const feito = S.concluirTarefa(t.id, {
       tipo: form.tipo,
       // O resultado não vai daqui: o store o deriva dos mesmos checkboxes.
@@ -890,21 +984,42 @@
       motivoNaoVenda: form.motivoNaoVenda,
       motivo: form.motivo,
       motivoTexto: form.motivoTexto,
-      notas: form.notas,
-      proximaAcao: form.prox,
-      proximaAcaoData: form.proxData || null
+      notas: form.notas
     });
     if (!feito) return window.CRM_TOAST && window.CRM_TOAST('Não foi possível concluir.');
+    /* Agendar DEPOIS de concluir, e só sem saída lateral (a UI já esconde o
+       bloco nesse caso — aqui é o cinto de segurança do store). Se falhar, a
+       conclusão continua valendo: o que se perde é o compromisso, e o toast diz. */
+    const r = D.RESULTADO[feito.resultado] || {};
+    const nova = (querAgendar && !r.motivo)
+      ? S.agendarTarefa({
+          pinId: currentId,
+          tipo: form.agTipo || sugereProximoTipo(S.getById(currentId)),
+          data: form.agData,
+          hora: form.agHora,
+          notas: form.agNotas
+        })
+      : null;
     const pin = S.getById(currentId);
     form = novoForm(null, null);
     irPara('pin');
     if (window.CRM_TOAST && pin) {
       // Com venda declarada o toast diz o que FALTA (o pedido), não só para
       // onde o pin foi — senão "→ TD encontrado" lê como se a venda sumisse.
-      window.CRM_TOAST(vendeu
+      const base = vendeu
         ? 'Venda registrada — ' + pin.name + ' aguarda o pedido no sistema para ir a Aquisição.'
         : 'Atividade concluída — ' + pin.name + ' → ' +
-          ((D.STATUS[pin.status] || {}).label || pin.status));
+          ((D.STATUS[pin.status] || {}).label || pin.status);
+      // O agendamento é ato à parte: o toast confirma os dois, ou avisa que o
+      // segundo não saiu — sumir em silêncio faria o vendedor contar com a visita.
+      let extra = '';
+      if (nova) {
+        extra = ' · próxima visita ' + nova.data.slice(8) + '/' + nova.data.slice(5, 7) +
+          (nova.hora ? ' às ' + nova.hora : '') + '.';
+      } else if (querAgendar && !r.motivo) {
+        extra = ' ⚠️ Não foi possível agendar a próxima visita.';
+      }
+      window.CRM_TOAST(base + extra);
     }
   }
 
