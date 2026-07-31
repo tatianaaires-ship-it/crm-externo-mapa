@@ -49,8 +49,57 @@ Aplica o shell do SPEC 00 §5: **topbar → quickbar → mapa (tela cheia) → b
   - **`updateWhenZooming: false`** no tile layer — a malha de tiles recalcula no fim do gesto, não a cada frame. Durante o zoom o Leaflet escala os tiles que já tem (borrão breve).
   - **Raio do zoom alto: 22 → 40** — 154 bolhas em vez de 277. Escolhido como **meio-termo**: 60 daria 59 ms, mas deixaria só 54 bolhas e mataria a granularidade fina que esta rampa existe para dar.
   > ⚠️ **A rampa deixou de ser monotônica** (55→34→**40**: desce e depois sobe), então "o raio diminui com o zoom" não descreve mais o código. Funciona, mas é uma incoerência de desenho — vale revisitar a rampa inteira junto com o geocoding da Fase 4, quando a densidade real dos pins mudar.
-  > 📌 **Não medido:** o zoom **animado**, que é o que o dedo faz. No Browser pane as animações do Leaflet não completam (§5.2), então todos os números acima são do caminho síncrono — o piso, não o que se sente. A validação real foi no Android da Tatiana.
+  > 📌 **Era "não medido": o zoom animado, que é o que o dedo faz** — no Browser pane as animações do Leaflet não completam (§5.2), então os números acima são do caminho síncrono. **Medido em 31/07** por outro caminho (§3.1), e a conclusão é que o caminho síncrono era o piso errado: a pinça custa 3–4× mais por nível de zoom que o botão.
 - ⚡ **`disableClusteringAtZoom` subiu de 16 para 19 em 29/07 — ou seja, acima do `maxZoom` 18: na prática a clusterização nunca desliga.** No 16 ela desligava inteira e **2.600 markers entravam no DOM de uma vez: 1.040 ms** medidos com 6.914 pins (≈4 s no Android da Tatiana). Era o "mapa pesa quando dou zoom". Depois: **14 ms**. E o ganho não custou informação — pelo contrário: como o snapshot põe os leads em **centroide de zona**, desagrupar no 16 desenhava os 2.600 **um em cima do outro**, então se pagava um segundo para ver um pin e 2.599 escondidos atrás. A bolha com contagem + spiderfy ao tocar mostra **mais**. No dataset fictício nada muda (61 pontos espalhados já separam pelo raio: zoom 17 dá 6 pins individuais, 0 bolhas). ⚠️ **Voltar para 16 é uma linha, e faz sentido quando o geocoding da Fase 4 der coordenada real** — aí os pins estarão espalhados e desagrupar volta a informar.
+
+### 3.1 A lentidão residual do zoom (31/07) — o que ela é, e o que ela não é
+
+A rodada de 29/07 matou os dois penhascos (o desligamento da clusterização e a animação de split/merge) e ficou uma queixa residual: *"lento ao dar zoom-in e zoom-out"*. Esta rodada foi atrás dela **medindo o gesto**, não o caminho síncrono.
+
+**Como foi medido, e por que não deu para medir do jeito anterior.** O Browser pane não compõe frames, então ali não existe `paint`, `raster` nem `transitionend` — o que dá para ver é script e layout forçado. A medição foi para **Edge headless=new + CDP** (que compõe): viewport 375×812 `mobile`, CPU estrangulada em **4×** (≈ Android de médio porte), tiles bloqueados no CDN para o decode de imagem sair da conta, e só os eventos da **main thread** do renderer somados. A pinça é um `Input.dispatchTouchEvent` de dois dedos em 18 frames — o `setZoom` não passa pelo mesmo caminho.
+> ⚠️ **Duas armadilhas de método, das caras.** (1) A máquina **deriva**: o mesmo `base` deu 363 ms e, meia hora depois na mesma execução, 689 ms — medir "todas as reps de A, depois de B" confunde efeito com deriva, e foi assim que a delegação de clique "ganhou" 9–15% que não existiam. Correção: **intercalar** as condições e alternar a ordem. (2) Trocar o raio em tempo de execução obriga a reclusterizar, o que descarta ~10 mil objetos, e o **GC** cai dentro da medição seguinte — com isso raio 55 saiu *mais caro* que 40, o que é impossível. Correção: **aba nova por condição**. E, no fim, o ruído por medida ainda é de ±40%, que engole qualquer efeito de 10–25% — então **o que decide é contagem, não cronômetro** (ver abaixo).
+
+**O diagnóstico: a viewport está SATURADA de bolhas, e cada passo de zoom reconstrói todas.**
+
+- Com raio 40 e 6.914 pins, um 375×812 tem **50–56 objetos em tela do zoom 11 ao 15** — uma bolha a cada ~70×70 px, quase ladrilhando. O número quase não muda com o zoom: é o teto geométrico da grade.
+- Cada passo de zoom faz ~**200 operações de camada** (entra e sai). Do que sai e volta, só **3–9 por passo** são a *mesma* camada: as bolhas do nível 13 e do 14 são objetos diferentes, então **não há oportunidade de diff** — trocar tudo é inerente ao desenho do plugin.
+- O custo é, portanto, **proporcional ao número de bolhas em tela**. Não há bug para remover: há uma densidade escolhida.
+
+**A pinça é o caminho caro, e não era ela que estava sendo medida.** Gesto de 18 frames, z13, 6.914 pins, CPU 4×, mediana de 6:
+
+| gesto | main thread | composição |
+|---|---|---|
+| pinça abrindo | **838 ms** | script 424 · estilo 154 · layout 165 · pintura 124 |
+| pinça fechando | **771 ms** | script 315 · estilo 147 · layout 134 · pintura 115 |
+| 4 passos de botão (ida) | ~600 ms | script ~65% |
+
+No `touchZoom` o Leaflet dispara `zoom`/`move` **a cada frame**, e cada marker no DOM tem handler ali (`Marker.update` → `latLngToLayerPoint` + `setPos`): com 55 markers, é 55 reposicionamentos por frame. Daí a inversão de composição — **53% em estilo/layout/pintura na pinça contra ~35% no botão**. Por nível de zoom a pinça sai **3–4× mais caro**.
+
+**O que NÃO é a causa** (as três hipóteses eliminadas, cada uma com o teste que as eliminou):
+
+- **Não é o HTML/CSS do pin.** Esconder **todos** os `.pin-wrap` por CSS não muda o total mensurável; zerar `box-shadow` + `filter: drop-shadow` também não. O ícone de 5 nós não é o gargalo — trocá-lo por 1 nó só saiu igual ou pior. Montar o ícone por `cloneNode` em vez de `innerHTML` também: neutro. *Corolário: não vale mexer na aparência do pin por performance.*
+- **Não é trabalho nosso pendurado em `zoomend`/`moveend`.** Verificado em tempo de execução (não por `grep`): dos handlers registrados no mapa, **zero são do app** — todos são Leaflet ou markercluster.
+- **Não é a coordenada verificada de 30/07.** Ela espalhou os pins (4.989 → 6.109 coordenadas distintas, +22%), mas os objetos em tela foram de 54 para 55 no Recife z13, e o custo síncrono subiu 5–11%. **Porque a grade já estava saturada:** espalhar pins dentro de células que já estavam todas ocupadas não cria bolhas novas. A pista valia ser checada e está absolvida.
+
+**A correção aplicada (invisível): a passada DUPLA de bolhas por zoom.** A cada zoom o markercluster refaz o agrupamento **duas vezes** — uma no `zoomend` e outra no `moveend` que o Leaflet dispara logo atrás, com os mesmos bounds e o mesmo zoom. O plugin tem guard para isso (`if (this._inZoomAnimation) return`), mas `_inZoomAnimation` só sai de zero no caminho **animado** do cluster: no ramo `_noAnimation` o `_animationStart` é uma função vazia. **Foi o nosso `animate: false` de 29/07 que desarmou o guard** — a passada extra é efeito colateral daquela otimização. E ela não é inócua: em 8 passos (Recife 11↔15, 6.914 pins) a segunda passada **remove 117 camadas que a primeira acabou de pôr e recria 33 ícones**.
+
+| 8 passos de zoom | chamadas de `addLayer` | remoções | ícones criados |
+|---|---|---|---|
+| antes | 720 (para 360 camadas) | 577 | 393 |
+| depois | **360** (uma por camada) | **460** | **360** |
+
+> ⚖️ **Contagem, não cronômetro — de propósito.** No tempo o efeito é de **~2%**, dentro do ruído de ±40% desta máquina: metade das chamadas eliminadas eram no-ops guardados, e o trabalho real removido (33 ícones, 141 remoções) é de um dígito percentual. **A honestidade aqui é dizer que é trabalho a menos comprovado e aceleração não comprovada** — não vender os 50% de chamadas como 50% de velocidade.
+> 🔧 **Detalhe que fez a primeira tentativa medir zero:** o Leaflet guarda a **referência** da função no `on(...)`, então trocar `grupo._moveEnd` depois do registro não troca o handler que roda. Tem que `off` + `on` — e deixar `grupo._moveEnd` coerente, senão o `onRemove` do plugin desregistra a função errada.
+
+**A outra mudança de código (também invisível): o clique virou DELEGADO.** Era um `on('click')` por marker — 6.914 closures e 6.914 registros de listener; agora é **um handler no grupo do cluster**, e o marker só carrega o `__pinId`. O plugin renomeia o clique de *bolha* para `clusterclick` e o trata por dentro (zoom/spiderfy), então no handler do grupo só chega clique de pin. Os markers **fora** do cluster (pin revelado §5.3, pin em modo mover §7) não têm o grupo como pai de eventos e mantêm handler próprio — são sempre 0 ou 1.
+> ⚠️ **Não é ganho de velocidade, e a primeira medição mentiu.** Deu "9–15%" na medição em sequência e **−1%** quando as condições foram intercaladas: era deriva da máquina. O que se sustenta é **memória** — os handlers por marker custam ~**1,5 MB** de heap (~223 B cada) num heap de ~30 MB. Fica pela memória e por ser um handler em vez de milhares.
+
+**Duas alavancas com custo visível, medidas e RECUSADAS** (ficam aqui para ninguém remedir):
+
+- **Raio do zoom alto: 40 → 55 / 70 / 90.** É o dial de verdade, porque o custo é proporcional às bolhas. Camadas criadas em 8 passos (Recife): **raio 40 = 357 · 55 = 243 (−32%) · 70 = 179 (−50%) · 90 = 129 (−64%)**; bolhas no z13: 55 · 40 · 26 · 18. **Decisão de 31/07: fica em 40** — a granularidade fina que a rampa existe para dar vale o custo. *(É a mesma escolha de 29/07, quando 60 foi recusado; a densidade nova de 30/07 não a mudou, justamente porque a grade estava saturada antes e depois.)*
+- **`markerZoomAnimation: false`.** Corta **23%** da pinça (838→679 abrindo, 771→554 fechando) porque o Leaflet passa a esconder o pane de markers na animação. Custo visual medido no pane, e é mais estreito do que parece: **durante o gesto os pins continuam visíveis e acompanhando**; eles somem por ~250 ms **depois** de soltar o dedo (o *snap* final) e nos 250 ms do toque em `+`/`−`. **Decisão de 31/07: não aplicar** — mapa sem pin nenhum, mesmo por 250 ms, é sintoma pior que a lentidão que resolve.
+
+> 🧹 **O que fica como verdade sobre o zoom:** o custo residual **não é um defeito, é a densidade**. Enquanto forem ~50 bolhas por tela reconstruídas a cada passo, o piso é este; o que muda o piso de patamar é granularidade (recusada) ou sair de markers de DOM para canvas (fora de escopo: perderia o badge `G`/`✓` e a silhueta de pin). O que dá para colher sem custo já foi colhido.
 
 ## 4. Legenda (CAP-1)
 

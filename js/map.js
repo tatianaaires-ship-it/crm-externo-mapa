@@ -125,12 +125,59 @@
         return zoom <= 7 ? 55 : zoom <= 11 ? 34 : 40;
       }
     });
+    /* Um handler para todos os pins do cluster. O plugin renomeia o clique de
+       BOLHA para `clusterclick` (e trata ele por dentro: zoom/spiderfy), então
+       aqui só chega clique de pin — o `__pinId` é a confirmação, não a
+       triagem. */
+    clusterGroup.on('click', function (e) {
+      const id = e.layer && e.layer.__pinId;
+      if (id != null && onSelectCb) onSelectCb(id);
+    });
     map.addLayer(clusterGroup);
+    suprimirPassadaRedundante(map, clusterGroup);
 
     // Zoom no topo-direito: o canto inferior-direito é dos FABs (criar / localizar).
     L.control.zoom({ position: 'topright' }).addTo(map);
     addLegend();
     return map;
+  }
+
+  /* ---- A passada DUPLA de bolhas por zoom (31/07) ----
+     A cada zoom o markercluster refaz o agrupamento duas vezes: uma no
+     `zoomend` e outra no `moveend` que o Leaflet dispara logo atrás — com os
+     MESMOS bounds e o MESMO zoom. O plugin tem guard para isso
+     (`if (this._inZoomAnimation) return`), mas `_inZoomAnimation` só sai de zero
+     no caminho ANIMADO do cluster: no ramo `_noAnimation` o `_animationStart` é
+     uma função vazia. Ou seja, foi o nosso `animate: false` (29/07) que desarmou
+     o guard — a segunda passada é efeito colateral daquela otimização.
+     E ela não é inofensiva: medido com 6.914 pins em 8 passos de zoom
+     (Recife, 11↔15), a segunda passada REMOVE 117 camadas que a primeira acabou
+     de pôr e recria 33 ícones.
+       antes:  720 chamadas de addLayer (360 camadas)   577 remoções   393 ícones
+       depois: 360 chamadas de addLayer (360 camadas)   460 remoções   360 ícones
+     Contagem, não cronômetro, de propósito: nesta máquina o tempo tem ruído de
+     ±40% por medida e engole um efeito desse tamanho — a contagem é exata.
+     A supressão é condicional: pan de verdade muda os bounds e a passada roda
+     normalmente (verificado — o conjunto de bolhas se refaz ao arrastar). */
+  function suprimirPassadaRedundante(mapa, grupo) {
+    const original = grupo._moveEnd;
+    // Se o plugin for atualizado e estes internos mudarem de nome, não mexe em
+    // nada: melhor perder a otimização que suprimir a passada errada.
+    if (typeof original !== 'function' || typeof grupo._getExpandedVisibleBounds !== 'function') return;
+    const filtrado = function () {
+      const alvo = this._getExpandedVisibleBounds();
+      if (this._currentShownBounds && this._currentShownBounds.equals(alvo)
+          && this._zoom === Math.round(this._map._zoom)) return;
+      return original.apply(this, arguments);
+    };
+    /* O Leaflet guarda a REFERÊNCIA da função no `on`, então trocar
+       `grupo._moveEnd` não troca o handler já registrado (foi assim que a
+       primeira tentativa desta correção mediu "zero diferença"). Desregistra e
+       registra de novo — e deixa o `_moveEnd` do objeto coerente, senão o
+       `onRemove` do plugin desregistraria a função errada. */
+    mapa.off('moveend', original, grupo);
+    mapa.on('moveend', filtrado, grupo);
+    grupo._moveEnd = filtrado;
   }
 
   function addLegend() {
@@ -187,9 +234,26 @@
     legend.addTo(map);
   }
 
+  /* ---- Clique: DELEGADO no grupo, não ligado marker por marker ----
+     O grupo do cluster é pai de eventos dos filhos, então um handler só atende
+     os 6.914 (ver `init`). O marker só carrega o id.
+     ⚠️ Isto NÃO é ganho de velocidade — a primeira medição disse 9–15% e estava
+     errada: era deriva da máquina, não efeito. Medido de novo com as condições
+     INTERCALADAS (7 repetições), o zoom fica igual: −1%, dentro do ruído.
+     O que se sustenta é memória: 6.914 handlers por marker custam ~1,5 MB de
+     heap (~223 B cada) num heap de ~30 MB. Fica pela memória e por ser um
+     handler em vez de milhares — não porque acelere o zoom.
+     Arraste NÃO fica ligado nos markers do cluster (só no pin em modo mover). */
   function attachMarkerEvents(marker, pin) {
+    marker.__pinId = pin.id;
+  }
+
+  /* Markers FORA do cluster (pin revelado, pin em movimento) vivem direto no
+     mapa: não têm o grupo como pai de eventos, então precisam do handler
+     próprio. São sempre 0 ou 1 — o custo por marker aqui é irrelevante. */
+  function attachMarkerEventsSolto(marker, pin) {
+    marker.__pinId = pin.id;
     marker.on('click', function () { if (onSelectCb) onSelectCb(pin.id); });
-    // Arraste NÃO fica ligado nos markers do cluster (só no pin em modo mover — startMove).
   }
 
   /* ---- Reposicionamento: só mexe em quem mudou de lugar ----
@@ -269,7 +333,7 @@
     if (existente) { clusterGroup.removeLayer(existente); delete markersById[id]; }
     const mk = L.marker([p.lat, p.lng], { icon: makeIcon(p), draggable: false, keyboard: false });
     lembrarPos(mk, p);
-    attachMarkerEvents(mk, p);
+    attachMarkerEventsSolto(mk, p);   // fora do cluster ⇒ sem delegação
     mk.addTo(map);            // direto no mapa: fora do cluster, fora do filtro
     markersById[id] = mk;
     return true;
@@ -297,7 +361,7 @@
     if (existing) clusterGroup.removeLayer(existing);
     const mv = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin), draggable: true, autoPan: true, keyboard: false });
     lembrarPos(mv, pin);
-    mv.on('click', function () { if (onSelectCb) onSelectCb(id); });
+    attachMarkerEventsSolto(mv, pin);   // fora do cluster ⇒ sem delegação
     mv.on('dragstart', function () { document.body.classList.add('is-dragging-pin'); });
     mv.on('dragend', function (e) {
       document.body.classList.remove('is-dragging-pin');
