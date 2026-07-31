@@ -113,7 +113,7 @@ CREATE TABLE nota_estabelecimento (
 | 5 | `cnae_codigo` / `cnae_descricao` | text | Não | `fonte:sf` | sheet | entrada de `qualidade` |
 | 6 | `tipologia` | enum | Não | `fonte:sf` | filtro · sheet · form:expandir | — |
 | 7 | `endereco` | text | Não | `fonte:sf` | sheet | consolidado de 6 colunas |
-| 8 | `geo_original` / `geo_verificado` | geography | Não | `fonte:sf` / `campo` | **mapa** | verificado: nulo até validar; monotônico |
+| 8 | `geo_original` / `geo_verificado` | geography | Não | `fonte:sf` / `campo` | **mapa** | verificado: nulo até validar; monotônico. ⚠️ **Onde o pin é desenhado é `COALESCE(geo_verificado, geo_original)`** (30/07) — a original é o **fallback**, não a preferência: na base real ela é muitas vezes o centroide do bairro (§5) |
 | 8b | `bairro` | text | Não | `fonte:sf` (`bairro_c`) | sheet (subtítulo + sob a Zona) | **geografia fina — não é a zona** (29/07); no protótipo é ele que dá coordenada, endereço e DDD |
 | 9 | `zona_id` | fk → [[zona]] | Não | `fonte:sf` | **filtro (16 chips fixos)** · sheet | = **`zona_guardioes_c`**; **vocabulário FECHADO**: 15 zonas + `Sem Zona` — §5 |
 | 10 | `origem_confianca` | enum (3) | Não | **derivado** | **pista do pin** (tracejado · `G` · `✓`) · sheet | §5; **deixou de ser a cor** em 29/07 |
@@ -225,6 +225,7 @@ CREATE TABLE nota_estabelecimento (
 - **Conversão não é fato de campo.** Não existe `resultado = convertido` na [[tarefa]]: o vendedor não decide que alguém virou cliente — cadastro e pedido decidem. É o que separa esforço de campo de resultado comercial no funil.
 - **Classificação é derivada ou chega pronta — nunca digitada** (`qualidade`, `origem_confianca`, `porte`, `cadastrado`, `status_cliente`). Form pede só o **básico** (nome + local) + **"expandir"** opcional.
 - **Check-in e correção de pin promovem a "validado em campo"** (monotônico); gravam `geo_verificado`.
+- **O pin é desenhado na coordenada verificada quando ela existe** *(30/07)* — `COALESCE(geo_verificado, geo_original)`, com **par completo ou nada** (meia coordenada põe o pin em lugar nenhum). A original não é a preferência, é o fallback: na base real ela é frequentemente o **centroide** do bairro/cidade, e 2.110 dos 6.914 pins se movem em mediana **2,5 km** quando a verificada entra ([[snapshot-dado-real]] §3). ⚖️ **`geo_verificado` continua campo próprio, não é absorvido pelo coalesce:** *onde desenhar* e *foi verificada?* são perguntas diferentes — a segunda é o que o sheet mostra e a que a auditoria de correção de pin usa. E isto **não** promove `origem_confianca`: coordenada corrigida por automação (Google) não é constatação humana.
 - **LGPD × dado comercial (distinguir):** `limite_credito`, `saldo_devedor`, `inadimplente`, datas de compra são **dado comercial da PJ** (confidencial), *não* dado pessoal de pessoa física — regime é sigilo comercial, não LGPD. Já `telefone`/`decisor_nome` tocam pessoa física. Em qualquer caso: no protótipo público, **valores fictícios**; reais só em ambiente privado (Fase 3), com valor obviamente falso enquanto público.
 
 ## 9. Anexos / parkings

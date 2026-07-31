@@ -62,6 +62,26 @@ function buildAddress(r) {
   return [line1, line2].filter(Boolean).join(' — ') || null;
 }
 
+/* ---- Coordenada -------------------------------------------------------
+   `coord` devolve número FINITO ou null. String vazia virava `0` no `+v` de
+   antes (pin no golfo da Guiné) e texto virava `NaN`, que passa pelo teste
+   `!= null` do filtro final — pin sem lugar no mapa. Medido no snapshot atual:
+   0 casos de sujeira, 0 coordenadas parciais, 0 pares (0,0), 0 fora de faixa.
+   A guarda fica porque o snapshot é REGERADO: o dado limpo é o de hoje. ---- */
+function coord(v) {
+  if (v == null || v === '') return null;
+  const n = +v;
+  return Number.isFinite(n) ? n : null;
+}
+// Par completo e dentro da faixa, ou nada. Meia coordenada é pior que nenhuma:
+// latitude verificada com longitude original põe o pin em lugar nenhum.
+function par(lat, lng) {
+  const a = coord(lat), b = coord(lng);
+  if (a == null || b == null) return null;
+  if (Math.abs(a) > 90 || Math.abs(b) > 180) return null;
+  return { lat: a, lng: b };
+}
+
 /* ---- Derivações que espelham js/data.js ---- */
 
 /* Porte: 6 faixas desde 29/07, uma por valor REAL de `porte_c` (conferidos no
@@ -92,8 +112,19 @@ const ZONAS_GUARDIOES = [
   'PB João Pessoa Litoral', 'JP Oeste'
 ];
 const SEM_ZONA = 'Sem Zona';
+/* O input pode ser um export ANTIGO, tirado antes de 29/07: lá a coluna
+   `zona_guardioes_c` não foi selecionada e só existe `zona_2_c`. Sem fallback, o
+   transform devolve "Sem Zona" para os 6.914 — pior que o arquivo que ele
+   substitui, e em SILÊNCIO. Com fallback, os valores de `zona_2_c` passam pelo
+   MESMO vocabulário fechado: os 5 nomes que as duas taxonomias compartilham
+   sobrevivem, o resto vira "Sem Zona". Nada é inventado — o porteiro continua
+   sendo a lista dos 15 —, e `avisaZonaLegado` grita no fim da execução, porque
+   dado velho aceito em silêncio é o que faz um número errado passar por certo.
+   O conserto de verdade é rodar a query da §5 no Metabase. */
+let zonaLegado = false;
 function deriveZona(r) {
-  const z = r.zona_guardioes_c;
+  let z = r.zona_guardioes_c;
+  if (z === undefined && r.zona_2_c !== undefined) { zonaLegado = true; z = r.zona_2_c; }
   return ZONAS_GUARDIOES.includes(z) ? z : SEM_ZONA;
 }
 function deriveOrigem(r) {
@@ -120,7 +151,8 @@ function deriveStatus(r) {
 const rows = JSON.parse(readFileSync(IN, 'utf8'));
 const src = Array.isArray(rows) ? rows : (rows.data || rows.rows || []);
 
-const stats = { tip: {}, status: {}, origin: {}, porte: {}, cleaned: 0, geoVerif: 0, semTipologia: 0 };
+const stats = { tip: {}, status: {}, origin: {}, porte: {}, cleaned: 0, geoVerif: 0,
+                geoUsadaVerif: 0, geoSoVerif: 0, semGeo: 0, semTipologia: 0 };
 const cnpjSeen = new Map();
 
 const pins = src.map((r, i) => {
@@ -132,9 +164,22 @@ const pins = src.map((r, i) => {
   const rawName = r.nome_fantasia ?? r.name ?? null;
   const name = cleanName(rawName);
   if (name !== rawName) stats.cleaned++;
-  const geoVerif = (r.latitude_verificada_lead_c != null && r.longitude_verificada_lead_c != null)
-    ? { lat: +r.latitude_verificada_lead_c, lng: +r.longitude_verificada_lead_c } : null;
+  /* ONDE O PIN FICA (30/07): a coordenada VERIFICADA manda; a original é o
+     fallback. `latitude_verificada_lead_c` é o endereço que o Google achou
+     (fluxo 3 do n8n); a `latitude` crua do Salesforce é, em boa parte da base,
+     o CENTROIDE do bairro ou da cidade — e é essa a raiz de check-in
+     classificado como remoto ([[fluxos-n8n-salesforce]] §3).
+     Medido nos 6.914: 2.110 têm verificada, e TODAS as 2.110 mudam de lugar —
+     mediana de 2,5 km de deslocamento, 1.404 acima dos 500 m do raio
+     presencial. Não é ajuste fino: é o pin saindo do centro do bairro e indo
+     para a porta do estabelecimento. */
+  const geoVerif = par(r.latitude_verificada_lead_c, r.longitude_verificada_lead_c);
+  const geoOrig  = par(r.latitude, r.longitude);
+  const geo = geoVerif || geoOrig;
   if (geoVerif) stats.geoVerif++;
+  if (geoVerif && geoOrig) stats.geoUsadaVerif++;      // trocou de lugar
+  if (geoVerif && !geoOrig) stats.geoSoVerif++;        // só existe por causa dela
+  if (!geo) stats.semGeo++;
   if (typology === 'outro') stats.semTipologia++;
 
   stats.tip[typology] = (stats.tip[typology] || 0) + 1;
@@ -152,8 +197,11 @@ const pins = src.map((r, i) => {
     cnaeDescricao: r.atividade_cnae_principal_c || null,
     typology,
     address: buildAddress(r),
-    lat: r.latitude != null ? +r.latitude : null,
-    lng: r.longitude != null ? +r.longitude : null,
+    lat: geo ? geo.lat : null,
+    lng: geo ? geo.lng : null,
+    // A auditoria continua separada: `geoVerificado` diz que a coordenada FOI
+    // verificada, e é ela que o sheet mostra como tal. Guardar só o resultado
+    // do coalesce apagaria a diferença entre "verificada" e "original".
     geoVerificado: geoVerif,
     bairro: r.bairro_c || null,      // geografia; a ZONA é outra coisa (29/07)
     zone: deriveZona(r),             // zona_guardioes_c, vocabulário fechado
@@ -189,7 +237,20 @@ const dupCnpj = [...cnpjSeen.values()].filter(n => n > 1).length;
 console.log(`OK — ${pins.length} pins escritos em ${OUT}`);
 console.log(`nomes higienizados (CPF/CNPJ removido): ${stats.cleaned}`);
 console.log(`com geoVerificado: ${stats.geoVerif} | sem tipologia (outro): ${stats.semTipologia} | CNPJs duplicados: ${dupCnpj}`);
+// A coordenada exibida vem da verificada quando existe — quantos pins isso move
+// é o número que importa para presencial × remoto, então ele é dito, não deduzido.
+console.log(`pin posicionado pela coordenada VERIFICADA: ${stats.geoUsadaVerif} (+${stats.geoSoVerif} que só têm ela) | descartados sem coordenada: ${stats.semGeo}`);
 console.log('tipologia:', JSON.stringify(stats.tip));
 console.log('status  :', JSON.stringify(stats.status));
 console.log('origem  :', JSON.stringify(stats.origin));
 console.log('porte   :', JSON.stringify(stats.porte));
+
+// Contagem de zona SEMPRE visível: é a dimensão que já passou 75% em branco sem
+// ninguém notar (docs/snapshot-dado-real.md §3).
+const semZona = pins.filter(p => p.zone === SEM_ZONA).length;
+console.log(`zona    : ${pins.length - semZona} com zona | ${semZona} em "${SEM_ZONA}"`);
+if (zonaLegado) {
+  console.warn(`\n⚠️  ENTRADA ANTIGA: o export não tem \`zona_guardioes_c\` — a zona saiu de \`zona_2_c\`.`);
+  console.warn(`   As taxonomias são diferentes: só os 5 nomes em comum sobrevivem, o resto virou "${SEM_ZONA}".`);
+  console.warn(`   Para corrigir de verdade, rode a query da §5 de docs/snapshot-dado-real.md no Metabase.`);
+}

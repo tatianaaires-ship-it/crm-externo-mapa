@@ -55,8 +55,8 @@ WHERE l.is_deleted = 0
 | `cnaeDescricao` | `atividade_cnae_principal_c` | cache (há variações sujas: usar como rótulo, não como chave) |
 | `typology` | **derivado** de `cnae_principal_c` | `categorias_c`/`industry` são 100% nulos → lookup §3 |
 | `address` | `street`+`bairro_c`+`city`+`state`+`postal_code`+`complemento_endereco_c` | consolidar |
-| `lat`/`lng` (geo_original) | `latitude` / `longitude` | padrão SF, 100% preench. (`latitude_original_c` está vazio) |
-| `geoVerificado` | `latitude_verificada_lead_c` / `longitude_verificada_lead_c` | 2.110/6.914; + `coordenadas_corrigidas_c`, `data_correcao_pin_c`, `motivo_correcao_pin_c` |
+| `lat`/`lng` (**onde o pin fica**) | `COALESCE(verificada, original)` — `latitude_verificada_lead_c` / `longitude_verificada_lead_c` e, na falta, `latitude` / `longitude` | ⚠️ **mudou em 30/07** (era só `latitude`/`longitude`). A verificada **manda**: a crua é, em boa parte da base, o **centroide** do bairro/cidade. Medido: **2.110 pins mudam de lugar**, mediana **2,5 km** (§3) |
+| `geoVerificado` | `latitude_verificada_lead_c` / `longitude_verificada_lead_c` | 2.110/6.914; + `coordenadas_corrigidas_c`, `data_correcao_pin_c`, `motivo_correcao_pin_c`. **Continua campo próprio** — é o que diz que a coordenada *foi* verificada; o `lat`/`lng` só diz onde desenhar |
 | `bairro` | `bairro_c` | **novo em 29/07** — geografia fina; não é a zona |
 | `zone` (zona_id) | **`zona_guardioes_c`** | **trocou de coluna em 29/07**; vocabulário **fechado** de 15 → o resto vira `Sem Zona` (§3) |
 | `origin` (origem_confianca) | **derivado** | escada §3, a partir de `localizacao_verificada_google_c`, `gmaps_status_c`, `coordenadas_corrigidas_c`, verificada≠null |
@@ -103,6 +103,8 @@ WHERE l.is_deleted = 0
 - **`zona_guardioes_c` → `zone` (vocabulário FECHADO, 29/07):** as **15** zonas da operação; **tudo o mais vira `Sem Zona`** — nulo e os 7 residuais (`CE Eusébio Guararapes` 22 · `PE Áreas Brancas` 6 · `CE Maracanaú Fatima` · `CE Aldeota Cumbuco` · `CE Litoral Oeste` · dois `Recife Zona Sul - Oeste/Leste` com 1 cada). No recorte, as 15 cobrem **99,6%**: só **29 de 6.880** caem no balde.
   > ⚠️ **Trocamos de coluna, e a taxonomia é outra.** `zona_2_c` tem 13 valores, dos quais **só 5** estão nestes 15 (`REC Zona Oeste`, `PE Interior`, `REC Zona Norte`, `PB João Pessoa Litoral`, `REC Zona Sul`) — os outros, como `RMR Norte Olinda` e `PE Litoral Sul 1`, são de outro recorte territorial. A coluna nova também é **muito melhor preenchida**: 33k nulos contra 82k.
   > 🔴 **Snapshot gerado antes de 29/07 fica errado nesta dimensão.** Medido no arquivo em disco: **5.183 dos 6.914 pins caem em `Sem Zona`** (75%), porque ele carrega `zona_2_c`. O cliente não tem como consertar — os valores da coluna velha simplesmente não existem no vocabulário novo. **É preciso regerar o snapshot** com `tools/build-snapshot.mjs` (já alinhado) e a query da §5, que agora seleciona `zona_guardioes_c`.
+  >
+  > ⚠️ **E regerar só com o transform NÃO resolve — descoberto em 30/07.** O export em disco (`snapshot_leads_fase3.json`, de 23/07) **não contém** `zona_guardioes_c`: a única coluna de zona nele é `zona_2_c`. Rodar o transform atual sobre esse arquivo devolvia **6.914 em `Sem Zona`** — *pior* que os 5.183 que ele substitui, e **em silêncio**. O que falta é o **export novo**: rodar a query da §5 no Metabase. Duas salvaguardas entraram no transform: (1) **fallback declarado** — sem a coluna nova, a zona sai de `zona_2_c` **pelo mesmo vocabulário fechado** (os 5 nomes em comum sobrevivem, o resto vira `Sem Zona`; nada é inventado), o que reproduz os **1.731 com zona** do arquivo anterior em vez de zerar a dimensão; (2) o script **avisa** no fim da execução que a entrada é velha, e passou a imprimir sempre a contagem `com zona / Sem Zona`. ⚖️ **Aceitar dado velho é aceitável; aceitar em silêncio não é** — é assim que um número errado passa por certo.
 - **`status` (funil — régua de cobertura do mês):** avaliar nesta ordem —
   1. `status = 'Cadastrado'` → **convertido**;
   2. visita **no mês corrente** (`data_ultima_visita_lead_c >= 1º dia do mês do snapshot`) → **visitado**;
@@ -110,6 +112,26 @@ WHERE l.is_deleted = 0
   **Sem `em_negociacao`** (1º/2º/3º contato são do time *inside*, não do campo) e **sem `perdido`** por ora
   (Perdido cai em visitado/não-visitado pela régua).
 - **`geoVerificado`:** objeto `{lat,lng}` só quando `latitude_verificada_lead_c` ≠ null; senão `null`.
+- **`lat`/`lng` — a coordenada EXIBIDA é `COALESCE(verificada, original)`** *(30/07)*. A verificada vem do fluxo
+  do Google Places ([[fluxos-n8n-salesforce]] §3, fluxo 3); a `latitude`/`longitude` crua do Salesforce é, em
+  boa parte da base, o **centroide** do bairro ou da cidade. **Medido nos 6.914:** 2.110 têm verificada e
+  **todas as 2.110 mudam de lugar** — deslocamento mediano **2,5 km**, p90 **9,1 km**, e **1.404 acima dos
+  500 m** do raio presencial ([[tarefa]] §5). Ou seja: sem este coalesce, mais de mil pins ficam longe demais
+  da porta para que um check-in **na porta** seja classificado como `presencial` — que é exatamente a queixa
+  registrada no inventário de fluxos (pin em centroide → visita lida como remota).
+  - **Par completo ou nada:** só troca se **as duas** componentes vierem preenchidas, finitas e dentro da faixa.
+    Latitude verificada com longitude original poria o pin em lugar nenhum. Medido: **0 casos parciais**, 0
+    inválidos, 0 pares `(0,0)`, 0 fora de faixa — a guarda existe porque o snapshot é **regerado**, e o dado
+    limpo é o de hoje. *(Antes, `+''` virava `0` — pin no golfo da Guiné — e texto virava `NaN`, que passava
+    pelo filtro `!= null` e ia para o mapa sem lugar.)*
+  - ⚖️ **Isto NÃO mexe em `origem_confianca`.** A regra de §3 continua valendo: a coordenada verificada é
+    **automática** (Google), não constatação humana, então ela **não** promove o pin a `validado_campo`. Muda
+    onde o pin é desenhado, não o quanto se confia nele.
+  - ⚠️ **Ponta solta declarada:** **6 pins** deslocam mais de 20 km e **4** mais de 50 km — o extremo é
+    *POUSADA SAO JOSE* (Fortaleza/Fátima) a **194 km**. Ou o endereço cadastrado está em outra cidade, ou o
+    Google casou o estabelecimento errado. Não há como decidir daqui qual dos dois é, então o coalesce **não
+    abre exceção** para eles: distância grande é o sintoma esperado de centroide corrigido, e inventar um teto
+    (*"acima de X km ignora a verificada"*) descartaria correção legítima em cidade do interior.
 - **`cadastrado` (= a COR do pin desde 29/07):** vem de `status = 'Cadastrado'` no `salesforce.lead` — **é sinal
   real, não inferência nossa**. No snapshot atual isso está gravado com o nome antigo `isConverted` (o arquivo
   foi gerado antes da fatia de Tarefa), então `js/state.js` reconstrói na carga (`migrarRelacao`): **177 dos
