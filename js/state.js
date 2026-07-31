@@ -438,6 +438,14 @@
   function paradasDaRota(id) {
     return tarefas.filter(function (t) { return t.rotaId === id && t.status === 'planejada'; });
   }
+  /* Todas as paradas, em qualquer situação — é o que a sub-aba Rotas lê
+     (31/07). `paradasDaRota` devolve só as `planejada` porque a Agenda é o
+     PLANO; o registro da rota precisa das realizadas e das canceladas, senão
+     uma rota que já rodou aparece com "0 paradas" e a que foi cancelada
+     desaparece. Ver docs/objetos/rota.md §5 e spec-07 §4.3. */
+  function paradasTodasDaRota(id) {
+    return tarefas.filter(function (t) { return t.rotaId === id; });
+  }
 
   // Cancelar a rota = cancelar todas as paradas dela. Nada se deleta (nem a
   // rota, nem as tarefas), e cada pin que perde o último plano SAI do board.
@@ -456,10 +464,11 @@
     return paradas.length;
   }
 
-  // Agendar: o pin ENTRA no funil (sem_plano → visita_planejada).
-  function agendarTarefa(data) {
-    const p = data && getById(data.pinId);
-    if (!p || !D.TAREFA_TIPO[data.tipo]) return null;
+  /* A tarefa planejada, sem emitir — o pedaço comum de `agendarTarefa` (uma
+     tarefa, um emit) e de `criarRota` (N tarefas, UM emit). Extraído em 31/07
+     porque montar uma rota de 5 paradas chamando `agendarTarefa` 5 vezes
+     custaria 5 `reapply()` + 5 refresh de todas as abas. */
+  function novaTarefaPlanejada(p, data) {
     const t = {
       id: nextTarefaId(),
       estabelecimentoId: p.id,
@@ -484,10 +493,76 @@
        o check-out que vai mover o pin. A guarda é EXPLÍCITA em vez de confiar na
        escada: um lateral sem `statusAnterior` (dado antigo, snapshot real) cairia
        em `sem_plano`, de onde `visita_planejada` é avanço legítimo — e o pin
-       voltaria ao funil por um agendamento. */
+       voltaria ao funil por um agendamento.
+       ⚖️ Vale igual para a PARADA DE ROTA: montar rota é plano, não constatação. */
     if ((D.STATUS[p.status] || {}).family !== 'lateral') applyStatus(p, 'visita_planejada');
+    return t;
+  }
+
+  // Agendar: o pin ENTRA no funil (sem_plano → visita_planejada).
+  function agendarTarefa(data) {
+    const p = data && getById(data.pinId);
+    if (!p || !D.TAREFA_TIPO[data.tipo]) return null;
+    const t = novaTarefaPlanejada(p, data);
     emit();
     return t;
+  }
+
+  function nextRotaId() {
+    let max = 0;
+    rotas.forEach(function (r) {
+      const n = parseInt(String(r.id).replace(/\D/g, ''), 10);
+      if (!isNaN(n) && n > max) max = n;
+    });
+    return 'r' + String(max + 1).padStart(3, '0');
+  }
+
+  /* ---- Montar rota (31/07) --------------------------------------------------
+     A rota é o CONJUNTO; **adicionar um estabelecimento à rota é o que cria a
+     tarefa planejada** daquela parada (rota.md §2.2). Então criar rota é: um
+     registro de rota + N tarefas `planejada`, e **N pins entram no funil**.
+     Três coisas que esta função garante, e que a UI só repete:
+       · **uma rota, um vendedor** (rota.md §2.4) — `responsavelId` da tarefa é
+         derivado do PIN, então pins de donos diferentes fariam uma rota com
+         duas gentes dentro. Recusa em bloco, sem gravar nada;
+       · **nenhuma HORA** — a hora ordenaria as paradas, e rota é conjunto, não
+         sequência (rota.md §2.1). As paradas nascem "dia inteiro";
+       · **um `emit` só** no fim: 5 paradas não são 5 re-renders do app.
+     ⚖️ Transição recusada não escreve nada (o padrão de 30/07): a validação
+     inteira acontece antes da primeira escrita. */
+  function criarRota(dados) {
+    const dia = /^\d{4}-\d{2}-\d{2}$/.test(dados && dados.data) ? dados.data : todayISO();
+    const pins = ((dados && dados.pinIds) || []).map(getById).filter(Boolean);
+    if (pins.length < 2) return null;
+
+    const donoDe = function (p) { return p.vendedorId || D.VENDEDOR_SESSAO; };
+    const vend = donoDe(pins[0]);
+    if (pins.some(function (p) { return donoDe(p) !== vend; })) return null;
+
+    const rota = {
+      id: nextRotaId(),
+      nome: D.nomeDeRota(pins, dia, vend, function (cand) {
+        return rotas.some(function (r) { return r.data === dia && r.nome === cand; });
+      }),
+      data: dia,
+      responsavelId: vend,
+      criadaEm: new Date().toISOString(),
+      canceladaEm: null
+    };
+    rotas.push(rota);
+
+    const paradas = pins.map(function (p) {
+      return novaTarefaPlanejada(p, {
+        // O tipo vem SUGERIDO pelo histórico do ponto, não escolhido na
+        // montagem: pedir o tipo de N pontos numa tela de seleção espacial
+        // seria N escolhas para um gesto que é um só (tarefa.md §5).
+        tipo: D.sugereTipoVisita(p, getTarefasByPin(p.id)),
+        data: dia,
+        rotaId: rota.id
+      });
+    });
+    emit();
+    return { rota: rota, paradas: paradas };
   }
 
   // Cancelar: não se deleta tarefa. Se era o último plano, o pin SAI do board.
@@ -747,6 +822,8 @@
     getRotas: getRotas,
     getRota: getRota,
     paradasDaRota: paradasDaRota,
+    paradasTodasDaRota: paradasTodasDaRota,
+    criarRota: criarRota,
     cancelarRota: cancelarRota,
     checkInTarefa: checkInTarefa,
     checkInAgora: checkInAgora,        // check-in em pin sem plano (CAP-6 revisada)

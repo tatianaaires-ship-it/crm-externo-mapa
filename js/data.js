@@ -894,6 +894,36 @@
     return !!d && soDigitos(p.cnpj).indexOf(d) >= 0;
   }
 
+  /* ---- Nome da rota: a ZONA que mais aparece nas paradas (rota.md §1) ----
+     Rótulo, não estrutura. Duas rotas "REC Zona Sul" no mesmo dia leem como
+     bug, então o nome é **único por dia**: cai para a 2ª zona do bloco e, se
+     ainda colidir, leva o primeiro nome do vendedor.
+     `jaUsado(candidato)` é injetado porque a unicidade é verificada em lugares
+     diferentes — no seed, num mapa local; em runtime, contra a coleção `rotas`
+     do estado. A regra em si mora aqui, uma vez só.
+     ⚠️ **É a zona, não o bairro.** O doc dizia "bairro dominante" e o código
+     sempre leu `pin.zone` — o que virou zona de verdade em 29/07, quando `zone`
+     deixou de guardar bairro. Ficou a zona de propósito: as paradas saem por
+     proximidade e um bloco de 5 pins cruza vários bairros (o vendedor tem ~1
+     pin por bairro), então "Rota Boa Viagem" com parada em Casa Forte seria
+     enfeite — a zona é o rótulo que continua verdadeiro para o bloco todo. */
+  function nomeDeRota(pins, dia, vendId, jaUsado) {
+    const c = {};
+    (pins || []).forEach(function (p) {
+      const z = (p && p.zone) || 'do dia';
+      c[z] = (c[z] || 0) + 1;
+    });
+    const zonas = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; });
+    if (!zonas.length) zonas.push('do dia');
+    const usado = typeof jaUsado === 'function' ? jaUsado : function () { return false; };
+    for (let i = 0; i < zonas.length; i++) {
+      const cand = 'Rota ' + zonas[i];
+      if (!usado(cand)) return cand;
+    }
+    const quem = ((VENDEDORES[vendId] || {}).nome || '').split(' ')[0];
+    return 'Rota ' + zonas[0] + (quem ? ' · ' + quem : '');
+  }
+
   function buildTarefas(pins, opts) {
     const out = [];
     const rotas = [];          // ⚠️ RASCUNHO do objeto Rota (docs/objetos/rota.md)
@@ -1106,28 +1136,16 @@
         return dx * dx + dy * dy;
       }
 
-      /* Nome da rota = bairro que mais aparece nas paradas. Dois vendedores em
-         campo no mesmo dia caem no mesmo bairro com frequência, e duas "Rota
-         Boa Viagem" no mesmo dia lê como bug — então o nome é único por DIA:
-         cai para o 2º bairro do bloco e, se ainda colidir, leva o vendedor. */
+      /* O nome sai de `nomeDeRota` (regra única, exportada) — aqui só entra o
+         "já usei este nome hoje?", que no seed é um mapa local e, em runtime,
+         é a própria coleção `rotas` do estado. */
       const nomesUsados = {};
       function nomeDaRota(ps, dia, vendId) {
-        const c = {};
-        ps.forEach(function (p) {
-          const z = p.zone || 'do dia';
-          c[z] = (c[z] || 0) + 1;
+        const nome = nomeDeRota(ps, dia, vendId, function (cand) {
+          return !!nomesUsados[dia + '|' + cand];
         });
-        const zonas = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; });
-        if (!zonas.length) zonas.push('do dia');
-        for (let i = 0; i < zonas.length; i++) {
-          const cand = 'Rota ' + zonas[i];
-          if (!nomesUsados[dia + '|' + cand]) {
-            nomesUsados[dia + '|' + cand] = 1;
-            return cand;
-          }
-        }
-        const quem = ((VENDEDORES[vendId] || {}).nome || '').split(' ')[0];
-        return 'Rota ' + zonas[0] + (quem ? ' · ' + quem : '');
+        nomesUsados[dia + '|' + nome] = 1;
+        return nome;
       }
 
       /* Uma rota por vendedor por dia; paradas espaçadas de 45min.
@@ -1350,6 +1368,7 @@
     // normalização do `matchBusca`. Duas versões divergiriam com o tempo.
     norm: norm,
     sugereTipoVisita: sugereTipoVisita,
+    nomeDeRota: nomeDeRota,          // rótulo derivado da zona dominante (rota.md §1)
     RAIO_PRESENCIAL_KM: RAIO_PRESENCIAL_KM,
     deriveTipoCheckin: deriveTipoCheckin,
     buildSeed: buildSeed,

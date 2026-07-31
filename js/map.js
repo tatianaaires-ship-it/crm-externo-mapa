@@ -24,6 +24,11 @@
      dizendo a verdade sobre o recorte. É o "pin momentâneo": exceção visível
      no mapa, não mudança no filtro. */
   let revealId = null;
+  /* Pins escolhidos no modo MONTAR ROTA (31/07). Vive aqui porque é `makeIcon`
+     que lê — o módulo do modo (js/rota.js) manda o conjunto e pede o redesenho
+     de quem mudou. ⚠️ É um Set, não uma lista ordenada: rota é CONJUNTO, e uma
+     ordem guardada aqui viraria número no pin na primeira oportunidade. */
+  let rotaSel = null;
   let onSelectCb = null;
   let youMarker = null, youAccuracy = null;
   let onLocateFoundCb = null, onLocateErrorCb = null;
@@ -56,10 +61,29 @@
   // 36×40 (corpo 28px) — era 42×50/34px. Âncora = a ponta do tip toca o solo.
   function makeIcon(pin) {
     return L.divIcon({
-      className: 'pin-wrap' + (pin.id === selectedId ? ' is-selected' : ''),
+      className: 'pin-wrap' + (pin.id === selectedId ? ' is-selected' : '') +
+                 (rotaSel && rotaSel.has(pin.id) ? ' is-na-rota' : ''),
       html: iconHtml(pin),
       iconSize: [36, 40],
       iconAnchor: [18, 38]
+    });
+  }
+
+  /* ---- Modo montar rota: quem está escolhido (js/rota.js manda) ----
+     `redesenhar` toca só nos ids pedidos — no toque de um pin são 1 ou 2
+     ícones, não os 6.914. Passar `null` encerra o modo e limpa a marca de
+     todos os que estavam marcados. */
+  function setRotaSel(set) {
+    const antes = rotaSel;
+    rotaSel = set || null;
+    if (!set && antes) redesenhar(Array.from(antes));
+  }
+  function redesenhar(ids) {
+    (ids || []).forEach(function (id) {
+      if (!id || id === moveId) return;
+      const m = markersById[id];
+      const p = window.CRM_STATE.getById(id);
+      if (m && p) m.setIcon(makeIcon(p));
     });
   }
 
@@ -504,6 +528,8 @@
     panToShow: panToShow,
     startMove: startMove,
     endMove: endMove,
+    setRotaSel: setRotaSel,       // modo montar rota (SPEC 01 §6.2)
+    redesenhar: redesenhar,
     isMoving: function () { return !!moveId; },
     getMap: function () { return map; },
     locateMe: locateMe,

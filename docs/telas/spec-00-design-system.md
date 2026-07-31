@@ -230,7 +230,9 @@ Variante da quickbar que **não é uma dimensão**: um toque liga **um conjunto*
 Card semi-transparente (`backdrop-filter: blur`) colapsável, ancorado no canto do mapa. Repete cor + pista não-cromática + rótulo de confiança das 4 origens.
 
 ### 6.5 FAB
-`＋` criar (58px, `--brand`, sombra colorida) e `◎` localizar (46px, branco). Ambos esmaecem (opacity .3) durante placing/moving.
+Pilha de **três**, no canto inferior-direito, de baixo para cima: `＋` criar (58px, `--brand`, sombra colorida) · `◎` localizar (46px, branco) · **`🧭` montar rota** (46px, branco — 31/07). Todos esmaecem (opacity .3) durante **qualquer** modo do mapa (`placing` · `moving` · `is-rota`), **inclusive o que abriu o modo**: a saída é o banner, não o botão que ligou.
+
+> ⚖️ **O 3º FAB é uma TROCA registrada, não uma adição.** A pilha vai a ~180px dos ~648px de mapa em 375×812 (**28% da borda direita**), e três círculos iguais não têm hierarquia — o `＋` deixa de ser *o* botão do canto. Foi escolhido por **descoberta**, contra uma alternativa de custo permanente zero (entrada pelo pin sheet) que fica descrita em [[spec-01-mapa]] §6.2 para não precisar ser redescoberta se a coluna apertar. **Regra que fica: a 4ª peça nesta coluna precisa tirar uma.**
 
 ### 6.6 Sheet / Painel (bottom sliding)
 Base comum: sobe de baixo (`translateY`), `border-radius` no topo, `max-height 86dvh`, handle de 40×4px, `--shadow-lg`. Usado por: **pin-sheet** (detalhe do local), **painel de filtros**. Transição `.3s cubic-bezier(.22,.61,.36,1)`. No desktop (≥620px) viram cards flutuantes centralizados.
@@ -298,7 +300,9 @@ Lupa fechada → **campo de largura cheia** que substitui os chips (`.quickbar.i
 > ⚙️ **Lista que se redesenha a cada tecla escuta `pointerdown`, não `click`.** No toque, o `blur` do input dispara antes do `click`, e o item já foi removido do DOM: a escolha se perde. Vale para qualquer autocomplete deste app. E vale a regra geral do §6 — **delegação**, nunca listener por item.
 
 ### 6.10 Segmented control (`.seg`)
-Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (Gerencial · Agenda — [[spec-07-atividades]] §4).
+Trilha de abas internas no topo de uma view full-screen, abaixo de nada e acima de tudo. Botões de largura igual (`flex: 1`), rótulo 12.5px/700 em `--muted`; ativo = cor `--brand` + borda inferior 3px `--brand`. `role="tablist"` + `aria-selected`. Usado pela aba Atividades (**Rotas · Agenda · Gerencial** — [[spec-07-atividades]] §4).
+
+> **Foi de dois para três botões em 31/07**, e em 375px cabe: com `flex: 1` cada alvo fica em ~125px, bem acima do mínimo de toque. **Rótulo de uma palavra é requisito, não estilo** — a quarta palavra é o que quebraria a trilha, e é por isso que "Visão gerencial" se chama `Gerencial` aqui.
 
 ### 6.11 Pill de filtro herdado (`.head-filtro`)
 Pill pequeno `--brand` sobre `--brand-050`, no *head* das abas que escondem a quickbar (Funil e Atividades). Aparece só quando `CRM_FILTERS.activeCount() > 0`, diz `N filtro(s) do mapa` e, ao toque, volta para o Mapa. Existe para que esconder a quickbar não crie **filtro invisível** — a aba mostra menos dado do que a base e o usuário precisa saber por quê.
@@ -349,11 +353,44 @@ Formato de agenda-lista (molde do Google Agenda), na aba Atividades — [[spec-0
 
 > A espinha é o que faz N paradas lerem como **um** compromisso. Sem ela, uma rota de 5 paradas parecia 5 itens soltos — que era exatamente o problema que este formato veio resolver.
 
-> **O card de atividade saiu.** A Agenda usava o card de lead (§6.9) como molde, com badge de `resultado`/`Atrasada` e botões de check-in/concluir. Ele foi **substituído** por estas peças em 28/07 ([[spec-07-atividades]] §4.2): o `.ativ-card` não existe mais, e do bloco antigo sobrou só o **badge** (`.ativ-badge`), ainda usado no histórico do pin.
+> **O card de atividade saiu.** A Agenda usava o card de lead (§6.9) como molde, com badge de `resultado`/`Atrasada` e botões de check-in/concluir. Ele foi **substituído** por estas peças em 28/07 ([[spec-07-atividades]] §4.2): o `.ativ-card` não existe mais, e do bloco antigo sobrou só o **badge** (`.ativ-badge`), ainda usado no histórico do pin **e na parada realizada do registro de rota** (§6.17).
+
+### 6.17 Registro de rota (`.rt*`) — 31/07
+A linha de rota **expansível** da sub-aba Rotas ([[spec-07-atividades]] §4.3). Três peças num cartão só:
+
+- **Cartão** (`.rt`) — `--surface`, borda `--line` e **espinha de 3px `--brand`** à esquerda: a **mesma** do bloco de rota da Agenda (§6.16), porque é a mesma entidade vista de outro ângulo — trocar a cor faria parecer outra coisa. `overflow: hidden` para o rodapé de cancelar respeitar o raio.
+- **Cabeçalho** (`.rt__h`) — um `<button>` de largura cheia em grade de 3 colunas (ícone · nome · chevron `›`/`▾`), com **duas linhas de meta** ocupando as colunas 2–3: `DOW dd/mm · vendedor` em `--muted` e a linha de **execução** em `--ink-2`/700 (`N paradas · 3 realizadas · 2 de pé`). A execução é a mais escura das duas porque é o que este recorte tem e a Agenda não.
+- **Paradas** (`.rt__paradas` / `.rt__p`) — `<ul>` **sem marcador**, separadas por `1px dashed`: sarjeta de hora de 42px (`tabular-nums`) · nome como `button` · situação à direita. ⚠️ **`ul` e nunca `ol`**, e nenhum índice: rota é conjunto ([[rota]] §2).
+- **Cancelar** (`.rt__x`) — faixa `--surface-2` no pé do cartão, largura cheia. Só renderiza quando há parada planejada.
+
+> **Situação só ganha cor quando há desfecho.** Parada realizada usa o `.ativ-badge` na cor do `resultado` (a cor segue a **entidade** — §6.13); `planejada` e `cancelada` são texto cinza (`.rt-sit`), porque são **ausência** de desfecho e um badge colorido as faria parecer um estado conquistado.
+
+### 6.18 Modo montar rota (`.rota-panel` + `.pin-wrap.is-na-rota`) — 31/07
+As peças do 3º modo do mapa ([[spec-01-mapa]] §6.2). O **banner** reusa `.placing-banner` sem mudança — modo é modo, e a forma escura de `--ink` já significa *"você está num modo, e ele acaba"* (§6.15). O que é novo:
+
+- **Painel** (`.rota-panel`) — cartão claro no canto **inferior-esquerdo**, com **espinha de 3px `--brand`** (a mesma do bloco de rota, §6.16 — é a mesma entidade). Contagem grande + dono numa **linha só**, e o botão embaixo. Mora onde a **legenda** estava, e ela sai por CSS (`body.is-rota .legend { display: none }`) enquanto o modo durar.
+- **Pin escolhido** (`.pin-wrap.is-na-rota`) — anel `--brand` cheio + `✓` de 14px no canto **inferior-esquerdo**. O canto superior-direito é do selo de origem (`G`/`✓`, §6.1), e dois selos no mesmo canto se cobrem. ⚠️ **Marca, nunca número:** rota é conjunto, e "1, 2, 3" nos pins prometeria um sequenciamento que o objeto não guarda.
+- **Sheet de nova rota** — reusa o **modal de criação** (§6.8) e ganha duas caixas de texto: `.rota-resumo` (fundo `--surface-2`, diz o efeito no funil **antes** do toque) e `.rota-aviso` (âmbar de procedência, §6.14 — a ressalva de ponto em saída lateral).
+
+> ⚠️ **`flex: 0 0 auto` no `.rt` é obrigatório, e a falta dele é um bug bonito de ver.** O container (`.ativ-body`) é um flex column de altura definida, e **`overflow: hidden` desliga o tamanho mínimo automático do item flex** (`min-height: auto` só vale com overflow visível). Sem a linha, os 117 cartões encolhem para ~0px e a lista vira um monte de riscos horizontais — foi exatamente o que a primeira captura mostrou. O `.ag-rota` da Agenda nunca sofreu disso porque não tem `overflow`.
+> ⚖️ **Regra que fica: filho de flex column com `overflow` precisa de `flex: 0 0 auto` explícito.** A propriedade que você pôs para arredondar o canto é a que tira a proteção de altura.
+
+> **A porta de criar** (`.rt-nova`) — botão de largura cheia no **topo** da lista, `--brand-050` com borda **tracejada** `--brand`: tracejado porque é *criar*, não um item da lista. O subtítulo diz onde a escolha acontece (`escolher os pontos no mapa`) — botão que troca de tela sem avisar parece que não funcionou. Aparece também no estado vazio.
+
+### 6.18 Modo montar rota (`.rota-panel` + `.pin-wrap.is-na-rota`) — 31/07
+As peças do 3º modo do mapa ([[spec-01-mapa]] §6.2). O **banner** reusa `.placing-banner` sem mudança — modo é modo, e a forma escura de `--ink` já significa *"você está num modo, e ele acaba"* (§6.15). O que é novo:
+
+- **Painel** (`.rota-panel`) — cartão claro no canto **inferior-esquerdo**, com **espinha de 3px `--brand`** (a mesma do bloco de rota, §6.16 — é a mesma entidade). Contagem grande + dono numa **linha só** (cada linha de altura ali é mapa coberto, e o painel fica justamente onde os pins escolhidos costumam estar), e o botão embaixo. Mora onde a **legenda** estava, e ela sai por CSS (`body.is-rota .legend { display: none }`) enquanto o modo durar.
+- **Pin escolhido** (`.pin-wrap.is-na-rota`) — anel `--brand` cheio + `✓` de 14px no canto **inferior-esquerdo**. O canto superior-direito é do selo de origem (`G`/`✓`, §6.1), e dois selos no mesmo canto se cobrem. ⚠️ **Marca, nunca número:** rota é conjunto, e "1, 2, 3" nos pins prometeria um sequenciamento que o objeto não guarda.
+- **Sheet de nova rota** — reusa o **modal de criação** (§6.8) e ganha duas caixas de texto: `.rota-resumo` (fundo `--surface-2`, diz o efeito no funil **antes** do toque) e `.rota-aviso` (âmbar de procedência, §6.14 — a ressalva de ponto em saída lateral).
+
+> ⚖️ **Três coisas dividem o canto inferior, e a ordem de precedência agora está escrita:** a **faixa de visita em andamento** não cede a ninguém (é a única saída do bloqueio de 2º check-in, §6.15) · o **painel do modo** sobe para 76px quando ela está na tela (`body.checkin-open`) · a **legenda** sai inteira. Quem chega depois cede. É a primeira vez que três elementos disputam esse canto, e sem uma ordem declarada o próximo se sobrepõe a um deles em silêncio.
+
+> ⚖️ **Banner e painel não dizem a mesma coisa** — a divisão é requisito, não estética: o banner é a **instrução**, o painel é o **estado + a saída**. E o banner **sai enquanto o sheet está aberto**: ele manda tocar nos pins com o mapa coberto, e instrução que não pode ser seguida é pior que nenhuma.
 
 ## 7. Ícones
 
-Hoje **baseados em emoji/glifos** (vanilla, sem lib): `◈` marca · `＋` criar · `◎` localizar · `⟲` reset · `≡`/`🎛` filtros · `🗺️`/`📋` nav · `🔎` busca · `👆`/`✥` banners · `✓` validado. *(O CRM-KA usa Lucide via React.)* **Parking:** se o produto real for React, migrar para um set consistente (ex. Lucide) e mapear os emojis atuais.
+Hoje **baseados em emoji/glifos** (vanilla, sem lib): `◈` marca · `＋` criar · `◎` localizar · `🧭` rota · `⟲` reset · `≡`/`🎛` filtros · `🗺️`/`📋` nav · `🔎` busca · `👆`/`✥` banners · `✓` validado. *(O CRM-KA usa Lucide via React.)* **Parking:** se o produto real for React, migrar para um set consistente (ex. Lucide) e mapear os emojis atuais.
 
 ## 8. Responsividade
 

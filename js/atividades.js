@@ -1,17 +1,25 @@
 /* =====================================================================
-   atividades.js — Aba "Atividades" (SPEC 07). Três recortes da MESMA
-   coleção de tarefas (uma coleção só — tarefa.md §2), em dois recortes:
-     · Gerencial → o retrato do período (CAP-13): KPIs, quebras, gráficos L7D
-                   e a TABELA detalhada. Abre por padrão. Todo número da tela
-                   filtra essa tabela (drill) em vez de trocar de tela.
+   atividades.js — Aba "Atividades" (SPEC 07). TRÊS recortes da MESMA
+   coleção de tarefas (uma coleção só — tarefa.md §2), nesta ordem:
+     · Rotas     → o registro do objeto Rota (rota.md), de QUALQUER data:
+                   uma linha por rota, com nome · dia · vendedor · paradas e
+                   quantas saíram. Abre por padrão desde 31/07. Responde
+                   "quais rotas existem e como foram", não "o que vem por aí".
      · Agenda    → status = planejada, de hoje em diante, em CALENDÁRIO (um
                    bloco por dia): rotas (conjunto de paradas) e atividades
                    avulsas. Só plano — não faz check-in nem conclui, e não
                    mostra atrasadas/sugestões (isso é a tabela da Gerencial).
-   (Havia um 3º recorte "Realizadas" em cards; a tabela da Gerencial já é a
+     · Gerencial → o retrato do período (CAP-13): KPIs, quebras, gráficos L7D
+                   e a TABELA detalhada. Todo número da tela filtra essa
+                   tabela (drill) em vez de trocar de tela.
+   (Havia um recorte "Realizadas" em cards; a tabela da Gerencial já é a
     lista detalhada, então ele saiu em 28/07 — spec-07 §4.)
-   Respeita o conjunto filtrado do mapa; vendedor/período são filtros DESTA
-   aba (valem nos três recortes) e não entram na quickbar (spec-07 §6).
+   ⚖️ Rotas e Agenda NÃO são duas listas do mesmo plano: a Agenda tem o DIA
+   como eixo e mostra as paradas abertas; Rotas tem o CONJUNTO como eixo e
+   inclui o que já rodou e a rota que ficou sem parada planejada — que a
+   Agenda, por contrato, não renderiza (spec-07 §4.3).
+   Respeita o conjunto filtrado do mapa; vendedor/busca/período são filtros
+   DESTA aba e não entram na quickbar (spec-07 §6).
    Quem escreve status é state.js/applyStatus — aqui é só UI.
    ===================================================================== */
 (function () {
@@ -24,10 +32,11 @@
   let vendEl, periodoEl, customEl, deEl, ateEl, tipEl;
   let tipoEl, ciEl, buscaEl, celTipoEl, celCiEl;
   let showMap = function () {};
-  let recorte = 'gerencial';     // gerencial | agenda
+  let recorte = 'rotas';         // rotas | agenda | gerencial
   let drill = null;              // {campos:[], valores:[]} — lista detalhada da gerencial
   let ordem = { col: 'data', dir: 'desc' };   // ordenação da tabela detalhada
   let idsVisiveis = null;        // Set dos pins que passaram no filtro do mapa
+  const rotasAbertas = new Set();   // quais rotas estão com as paradas expandidas
 
   /* Filtro da aba — UM só estado, mas com DOIS alcances (28/07):
        · `vendedor` e `busca` valem nos dois recortes;
@@ -118,7 +127,7 @@
     return fmtDia(r.de) + ' a ' + fmtDia(r.ate);
   }
 
-  /* Nível 1 — o que vale nos DOIS recortes: conjunto filtrado do mapa +
+  /* Nível 1 — o que vale nos TRÊS recortes: conjunto filtrado do mapa +
      vendedor + busca (nome fantasia · razão social · CNPJ, via
      CRM_DATA.matchBusca, a mesma da Inteligência). O período não entra aqui:
      cada recorte decide o que faz com data. */
@@ -301,6 +310,170 @@
         itens.map(function (i) { return i.html; }).join('') +
       '</section>';
     }).join('');
+  }
+
+
+  /* =====================================================================
+     ROTAS (spec-07 §4.3) — o registro do objeto Rota (docs/objetos/rota.md).
+     A Agenda já mostra rota, então este recorte só se paga respondendo o que
+     ela NÃO responde. São três coisas:
+       · a rota que JÁ RODOU — a Agenda é de hoje em diante, e a tabela da
+         Gerencial é uma linha por TAREFA, então "a rota de terça tinha 5
+         paradas e saíram 3" não era pergunta que o app respondesse;
+       · a rota SEM PARADA PLANEJADA — a Agenda não a renderiza (§8), então
+         cancelar ou executar tudo fazia a rota desaparecer do app enquanto o
+         registro ficava de pé ("a rota não se deleta" virava "fica invisível");
+       · a rota como CONJUNTO — nome, dia, dono, quem está dentro — em uma
+         linha por rota, e não com as paradas espalhadas por dias.
+     ⛔ O que este recorte NÃO faz, porque o objeto não tem: ordem de paradas,
+     trajeto, ETA, "otimizar rota". As paradas saem em <ul> (rota.md §2.1).
+     ⛔ E não mostra AVULSA: `rotaId` null não é rota. O hint diz isso, senão a
+     omissão fica silenciosa.
+     ===================================================================== */
+  const SIT = {
+    planejada: { label: 'planejada', cor: null },
+    cancelada: { label: 'cancelada', cor: null }
+  };
+
+  // A situação da parada: realizada mostra o RESULTADO (a cor segue a
+  // entidade — é o mesmo `resultado` que pinta o pin), o resto mostra o
+  // próprio status em cinza. Sem badge, a lista não diria o que já aconteceu.
+  function sitBadge(t) {
+    if (t.status === 'realizada') {
+      const r = D.RESULTADO[t.resultado];
+      if (r) return '<span class="ativ-badge" style="--c:' + r.color + '">' + esc(r.label) + '</span>';
+    }
+    const s = SIT[t.status];
+    return '<span class="rt-sit">' + esc(s ? s.label : t.status) + '</span>';
+  }
+
+  /* Uma linha por rota. `paradas` são as que passaram no filtro; `todas` é o
+     que a rota tem de verdade — se sobrou menos, o cabeçalho diz "2 de 5
+     paradas", a mesma honestidade do bloco da Agenda.
+     ⚖️ Os números de EXECUÇÃO contam `todas`, não as visíveis: este recorte é
+     o registro da rota, e a rota não fica com 2 paradas porque a busca casou
+     2. Só a lista de baixo é a fatia — e o "2 de 5" existe para dizer isso.
+     Sem essa separação a linha dizia "1 de pé" e o botão abaixo dela "3
+     paradas de pé", que é a mesma rota se contradizendo em dois centímetros. */
+  function rotaLinhaHtml(rota, paradas, todas) {
+    const aberta = rotasAbertas.has(rota.id);
+    const d = new Date(rota.data + 'T00:00:00');
+    const total = todas.length;
+    const quantas = paradas.length === total
+      ? plural(total, 'parada', 'paradas')
+      : paradas.length + ' de ' + plural(total, 'parada', 'paradas');
+
+    const feitas = todas.filter(function (t) { return t.status === 'realizada'; }).length;
+    const pend   = todas.filter(function (t) { return t.status === 'planejada'; }).length;
+    const canc   = todas.filter(function (t) { return t.status === 'cancelada'; }).length;
+    const exec = [];
+    if (feitas) exec.push(feitas + ' realizada' + (feitas > 1 ? 's' : ''));
+    if (pend)   exec.push(pend + ' de pé');
+    if (canc)   exec.push(canc + ' cancelada' + (canc > 1 ? 's' : ''));
+
+    // Cancelar a rota só existe se houver parada planejada para cancelar —
+    // botão que não faz nada é pior que botão ausente.
+    const podeCancelar = S.paradasDaRota(rota.id).length;
+
+    return (
+      '<article class="rt' + (aberta ? ' is-aberta' : '') + '">' +
+        '<button class="rt__h" data-act="expandir" data-rota="' + esc(rota.id) + '" ' +
+                'aria-expanded="' + (aberta ? 'true' : 'false') + '">' +
+          '<span class="rt__ic" aria-hidden="true">🧭</span>' +
+          '<span class="rt__nome">' + esc(rota.nome) + '</span>' +
+          '<span class="rt__cv" aria-hidden="true">' + (aberta ? '▾' : '›') + '</span>' +
+          '<span class="rt__meta">' +
+            DOW[d.getDay()] + ' ' + fmtDia(rota.data) + ' · ' + esc(nomeVend(rota.responsavelId)) +
+          '</span>' +
+          '<span class="rt__exec">' + esc(quantas) +
+            (exec.length ? ' · ' + esc(exec.join(' · ')) : '') + '</span>' +
+        '</button>' +
+        (aberta
+          // <ul>, não <ol>: rota é CONJUNTO, não sequência (rota.md §2.1).
+          ? '<ul class="rt__paradas">' +
+              paradas.map(function (t) {
+                const p = pinOf(t);
+                if (!p) return '';
+                /* Sem hora é `dia inteiro`, não `—`: sarjeta vazia lê como dado
+                   faltando (a mesma regra da Agenda — SPEC 00 §6.16). E virou o
+                   caso COMUM desde 31/07: rota montada no mapa não pede horário,
+                   porque hora ordenaria as paradas (rota.md §2.1). */
+                return '<li class="rt__p">' +
+                  (t.hora
+                    ? '<span class="rt__ph">' + esc(t.hora) + '</span>'
+                    : '<span class="rt__ph rt__ph--all">dia inteiro</span>') +
+                  '<button class="ag-nome" data-act="abrir" data-pin="' + esc(p.id) + '">' +
+                    esc(p.name || '(sem nome)') + '</button>' +
+                  sitBadge(t) +
+                '</li>';
+              }).join('') +
+            '</ul>'
+          : '') +
+        (podeCancelar
+          ? '<button class="rt__x" data-act="cancelar-rota" data-rota="' + esc(rota.id) + '">' +
+              'Cancelar rota · ' + plural(podeCancelar, 'parada de pé', 'paradas de pé') +
+            '</button>'
+          : '') +
+      '</article>'
+    );
+  }
+
+  function renderRotas() {
+    // Sem recorte de data (decisão 31/07, Tatiana): o registro mostra TODAS as
+    // rotas. O chip de Período segue exclusivo da Gerencial, e aqui ele não
+    // aparece nem age — o mesmo par indissociável de sempre (§4.1).
+    const base = tarefasBase().filter(function (t) { return !!t.rotaId; });
+
+    const porRota = {};
+    base.forEach(function (t) {
+      (porRota[t.rotaId] = porRota[t.rotaId] || []).push(t);
+    });
+
+    const lista = Object.keys(porRota).map(function (rid) {
+      const paradas = porRota[rid].slice().sort(function (a, b) {
+        return ordHora(a.hora) - ordHora(b.hora);
+      });
+      const rota = S.getRota(rid) ||
+        { id: rid, nome: 'Rota', data: paradas[0].data, responsavelId: paradas[0].responsavelId };
+      return { rota: rota, paradas: paradas, todas: S.paradasTodasDaRota(rid) };
+    });
+
+    countEl.textContent = plural(lista.length, 'rota', 'rotas') + ' · ' +
+      plural(base.length, 'parada', 'paradas');
+    setHint('todas as datas · avulsa fica na Agenda');
+    emptyMsgEl.textContent = 'Nenhuma rota neste recorte.';
+    emptyEl.classList.toggle('is-visible', lista.length === 0);
+
+    /* A porta NOMEADA de montar rota (spec-01 §6.2). Ela não tem fluxo próprio:
+       leva ao mapa e liga o MESMO modo do FAB 🧭 — montar rota é ato espacial, e
+       o critério (proximidade) só é legível no mapa. É por isso que o seletor
+       buscável de pin, prometido em 28/07, foi recusado. */
+    const btnNova = '<button class="rt-nova" data-act="nova-rota">🧭 ＋ Nova rota ' +
+      '<small>escolher os pontos no mapa</small></button>';
+    if (!lista.length) return (bodyEl.innerHTML = btnNova);
+
+    /* TRÊS grupos, e o corte é a DATA da rota: hoje · o que vem · o que rodou.
+       O que vem sobe (mais próxima primeiro) e o passado desce (mais recente
+       primeiro) — é o que dá forma ao recorte sem precisar de filtro de data.
+       ⚖️ `Hoje` é grupo próprio porque o dia em andamento tem as duas coisas
+       ao mesmo tempo: a rota da manhã já rodou e a da tarde está de pé. Com só
+       "Próximas × Já rodaram", uma rota concluída hoje caía em **Próximas** —
+       a tela chamando de futuro o que acabou de acontecer. */
+    const hj = hoje();
+    const cmp = function (dir) {
+      return function (a, b) { return (a.rota.data < b.rota.data ? -1 : 1) * dir; };
+    };
+    const deHoje   = lista.filter(function (x) { return x.rota.data === hj; });
+    const proximas = lista.filter(function (x) { return x.rota.data > hj; }).sort(cmp(1));
+    const passadas = lista.filter(function (x) { return x.rota.data < hj; }).sort(cmp(-1));
+
+    function grupo(titulo, xs) {
+      if (!xs.length) return '';
+      return '<p class="ativ-group">' + titulo + ' · ' + xs.length + '</p>' +
+        xs.map(function (x) { return rotaLinhaHtml(x.rota, x.paradas, x.todas); }).join('');
+    }
+    bodyEl.innerHTML = btnNova + grupo('Hoje', deHoje) + grupo('Próximas', proximas) +
+                       grupo('Já rodaram', passadas);
   }
 
 
@@ -760,7 +933,8 @@
 
   function render() {
     if (!bodyEl) return;
-    if (recorte === 'agenda') renderAgenda();
+    if (recorte === 'rotas') renderRotas();
+    else if (recorte === 'agenda') renderAgenda();
     else renderGerencial();
   }
 
@@ -788,6 +962,23 @@
       return;
     }
     if (act === 'ir-agenda') { setRecorte('agenda'); return; }
+    // Uma das duas portas do modo de montar rota — a outra é o FAB 🧭 do mapa.
+    // Mesmo modo, entrado em momentos diferentes (spec-01 §6.2).
+    if (act === 'nova-rota') {
+      showMap();
+      if (window.CRM_ROTA) setTimeout(function () { window.CRM_ROTA.start(); }, 60);
+      return;
+    }
+    // Expandir a rota mostra as paradas ali mesmo — abrir uma tela para ver
+    // quem está dentro tiraria a rota de vista, que é o que se está lendo.
+    if (act === 'expandir') {
+      const rid = btn.dataset.rota;
+      if (rotasAbertas.has(rid)) rotasAbertas.delete(rid); else rotasAbertas.add(rid);
+      const y = bodyEl.scrollTop;
+      render();
+      bodyEl.scrollTop = y;      // expandir não pode teleportar a lista
+      return;
+    }
     if (act === 'ir-tabela') { drill = null; render(); vaiPraTabela(); return; }
     if (act === 'ordenar') {
       const c = btn.dataset.col;
@@ -860,7 +1051,8 @@
     }
   }
 
-  const SEG = [['seg-ger', 'gerencial'], ['seg-agenda', 'agenda']];
+  // Ordem da trilha = ordem da tela (spec-07 §4): Rotas · Agenda · Gerencial.
+  const SEG = [['seg-rotas', 'rotas'], ['seg-agenda', 'agenda'], ['seg-ger', 'gerencial']];
 
   // O drill mora na tabela da Gerencial; rolar até ela é o que substitui a
   // antiga troca de aba — o usuário precisa VER que a lista respondeu.
@@ -869,9 +1061,10 @@
     if (alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  /* Tipo, Check-in e Período são filtros da Gerencial. Na Agenda eles não
-     aparecem — e `tarefasBase()` também não os aplica, então esconder não
-     cria filtro invisível. Só os DOIS que valem nos dois recortes ficam. */
+  /* Tipo, Check-in e Período são filtros da Gerencial. Em Rotas e na Agenda
+     eles não aparecem — e `tarefasBase()` também não os aplica, então esconder
+     não cria filtro invisível. Sobram os DOIS que valem nos três recortes
+     (vendedor e busca), e a seleção sobrevive à troca de recorte. */
   function pintaEscopo() {
     const soGerencial = recorte === 'gerencial';
     [celTipoEl, celCiEl, periodoEl].forEach(function (el) {
@@ -1043,9 +1236,20 @@
      spec-07 §2.1 e §3). Eram seis `window.prompt` neste arquivo até 28/07;
      não sobrou nenhum no app. */
 
+  /* Mostrar a rota recém-criada, já expandida (chamado por js/rota.js). Criar e
+     não mostrar o que foi criado deixaria a pessoa procurando pela própria rota
+     numa lista de 118. O `refresh` do store já rodou antes daqui. */
+  function abrirRota(id) {
+    rotasAbertas.add(id);
+    setRecorte('rotas');
+    const alvo = bodyEl && bodyEl.querySelector('[data-act="expandir"][data-rota="' + id + '"]');
+    if (alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   window.CRM_ATIV = {
     init: init,
     refresh: refresh,
-    render: render
+    render: render,
+    abrirRota: abrirRota
   };
 })();

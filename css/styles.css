@@ -343,9 +343,35 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes pinPop { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 .pin--temp .pin__body { animation: pulse 1.3s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,58,237,.5); } 50% { box-shadow: 0 0 0 10px rgba(124,58,237,0); } }
+/* Pin ESCOLHIDO para a rota em montagem (SPEC 01 §6.2). Anel de marca cheio +
+   um ✓ no canto de baixo — o de cima é do selo de origem (`G`/`✓`), e dois
+   selos no mesmo canto se cobrem.
+   ⚠️ Marca, nunca NÚMERO: rota é conjunto, não sequência (rota.md §2.1). Pôr
+   "1, 2, 3" nos pins seria a tela prometendo um sequenciamento que o objeto não
+   guarda — e que é Fase 4. */
+.pin-wrap.is-na-rota { z-index: 900 !important; }
+.pin-wrap.is-na-rota .pin__body {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 3px var(--brand), 0 0 0 6px rgba(32,83,206,.25), 0 4px 10px rgba(15,23,42,.4);
+}
+.pin-wrap.is-na-rota .pin__body::after {
+  content: '✓';
+  position: absolute; left: -5px; bottom: -3px; z-index: 4;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--brand); color: #fff; border: 1.5px solid #fff;
+  font-size: 9px; font-weight: 900; line-height: 14px; text-align: center;
+}
+
 body.is-placing #map { cursor: crosshair; }
-body.is-dragging-pin .fab, body.is-placing .fab, body.is-moving .fab,
-body.is-dragging-pin .fab-locate, body.is-placing .fab-locate, body.is-moving .fab-locate { opacity: .3; pointer-events: none; }
+/* Todo modo do mapa esmaece os FABs — inclusive o que o abriu: a saída do modo
+   é o banner, não o botão que o ligou. */
+body.is-dragging-pin .fab, body.is-placing .fab, body.is-moving .fab, body.is-rota .fab,
+body.is-dragging-pin .fab-locate, body.is-placing .fab-locate, body.is-moving .fab-locate, body.is-rota .fab-locate,
+body.is-dragging-pin .fab-rota, body.is-placing .fab-rota, body.is-moving .fab-rota, body.is-rota .fab-rota { opacity: .3; pointer-events: none; }
+/* A legenda CEDE o canto ao painel do modo. Sai inteira em vez de colapsar: um
+   cabeçalho de legenda sobrando ao lado do painel seria ruído, e o modo dura o
+   tempo de uma montagem. Ela volta sozinha ao sair. */
+body.is-rota .legend { display: none; }
 
 /* ---- Legend ---- */
 .legend {
@@ -420,6 +446,70 @@ body.install-open .fab { bottom: calc(84px + var(--sab)); }
 .fab-locate:active { transform: scale(.9); }
 .fab-locate.is-locating { opacity: .55; pointer-events: none; }
 body.install-open .fab-locate { bottom: calc(152px + var(--sab)); }
+
+/* ---- 3º FAB: montar rota (acima do ◎) — SPEC 01 §6.2 --------------------
+   Mesmo tamanho e mesmo eixo do ◎, um degrau acima. A pilha vai a ~180px dos
+   ~648px de mapa em 375×812 (28% da borda direita) e o `＋` deixa de ser o
+   único botão do canto: é o preço registrado da escolha por DESCOBERTA, com a
+   alternativa de custo zero (entrada pelo pin sheet) descrita na spec. */
+.fab-rota {
+  position: absolute; right: 22px; z-index: 30;
+  bottom: calc(144px + var(--sab));
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line);
+  background: #fff; color: var(--brand); font-size: 20px; line-height: 1;
+  box-shadow: var(--shadow-md);
+  display: grid; place-items: center; transition: transform .12s, opacity .2s, bottom .2s;
+}
+.fab-rota:active { transform: scale(.9); }
+body.install-open .fab-rota { bottom: calc(208px + var(--sab)); }
+
+/* ---- Painel da rota em montagem (canto inf-esquerdo, no lugar da legenda) --
+   Divisão de trabalho com o banner do topo, para não dizerem a mesma coisa: o
+   banner é a INSTRUÇÃO, este é o ESTADO + a SAÍDA — e mora embaixo porque é
+   aqui que o polegar chega enquanto a outra mão toca os pins.
+   O rodapé continua sendo da faixa de visita em andamento (a única saída do
+   bloqueio de 2º check-in), então o painel SOBE quando ela está na tela. */
+.rota-panel {
+  --rp-bottom: 20px;
+  position: absolute; left: 12px; z-index: 34;
+  bottom: calc(var(--rp-bottom) + var(--sab));
+  display: none; flex-direction: column; gap: 5px; align-items: flex-start;
+  background: rgba(255,255,255,.97); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md); padding: 10px 12px; backdrop-filter: blur(4px);
+  transition: bottom .2s;
+}
+.rota-panel.is-visible { display: flex; }
+/* Contagem e dono numa linha só: o painel fica no canto onde os pins escolhidos
+   costumam estar, então cada linha de altura é mapa coberto. */
+.rota-panel__n {
+  margin: 0; display: flex; align-items: baseline; gap: 4px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.rota-panel__n strong { font-size: 19px; font-weight: 800; color: var(--ink); }
+.rota-panel__vend {
+  font-size: 11.5px; font-weight: 700; color: var(--ink-2);
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rota-panel__vend::before { content: '· '; color: var(--line-2); }
+body.checkin-open .rota-panel { --rp-bottom: 76px; }
+body.install-open .rota-panel { --rp-bottom: 84px; }
+body.install-open.checkin-open .rota-panel { --rp-bottom: 140px; }
+
+/* Resumo e ressalva do sheet de nova rota. O resumo diz o efeito no FUNIL
+   antes do toque; a ressalva âmbar diz que ponto em saída lateral fica lá. */
+.rota-resumo {
+  margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 9px 11px;
+}
+.rota-resumo small { color: var(--muted); }
+.rota-aviso {
+  margin: 0; font-size: 12px; line-height: 1.45; color: #7c2d12;
+  background: #fef3c7; border: 1px solid #f59e0b;
+  border-radius: var(--r-sm); padding: 8px 10px;
+}
+.rota-aviso[hidden] { display: none; }
 
 /* ---- Toast transitório ---- */
 .toast {
@@ -878,8 +968,9 @@ body.install-open .checkin-banner { bottom: calc(84px + var(--sab)); }
 }
 body.view-intel .intel-view { display: flex; }
 /* Na aba de lista, os controles do mapa somem */
-body.view-intel .fab, body.view-intel .fab-locate,
-body.view-intel .placing-banner, body.view-intel .checkin-banner { display: none !important; }
+body.view-intel .fab, body.view-intel .fab-locate, body.view-intel .fab-rota,
+body.view-intel .placing-banner, body.view-intel .checkin-banner,
+body.view-intel .rota-panel { display: none !important; }
 
 /* A aba não tem caixa de busca própria (30/07): a busca desta aba é a da
    quickbar, que aparece aqui também. Os estilos `.intel-search` saíram junto. */
@@ -974,8 +1065,9 @@ body.view-intel .placing-banner, body.view-intel .checkin-banner { display: none
   flex-direction: column; background: var(--bg);
 }
 body.view-ativ .ativ-view { display: flex; }
-body.view-ativ .fab, body.view-ativ .fab-locate,
-body.view-ativ .placing-banner, body.view-ativ .checkin-banner { display: none !important; }
+body.view-ativ .fab, body.view-ativ .fab-locate, body.view-ativ .fab-rota,
+body.view-ativ .placing-banner, body.view-ativ .checkin-banner,
+body.view-ativ .rota-panel { display: none !important; }
 
 /* A quickbar é o filtro DO MAPA. No Funil e nas Atividades ela não é útil e
    custa ~50px de altura — some, e o espaço volta pro conteúdo. O filtro segue
@@ -1165,6 +1257,89 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
 .ag-paradas .ag-h { flex-basis: calc(var(--gut) - 8px); }
 .ativ-back { align-self: flex-start; }
 
+/* =====================================================================
+   ROTAS — o registro do objeto Rota (SPEC 07 §4.3). Uma linha por rota:
+   nome · dia · dono · paradas · o que já saiu. NÃO é a Agenda: aqui o eixo
+   é o CONJUNTO, não o dia, e entra o que já rodou.
+   A espinha `--brand` é a mesma do bloco de rota da Agenda — é a mesma
+   entidade vista de outro ângulo, e trocar a cor faria parecer outra coisa.
+   ⚠️ Nenhum número de ordem e nenhuma linha de trajeto: rota é conjunto,
+   não sequência (rota.md §2.1). A tela não pode insinuar "otimizar".
+   ===================================================================== */
+/* ⚠️ `flex: 0 0 auto` é obrigatório aqui, não enfeite: `.ativ-body` é um flex
+   column de altura definida, e `overflow: hidden` **desliga o tamanho mínimo
+   automático** do item flex (`min-height: auto` só vale com overflow visível).
+   Sem a linha, os 117 artigos encolhem para ~0px e a lista vira um monte de
+   riscos — foi o que a primeira captura mostrou. O `.ag-rota` da Agenda não
+   sofre disso porque não tem `overflow`. */
+.rt {
+  flex: 0 0 auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand); border-radius: var(--r-md);
+  overflow: hidden;
+}
+/* O cabeçalho inteiro é o alvo do toque (expande) — daí `Cancelar rota` ser
+   IRMÃO dele, não filho: botão dentro de botão não existe em HTML. */
+.rt__h {
+  width: 100%; text-align: left; background: none; border: 0;
+  display: grid; grid-template-columns: auto 1fr auto;
+  column-gap: 7px; row-gap: 2px; padding: 9px 10px 10px 8px;
+}
+.rt__h:active { background: var(--surface-2); }
+.rt__ic { font-size: 14px; }
+.rt__nome {
+  min-width: 0; font-size: 13.5px; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rt__cv { font-size: 13px; font-weight: 700; color: var(--muted); }
+.rt__meta { grid-column: 2 / 4; font-size: 11.5px; color: var(--muted); }
+/* A linha de execução é o que este recorte tem e a Agenda não: quantas
+   paradas saíram. Por isso ela é a mais escura das duas metas. */
+.rt__exec {
+  grid-column: 2 / 4; font-size: 11.5px; font-weight: 700; color: var(--ink-2);
+}
+/* ⚠️ `ul` de propósito, e sem marcador: as paradas são um conjunto. */
+.rt__paradas {
+  list-style: none; margin: 0; padding: 2px 10px 4px 8px;
+  border-top: 1px dashed var(--line);
+}
+.rt__p { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
+.rt__p + .rt__p { border-top: 1px dashed var(--line); }
+.rt__ph {
+  flex: 0 0 42px; font-size: 12px; font-weight: 800; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Sem hora não é buraco: é "dia inteiro" (mesma peça da Agenda, §6.16). Caso
+   comum desde 31/07 — rota montada no mapa não tem horário de parada. */
+.rt__ph--all {
+  font-size: 9px; font-weight: 700; letter-spacing: .02em; line-height: 1.15;
+  text-transform: uppercase; color: var(--muted);
+}
+.rt__p .ag-nome { flex: 1 1 auto; }
+/* Situação sem cor própria: planejada e cancelada são ausência de desfecho.
+   Só a realizada ganha badge colorido, e a cor é a do `resultado`. */
+.rt-sit { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--muted); }
+.rt__x {
+  display: block; width: 100%; text-align: left;
+  padding: 8px 10px 9px 8px; background: var(--surface-2); border: 0;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px; font-weight: 700; color: var(--muted);
+}
+.rt__x:active { background: var(--line); }
+
+/* A porta nomeada de montar rota (a outra é o FAB do mapa). Fica no TOPO da
+   lista, e o subtítulo diz que a escolha acontece no mapa — botão que muda de
+   tela sem avisar parece que não funcionou. */
+.rt-nova {
+  flex: 0 0 auto; width: 100%; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--brand-050); border: 1px dashed var(--brand);
+  border-radius: var(--r-md); padding: 11px 12px;
+  font-size: 13.5px; font-weight: 800; color: var(--brand);
+}
+.rt-nova small { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+.rt-nova:active { background: #dbe6fb; }
+
 /* Gerencial: manchete → KPIs → quebras (SPEC 07 §5). Hierarquia em três níveis;
    o seletor de período mora na barra de filtros da aba, não aqui.
    ⚖️ Invariante: toda marca é uma PORTA — todo número abre a lista por trás. */
@@ -1325,8 +1500,9 @@ body.real-mode .sim-banner strong { color: #7c2d12; }
   flex-direction: column; background: var(--bg);
 }
 body.view-funil .funil-view { display: flex; }
-body.view-funil .fab, body.view-funil .fab-locate,
-body.view-funil .placing-banner, body.view-funil .checkin-banner { display: none !important; }
+body.view-funil .fab, body.view-funil .fab-locate, body.view-funil .fab-rota,
+body.view-funil .placing-banner, body.view-funil .checkin-banner,
+body.view-funil .rota-panel { display: none !important; }
 
 .funil-board {
   flex: 1 1 auto; display: flex; gap: 10px; align-items: stretch;

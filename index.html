@@ -79,6 +79,11 @@
         </div>
       </div>
 
+      <!-- 3º FAB (31/07): entra no modo de montar rota. A escolha do canto foi
+           uma TROCA, não adição — o custo (28% da borda direita, e o ＋ deixando
+           de ser o único botão do canto) está registrado em spec-01 §6.2, junto
+           da alternativa de custo zero que foi recusada. -->
+      <button id="fab-rota" class="fab-rota" aria-label="Montar rota" title="Montar rota">🧭</button>
       <button id="fab-locate" class="fab-locate" aria-label="Minha localização" title="Minha localização">◎</button>
       <button id="fab-create" class="fab" aria-label="Criar novo pin">＋</button>
 
@@ -90,6 +95,27 @@
       <div id="move-banner" class="placing-banner" role="status">
         <span>✥ Arraste o pin para a posição correta</span>
         <button id="btn-move-done" class="placing-banner__cancel">Concluir</button>
+      </div>
+
+      <!-- Modo montar rota (spec-01 §6.2). Divisão de trabalho entre as duas
+           peças, para não dizerem a mesma coisa duas vezes: o BANNER é a
+           instrução (o que fazer) e o PAINEL é o estado + a saída (onde o
+           polegar alcança). -->
+      <div id="rota-banner" class="placing-banner" role="status">
+        <span>🧭 Toque nos pins que entram na rota</span>
+        <button id="btn-rota-cancel" class="placing-banner__cancel">Cancelar</button>
+      </div>
+
+      <!-- Canto inferior-esquerdo: o modo toma o lugar da legenda (que sai por
+           CSS enquanto ele durar). O rodapé continua sendo da faixa de visita
+           em andamento — ela é a única saída do bloqueio de 2º check-in, então
+           o painel sobe quando ela está na tela. -->
+      <div id="rota-panel" class="rota-panel" role="group" aria-label="Rota em montagem">
+        <p class="rota-panel__n">
+          <strong id="rota-panel-n">0</strong> <span id="rota-panel-lbl">pontos</span>
+          <span id="rota-panel-vend" class="rota-panel__vend"></span>
+        </p>
+        <button id="btn-rota-done" class="btn btn--primary btn--sm" disabled>Concluir rota</button>
       </div>
 
       <!-- Visita em andamento (29/07). A faixa existe porque o check-in aberto só
@@ -123,16 +149,18 @@
         </div>
       </section>
 
-      <!-- Aba Atividades (SPEC 07) — gerencial · agenda · realizadas.
+      <!-- Aba Atividades (SPEC 07) — rotas · agenda · gerencial.
            Três recortes da MESMA coleção de tarefas. Cobre o mapa quando ativa.
-           Abre na Gerencial (spec-07 §4). -->
+           Abre em ROTAS desde 31/07 (era a Gerencial — spec-07 §4). -->
       <section id="ativ-view" class="ativ-view" aria-label="Atividades">
         <div class="seg" role="tablist" aria-label="Recorte das atividades">
-          <!-- Dois recortes: o retrato (Gerencial, com a tabela detalhada dentro)
-               e o que está por fazer (Agenda). "Realizadas" era uma terceira aba
-               que repetia a tabela da Gerencial — ver spec-07 §4. -->
-          <button id="seg-ger" class="seg__btn is-active" role="tab" aria-selected="true">Gerencial</button>
+          <!-- Três recortes, do trabalho para o retrato: com QUEM (Rotas, o
+               registro do objeto), QUANDO (Agenda, o plano por dia) e COMO FOI
+               (Gerencial, com a tabela detalhada dentro). "Realizadas" era uma
+               quarta que repetia a tabela da Gerencial — ver spec-07 §4. -->
+          <button id="seg-rotas" class="seg__btn is-active" role="tab" aria-selected="true">Rotas</button>
           <button id="seg-agenda" class="seg__btn" role="tab" aria-selected="false">Agenda</button>
+          <button id="seg-ger" class="seg__btn" role="tab" aria-selected="false">Gerencial</button>
         </div>
         <!-- Barra de filtros da ABA (spec-07 §6): vendedor + período valem para
              os TRÊS recortes e NÃO entram na quickbar do mapa — filtro de tarefa
@@ -141,9 +169,9 @@
           Nenhuma visita, check-in ou distância abaixo aconteceu de verdade.</p>
         <div class="ativ-filtros">
           <!-- Nenhum filtro fica escondido atrás de botão (uma gaveta "Mais"
-               existiu e foi revertida): o que a AGENDA não usa, ela não mostra
-               E não aplica — filtro invisível seria pior que filtro nenhum.
-               Vendedor e Busca valem nos dois recortes; Tipo, Check-in e
+               existiu e foi revertida): o que ROTAS e AGENDA não usam, eles não
+               mostram E não aplicam — filtro invisível seria pior que filtro
+               nenhum. Vendedor e Busca valem nos TRÊS recortes; Tipo, Check-in e
                Período são só da Gerencial (js/atividades.js os oculta).
                Grade de 2 colunas para caber em 375px. -->
           <div class="ativ-grid">
@@ -277,6 +305,29 @@
       </div>
     </div>
 
+    <!-- Sheet de conclusão da rota (spec-01 §6.2 / rota.md §9). Mesmo molde do
+         modal de criar pin: card no rodapé, sem scrim bloqueante.
+         Pede só o que NÃO é derivado — o dia. Nome sai da zona dominante e
+         vendedor sai do pin; nenhum dos dois se digita no protótipo. -->
+    <div id="rota-modal" class="modal" role="dialog" aria-modal="true" aria-label="Nova rota">
+      <div class="modal__card">
+        <h2 class="modal__title">Nova rota</h2>
+        <p class="modal__sub">Um conjunto de pontos para um dia. <strong>Sem ordem de paradas</strong> — sequenciar é outra fatia.</p>
+        <form id="rota-form" class="create-form" novalidate>
+          <label class="field">
+            <span>Dia da rota *</span>
+            <input id="rota-dia" type="date" />
+          </label>
+          <p id="rota-resumo" class="rota-resumo"></p>
+          <p id="rota-aviso" class="rota-aviso" hidden></p>
+          <div class="modal__actions">
+            <button type="button" id="btn-rota-modal-cancel" class="btn btn--ghost">Voltar</button>
+            <button type="submit" id="btn-rota-save" class="btn btn--primary">Criar rota</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Toast genérico (mensagens transitórias) -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -311,6 +362,7 @@
   <script src="js/filters.js"></script>
   <script src="js/pin.js"></script>
   <script src="js/create.js"></script>
+  <script src="js/rota.js"></script>
   <script src="js/intel.js"></script>
   <script src="js/funil.js"></script>
   <script src="js/atividades.js"></script>

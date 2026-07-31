@@ -95,7 +95,7 @@ CREATE TABLE tarefa (
 | 2 | `estabelecimento_id` | fk → [[estabelecimento]] | **Sim** | auto | — | vem do pin de onde foi criada; **1 tarefa = 1 pin** |
 | 3 | `tipo` | enum (3) | **Sim** | `campo` (com **sugestão**) | **sheet de conclusão** · sheet de agendar · aba Atividades · **filtro gerencial** | 1ª visita · follow-up · recorrência. Digitado em **dois** momentos, os dois em que o propósito é conhecido: ao **agendar** (é o plano) ou ao **concluir** (é o que a visita foi). No check-in não se pergunta — a tarefa nasce com a sugestão do histórico (§5) e o vendedor confirma no fim. **Sugestão ≠ derivação travada** |
 | 4 | `data` | date | **Sim** | `campo` | sheet do pin · aba Atividades · **filtro gerencial** | futuro = planejada; passado = realizada |
-| 4b | `hora` | time | Não | `campo` | **Agenda** (sarjeta de horário) · sheet do pin | horário **marcado**. **Opcional**: sem ela, a atividade é *dia inteiro* e vai no topo do dia ([[spec-07-atividades]] §4.2). ⚠️ **`atrasada` continua sendo por DIA** (§5), nunca por hora |
+| 4b | `hora` | time | Não | `campo` | **Agenda** (sarjeta de horário) · **sub-aba Rotas** · sheet do pin | horário **marcado**. **Opcional**: sem ela, a atividade é *dia inteiro* e vai no topo do dia ([[spec-07-atividades]] §4.2). ⚠️ **`atrasada` continua sendo por DIA** (§5), nunca por hora. ⚖️ **Parada de rota montada no app nasce SEM hora** (31/07): hora ordenaria as paradas, e rota é conjunto, não sequência ([[rota]] §2.1). Só as rotas **semeadas** têm hora — o seed as espaça de 45min para dar forma aos gráficos, e a diferença é declarada |
 | 5 | `status` | enum (3) | Sim | **derivado**/fluxo | sheet do pin · aba Atividades | §5 — nasce `planejada` |
 | 6 | `responsavel_id` | fk → [[vendedor]] | Não | **derivado** | aba Atividades · **filtro gerencial** | §5 — nunca digitado; alvo de RLS |
 | 7 | `checkin_em` | timestamptz | Não | `auto` (fluxo) | sheet do pin | botão de check-in; promove o pin a `validado_campo` |
@@ -116,7 +116,7 @@ CREATE TABLE tarefa (
 | 19 | `duracao_min` | numeric | — | **derivado** | visão gerencial | §5 — não persiste |
 | 20 | `tipo_checkin` | enum (2) + `NULL` | — | **derivado de `distancia_km`** | **visão gerencial** (tabela) · detalhe da atividade | `presencial` perto do pin, `remoto` longe dele, **`NULL` sem check-in** (§5). **Não é campo** — não há o que digitar. ⚠️ **Corrigido em 28/07:** derivava de *ter ou não* check-in, o que fazia "remoto" significar "não fui" |
 | 21 | ~~`nome_rota`~~ | — | — | — | — | ⛔ **Deixou de existir (28/07).** Era rótulo derivado (`Rota (dd/mm/aaaa)`); agora o nome vem do **objeto [[rota]]** via `rota_id`, e a tabela da gerencial mostra `rota.nome` ou **`Avulsa`** |
-| 22 | `rota_id` | fk → [[rota]] | Não | `campo` | **Agenda** (agrupa as paradas) · **visão gerencial** (coluna Nome Rota) | a rota de que esta tarefa é **parada**. **`NULL` = avulsa** — o vendedor marcou este compromisso solto. ⚠️ [[rota]] é **rascunho**, não objeto fechado |
+| 22 | `rota_id` | fk → [[rota]] | Não | `campo` | **sub-aba Rotas** (agrupa a tarefa sob a rota, em qualquer situação) · **Agenda** (agrupa as paradas planejadas) · **visão gerencial** (coluna Nome Rota) | a rota de que esta tarefa é **parada**. **`NULL` = avulsa** — o vendedor marcou este compromisso solto, e a avulsa **não aparece** na sub-aba Rotas ([[spec-07-atividades]] §4.3). ⚠️ [[rota]] é **rascunho**, não objeto fechado |
 
 - **Origem:** `fonte:sf` · `derivado` · `admin` · `campo` (digitado pelo vendedor) · `auto`.
 - **Onde aparece:** `sheet do pin` (CAP-11) · `aba Atividades` (CAP-12) · `filtro gerencial` / `visão gerencial` (CAP-13) · `card do Funil` ([[spec-06-funil]]).
@@ -167,7 +167,7 @@ CREATE TABLE tarefa (
 
 | Evento | efeito no `status` do estabelecimento |
 |---|---|
-| **agendar** — ou **check-in em pin sem plano**, que cria a tarefa (nasce `planejada` nos dois casos) | `sem_plano → visita_planejada` — **entra no funil** |
+| **agendar** — ou **check-in em pin sem plano**, ou **montar rota** (31/07), que criam a tarefa (nasce `planejada` nos três casos) | `sem_plano → visita_planejada` — **entra no funil** |
 | **cancelar** a última planejada | `visita_planejada → sem_plano` — sai do board (única reversão) |
 
 | `resultado` (ao concluir) | efeito no `status` do estabelecimento |
@@ -198,6 +198,7 @@ CREATE TABLE tarefa (
   Em todos os casos, concluir a tarefa atualiza `ultima_visita` do pin e — pela regra de check-in já travada — promove `origem_confianca` a `validado_campo` gravando `geo_verificado`.
 
 - **Reabrir uma saída lateral** (voltar de `perdido` ou `desqualificado`) — **exige nova tarefa concluída**, não há toggle. Concluir qualquer tarefa num pin nesses estados **restaura `status_anterior`** e só então aplica o `resultado` novo pela tabela acima. Sair e voltar são simétricos: ambos são constatação de campo, ambos têm autor e data. *(Um pedido chegando pelo ERP também tira o pin da lateral — ERP prevalece.)*
+  - ⚖️ **Montar rota também não tira o pin da lateral** (31/07). É a mesma escrita (`novaTarefaPlanejada`, com a guarda explícita), então a regra vale de graça — e o sheet de criar rota **diz isso em âmbar antes do toque**, nomeando quantos pontos continuam onde estão ([[spec-01-mapa]] §6.2). Abrir uma porta nova de agendamento sem repetir o aviso seria refazer o bug de 30/07 em outro lugar.
   - ⚖️ **Agendar NÃO tira o pin da lateral** (explícito em 30/07). Um plano não constata nada: a tarefa nasce `planejada` no ponto `perdido`, o pin **fica onde está** — com `status_anterior` e `motivo_status` intactos — e volta ao funil no **check-out**. Antes disso a regra existia só por acidente (a escada recusava a regressão para `visita_planejada`) e **vazava**: um lateral **sem `status_anterior`** — dado antigo ou snapshot real — caía em `sem_plano`, de onde `visita_planejada` é avanço legítimo, e o agendamento ressuscitava o pin. O sheet de agendar **diz isso antes do toque** ([[spec-07-atividades]] §2.1).
   - ⚖️ **Sair da lateral apaga `motivo_status`.** Ele explica a **saída**; num pin de volta ao funil viraria mentira — *"Perdido (preço alto)"* escrito num ponto em *Visitado*. Vale para as duas portas de volta (tarefa concluída e arraste no Funil), e por isso mora no único lugar que escreve `status` ([[estabelecimento]] §5).
 

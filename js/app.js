@@ -58,6 +58,7 @@
     const t = window.CRM_STATE.checkinAberto();
     if (!t) {
       el.classList.remove('is-visible', 'is-stale');
+      document.body.classList.remove('checkin-open');
       if (checkinTimer) { clearInterval(checkinTimer); checkinTimer = null; }
       return;
     }
@@ -66,6 +67,10 @@
     txt.innerHTML = '<strong>' + esc(p ? p.name : 'Ponto') + '</strong> · ' + info.txt;
     el.classList.add('is-visible');
     el.classList.toggle('is-stale', info.stale);
+    /* A faixa não cede o rodapé a ninguém (é a única saída do bloqueio de 2º
+       check-in), então quem chega depois sobe. Hoje só o painel de montar rota
+       divide esse canto — daí a classe no body, que é o que o CSS consegue ler. */
+    document.body.classList.add('checkin-open');
     // O minuto tem que andar sozinho: ninguém recarrega a tela para ver o tempo
     // de campo subir, e é justamente ele que faz a faixa envelhecer.
     if (!checkinTimer) checkinTimer = setInterval(renderCheckinBanner, 60000);
@@ -99,6 +104,12 @@
   /* ---- Abas Mapa / Funil / Atividades / Inteligência (filtros compartilhados).
           4 abas desde a fatia Tarefa (SPEC 00 §5.2 / SPEC 07 §4). ---- */
   function showTab(which) {
+    /* Modo do MAPA acaba ao sair do mapa. Deixá-lo de pé por baixo de outra aba
+       criava um estado invisível: voltar depois de tocar um card do Funil (que
+       abre o pin direto) daria sheet aberto com o modo ligado atrás. */
+    if (which !== 'map' && window.CRM_ROTA && window.CRM_ROTA.isMontando()) {
+      window.CRM_ROTA.cancel();
+    }
     document.body.classList.toggle('view-funil', which === 'funil');
     document.body.classList.toggle('view-ativ', which === 'ativ');
     document.body.classList.toggle('view-intel', which === 'intel');
@@ -168,11 +179,14 @@
       }
     });
 
-    // Esc fecha o overlay ativo (modal de criar > painel de filtros).
+    // Esc fecha o overlay ativo (sheet de rota > modal de criar > filtros) e,
+    // por último, sai do modo de montar rota — o modo é o mais externo dos três.
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
-      if ($('create-modal').classList.contains('is-open')) { window.CRM_CREATE.cancel(); }
+      if ($('rota-modal').classList.contains('is-open')) { $('btn-rota-modal-cancel').click(); }
+      else if ($('create-modal').classList.contains('is-open')) { window.CRM_CREATE.cancel(); }
       else if ($('filter-panel').classList.contains('is-open')) { closeFilters(); }
+      else if (window.CRM_ROTA.isMontando()) { window.CRM_ROTA.cancel(); }
     });
 
     // Swipe-to-dismiss (mobile) nos bottom sheets — "sheet arrastável".
@@ -265,12 +279,17 @@
     window.CRM_MAP.init();
     window.CRM_PIN.init();
     window.CRM_CREATE.init();
+    window.CRM_ROTA.init({ showTab: showTab });
     // Inteligência e Funil antes do primeiro reapply (reapply → refresh das abas).
     window.CRM_INTEL.init({ showMap: function () { showTab('map'); } });
     window.CRM_FUNIL.init({ showMap: function () { showTab('map'); } });
     window.CRM_ATIV.init({ showMap: function () { showTab('map'); } });
 
     window.CRM_MAP.onSelect(function (id) {
+      /* Montando rota, o toque no pin ESCOLHE em vez de abrir o sheet — é o que
+         faz a montagem ser um toque por parada. Abrir o sheet aqui custaria
+         quatro gestos por ponto (abrir, adicionar, fechar, panorâmica). */
+      if (window.CRM_ROTA && window.CRM_ROTA.isMontando()) { window.CRM_ROTA.toggle(id); return; }
       if (window.CRM_CREATE && window.CRM_CREATE.isPlacing()) window.CRM_CREATE.cancel();
       window.CRM_PIN.open(id);
     });
