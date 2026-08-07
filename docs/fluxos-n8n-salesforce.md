@@ -215,6 +215,8 @@ própria, campo próprio, nó de `PATCH` próprio. Compartilha só o gatilho.
 
 > O segundo braço do `UNION ALL` existe **só para apagar**: quando a janela fecha, o fluxo limpa o campo.
 
+> 🆕 **06/08 — este campo virou a FORMA DE UMA TELA, e isso eleva o aviso de "não cachear" a requisito estrutural.** O board de **Recorrência** do Funil ([[jornada-funil-aquisicao]] §5.2.1) tem como colunas **`Disponível 2ª` e `Disponível 3ª`** — ou seja, o Kanban da carteira **é** a superfície deste campo. Antes, cachear produziria uma prioridade errada; agora **congela o card numa coluna para sempre**. ⚠️ **E o efeito de apagar ficou visível:** quem vê a janela vencer sem fechar sai das duas colunas e **não** entra em `Recorrente` (não tem coorte) — some do board. É o buraco declarado em §5.2.1, cuja saída candidata é uma 5ª coluna com o nome que a operação já usa: **`Funil`**.
+
 **Hoje:** 196 `Disponível 2ª` + 79 `Disponível 3ª` = **275 accounts**, de 449 clientes dentro da janela.
 
 **Por que é importante — e diferente de tudo o resto do inventário:**
@@ -420,6 +422,16 @@ concretas para [snapshot-dado-real.md](snapshot-dado-real.md):
 - Um pin que nunca foi cliente **não recebe `Status__c` nenhum** — o #9 só toca Account com
   `id_praso_c`, ou seja, só quem existe em `prasodata.customer`.
 
+> 🆕 **03/08 — C4 ganhou um consumidor, e ele aponta para a resolução.** Os **sete tipos de visita**
+> ([objetos/tarefa.md](objetos/tarefa.md) §4c) são derivados deste eixo e mapeiam **um para um** no
+> vocabulário da operação: `Funil` → visita de **recorrência** · `Recorrente` → **expansão** ·
+> `Churn` → **reaquisição** · `CSC` e lead → **follow-up**/**1ª visita** pela recência da visita.
+> Ou seja: **é o vocabulário da operação que fecha com os tipos**, não o de 29/07 — o `Funil` do #9
+> deixou de ser "um nome estranho" e passou a ser exatamente a população de um formulário. Isso reforça
+> a primeira alternativa abaixo (adotar `Funil` e tratar `lead` como quinto balde derivado de
+> `cadastrado = false`), e acrescenta um requisito que o C4 não tinha: o app precisa distinguir
+> `Funil` de `Recorrente`, o que exige a **coorte** — não dá para derivar de `data_primeira_compra`.
+
 **A decidir:** o app adota o vocabulário da operação (`Funil`) e trata `lead` como um **quinto** balde
 derivado (`cadastrado = false`), ou renomeia. O que não pode continuar é o app chamar de `lead` uma
 coisa que a operação chama de `Funil` — são populações diferentes, e a decisão de 29/07 dizia
@@ -438,6 +450,15 @@ Isso **não é bug**, é escolha registrada. Mas é uma escolha que o Praso Maps
 cliente pode ser `Churn` no mapa e não-churn na apuração, e as duas telas estarão certas. **Precisa
 estar dito na SPEC**, senão vira contestação de vendedor — que é exatamente a categoria de problema que
 o Diagnóstico mediu.
+
+> 🆕 **03/08 — a escolha das duas réguas saiu do "precisa estar dito" para o "muda o que a tela pede".**
+> A visita de **reaquisição** ([objetos/tarefa.md](objetos/tarefa.md) §4c) é definida como **4 meses sem
+> comprar** — ou seja, a régua de **120**, a da apuração do externo, e **não** a de 60 que o `Status__c`
+> usa para servir o mapa. Consequência direta: **`reaquisicao` ≠ `Status__c = 'Churn'`** — é um
+> subconjunto, e ler o campo pronto faria o app abrir o formulário de reaquisição **~2 meses antes** do
+> que a operação considera churn para efeito de meta. Quem implementar tem de escolher entre ler o campo
+> (60) e recalcular de `data_ultima_compra` (120); o doc de Tarefa está escrito com **120** e marca a
+> confirmação como pendente.
 
 ### C3 — zona e vendedor vêm de uma feature do Salesforce **Maps**
 

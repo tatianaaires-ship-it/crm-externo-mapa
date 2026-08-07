@@ -2,6 +2,8 @@
 
 Protótipo **PWA** (vanilla JS + Leaflet, sem build) de gestão comercial de campo: um **mapa com pins** de estabelecimentos, para o time de vendas externo. Dados 100% fictícios; alvo Android; instalável como app. Escopo completo (capabilities, constraints, non-goals) em [`_bmad-output/specs/spec-crm-externo/SPEC.md`](_bmad-output/specs/spec-crm-externo/SPEC.md).
 
+> ⚠️ **Desde 06/08 existe um SEGUNDO repositório, e ele é o app de verdade.** [`praso-eng/tati-wfm-externo`](https://github.com/praso-eng/tati-wfm-externo) — React Router 7 + Supabase, com o banco da Fase 4 e as quatro abas portadas. **Este repo aqui continua sendo a fonte de verdade da DOCUMENTAÇÃO e do DESIGN** (`docs/` e `css/styles.css`); o outro é onde o código vive daqui para frente. Antes de mexer em código, confirme em qual dos dois.
+
 ## 📖 Leia a documentação antes de trabalhar
 
 A documentação canônica vive em **`docs/`**. O índice mestre abaixo é a porta de entrada — ele diz **o que existe, onde ler e em que ordem**. Ele é importado automaticamente no início da sessão:
@@ -18,11 +20,13 @@ A documentação canônica vive em **`docs/`**. O índice mestre abaixo é a por
 
 - **`docs/` é a fonte de verdade**, espelhada no Notion — **o repositório manda**. Mudou o doc, atualize o Notion (e vice-versa); eles não sincronizam sozinhos.
 - **`css/styles.css` é a fonte de verdade do design** (o SPEC 00 espelha o CSS, não o contrário).
-- O **DDL** nos docs de objeto é **proposto** (Postgres/PostGIS como alvo) — o banco só é decidido na Fase 4. Não trate como travado.
+- O **DDL** nos docs de objeto está **APLICADO** desde 06/08 (Supabase `wfm-externo-tati`). Mudança de schema é **migration** no outro repo, e o doc espelha a migration — não o contrário. ⚠️ Os invariantes existem **duas vezes**: função pura no app e `CHECK` no banco. Mudou um, muda o outro.
 - **Classificação nunca é digitada** (`qualidade`, `origem_confianca`, `porte`, `cadastrado`, `status_cliente` são derivados/chegam prontos).
 - **O pin nunca some e nunca se divide** — não há exclusão; filtro apenas oculta.
 
 ## Código
 
-- Vanilla JS, **sem build**. Os scripts em `js/` carregam na ordem definida em `index.html` e expõem `window.CRM_*` (`CRM_DATA`, `CRM_STATE`, `CRM_MAP`, `CRM_FILTERS`, `CRM_PIN`, `CRM_INTEL`…).
+- **Aqui:** vanilla JS, **sem build**. Os scripts em `js/` carregam na ordem definida em `index.html` e expõem `window.CRM_*` (`CRM_DATA`, `CRM_STATE`, `CRM_MAP`, `CRM_FILTERS`, `CRM_PIN`, `CRM_INTEL`…).
+- **No `tati-wfm-externo`:** React Router 7 com loaders/actions, Supabase service-role só no servidor. O domínio (`app/domain/`) é o port de `js/data.js` + as transições de `js/state.js`, com testes; a UI imperativa foi reescrita.
+  - ⚠️ **RLS: está LIGADA nas 7 tabelas e sem policy nenhuma** (medido em 06/08 — este arquivo dizia "sem RLS", e estava errado). Isso nega tudo a `anon`/`authenticated`, e o app só funciona porque a `service_role` ignora RLS. Como os grants de `anon` são completos (até `TRUNCATE`), **a RLS é a única barreira: não desligar, e não criar policy `using (true)`**. Detalhe em [`docs/objetos/estabelecimento.md`](docs/objetos/estabelecimento.md) §3.
 - Idioma do projeto: **Português (Brasil)** — commits, comentários e UI.

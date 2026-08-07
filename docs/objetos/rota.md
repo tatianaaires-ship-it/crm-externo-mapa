@@ -49,15 +49,18 @@ A **chave de identidade** é o `id`. Não há chave natural: o mesmo vendedor po
 
 ## 3. Schema-alvo (DDL)
 
-> ⚠️ **Banco a confirmar na Fase 4** — DDL **proposto**, e aqui **duplamente provisório**: o objeto em si é rascunho (§0).
+> ✅ **A tabela EXISTE desde 06/08** (migration `20260805200457_init_praso_maps.sql`), **e isso não promove o objeto.** Mesma régua de 31/07, quando ele ganhou tela: *ganhar tabela não promove o objeto*. Enquanto §6 continuar verdadeira — sem ordem, sem trajeto, sem ETA —, este doc segue `rascunho`.
+>
+> ⛔ **A ausência é o contrato, e ela está no schema:** a tabela **não tem coluna de ordem**, e a migration diz por quê no comentário. Rota é conjunto.
+>
+> 🔧 **Uma divergência: `criada_em` saiu.** Ele era redundante com `created_at`, que a tabela já tem. O campo #5 de §4 deixou de existir.
 
 ```sql
 CREATE TABLE rota (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome            text NOT NULL,        -- rótulo; no protótipo = bairro dominante das paradas
+  nome            text NOT NULL,        -- rótulo; no protótipo = ZONA dominante das paradas (§1)
   data            date NOT NULL,        -- o dia da rota
   responsavel_id  uuid REFERENCES usuario(id),   -- UM vendedor por rota
-  criada_em       timestamptz NOT NULL DEFAULT now(),
   cancelada_em    timestamptz,          -- rota não se deleta
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
@@ -76,7 +79,6 @@ CREATE TABLE rota (
 | 2 | `nome` | text | **Sim** | `derivado` (protótipo) / `campo` (produto) | aba Atividades (**Rotas** · Agenda) · **tabela da gerencial** · sheet de criar (read-only) | **zona** dominante das paradas; **único por dia** |
 | 3 | `data` | date | **Sim** | `campo` | **Rotas** (agrupa em Hoje/Próximas/Já rodaram) · Agenda (o dia do bloco) | o **único** campo digitado na criação: `min = hoje`, default hoje |
 | 4 | `responsavel_id` | fk → [[vendedor]] | Não | **derivado** | **Rotas** e Agenda (cabeçalho da rota) | herda do pin das paradas; alvo de RLS na Fase 4 |
-| 5 | `criada_em` | timestamptz | Sim | auto | — | |
 | 6 | `cancelada_em` | timestamptz | Não | `auto` (fluxo) | — | rota não se deleta |
 
 - **Origem:** `derivado` · `campo` (digitado) · `auto`.
