@@ -1,5 +1,13 @@
 # Praso Maps — CRM Externo
 
+> 🧊 **CONGELADO PARA DOCUMENTAÇÃO desde 07/08/2026. Não edite `docs/` nem `css/styles.css` aqui.**
+>
+> A documentação e o design foram **consolidados** em [`praso-eng/tati-wfm-externo`](https://github.com/praso-eng/tati-wfm-externo), com os **47 commits de histórico** (via `git subtree`, não cópia). Lá eles vivem em **`docs/produto/`**, e a fonte de verdade do design passou a ser **`app/styles/crm.css`**.
+>
+> **O que este repositório ainda é:** o **protótipo** em `js/` + `index.html`, vivo e funcionando, e a **demo pública do GitHub Pages** — que hoje é o único link que existe do produto, porque o app ainda não foi publicado. Mexer no protótipo aqui: **sim**. Mexer em doc ou design aqui: **não** — vai para o outro repo, senão as duas cópias divergem em silêncio.
+>
+> ⚠️ **Os `docs/` daqui ficaram como estavam em 07/08** e não recebem mais correção. Para ler a versão atual, vá ao outro repo. Este `CLAUDE.md` também deixou de ser o índice de documentação: o de lá é o `AGENTS.md`.
+
 Protótipo **PWA** (vanilla JS + Leaflet, sem build) de gestão comercial de campo: um **mapa com pins** de estabelecimentos, para o time de vendas externo. Dados 100% fictícios; alvo Android; instalável como app. Escopo completo (capabilities, constraints, non-goals) em [`_bmad-output/specs/spec-crm-externo/SPEC.md`](_bmad-output/specs/spec-crm-externo/SPEC.md).
 
 > ⚠️ **Desde 06/08 existe um SEGUNDO repositório, e ele é o app de verdade.** [`praso-eng/tati-wfm-externo`](https://github.com/praso-eng/tati-wfm-externo) — React Router 7 + Supabase, com o banco da Fase 4 e as quatro abas portadas. **Este repo aqui continua sendo a fonte de verdade da DOCUMENTAÇÃO e do DESIGN** (`docs/` e `css/styles.css`); o outro é onde o código vive daqui para frente. Antes de mexer em código, confirme em qual dos dois.

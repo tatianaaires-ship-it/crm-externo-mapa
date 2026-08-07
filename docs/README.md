@@ -7,6 +7,12 @@ atualizado: "2026-07-23"
 
 # 🗺️ Documentação — Praso Maps (CRM Externo)
 
+> 🧊 **ESTA CÓPIA ESTÁ CONGELADA EM 07/08/2026 — a documentação viva mora em outro lugar.**
+>
+> Ela foi consolidada em [`praso-eng/tati-wfm-externo`](https://github.com/praso-eng/tati-wfm-externo), na pasta **`docs/produto/`**, levando os **47 commits de histórico** (`git subtree`, não cópia — `git blame` continua apontando o commit de origem). **Edite lá.** O que estiver escrito aqui vale até 07/08 e não recebe mais correção.
+>
+> O que sobrou neste repositório: o **protótipo em `js/`** e a **demo pública do GitHub Pages**.
+
 > **Você é uma IA ou dev chegando agora? Comece por aqui.** Este é o mapa da documentação:
 > diz **o que existe, onde ler, e em que ordem**. Cada doc de objeto aponta para os vizinhos
 > (`related:` no topo) — então você entra por qualquer porta e acha o resto.
